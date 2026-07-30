@@ -1,3 +1,17 @@
 spring:
   application:
     name: backend
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/isg_db}
+    username: ${SPRING_DATASOURCE_USERNAME:isg_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:isg_password}
+    driver-class-name: org.postgresql.Driver
+
+  flyway:
+    enabled: true
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false

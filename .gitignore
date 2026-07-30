@@ -20,6 +20,9 @@ env/
 ENV/
 __pycache__/
 *.pyc
+.pytest_cache/
+*.py[cod]
+**/__pycache__/
 
 # React / Node
 web/node_modules/
