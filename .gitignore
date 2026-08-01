@@ -17,6 +17,7 @@ backend/target/
 .venv/
 venv/
 env/
+
 ENV/
 __pycache__/
 *.pyc
