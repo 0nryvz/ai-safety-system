@@ -1,21 +1,21 @@
-import './App.css'
+import { useState } from 'react'
+import DashboardPage from './pages/DashboardPage'
+import LoginPage from './pages/LoginPage'
 
 function App() {
-  return (
-    <div className="app">
-      <header className="header">
-        <h1>AI Safety System</h1>
-        <p>Gerçek Zamanlı Güvenlik İzleme Paneli</p>
-      </header>
-
-      <main className="dashboard">
-        <section>
-          <h2>Dashboard</h2>
-          <p>Kamera ve ihlal durumları bu ekranda görüntülenecek.</p>
-        </section>
-      </main>
-    </div>
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    Boolean(sessionStorage.getItem('accessToken')),
   )
+
+  function handleLoginSuccess() {
+    setIsAuthenticated(true)
+  }
+
+  if (isAuthenticated) {
+    return <DashboardPage />
+  }
+
+  return <LoginPage onLoginSuccess={handleLoginSuccess} />
 }
 
 export default App
