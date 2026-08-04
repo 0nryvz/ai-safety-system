@@ -34,6 +34,19 @@ class InvalidTokenSessionValidator:
             reason="INVALID_SESSION_TOKEN",
         )
 
+class InactiveCameraSessionValidator:
+    async def validate_open_session(
+            self,
+            camera_id: str,
+            session_id: str,
+            session_token: str,
+    ) -> SessionValidationResult:
+        return SessionValidationResult(
+            is_valid=True,
+            camera_active=False,
+            reason="CAMERA_INACTIVE",
+        )
+
 def test_open_session_creates_new_session() -> None:
     session_manager = SessionManager()
 
@@ -210,3 +223,31 @@ def test_open_session_rejects_invalid_request_body() -> None:
         error["loc"] == ["body", "sessionId"]
         for error in validation_errors
     )
+
+def test_open_session_rejects_inactive_camera() -> None:
+    session_manager = SessionManager()
+
+    app.dependency_overrides[get_camera_session_validator] = (
+        lambda: InactiveCameraSessionValidator()
+    )
+    app.dependency_overrides[get_session_manager] = (
+        lambda: session_manager
+    )
+
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/v1/sessions/open",
+                json={
+                    "cameraId": "camera-1",
+                    "sessionId": "session-1",
+                    "sessionToken": "valid-token",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "CAMERA_INACTIVE",
+    }

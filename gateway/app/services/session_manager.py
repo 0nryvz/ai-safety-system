@@ -83,6 +83,20 @@ class SessionManager:
             session.register_frame()
             return session
 
+    async def register_dropped_frame(
+            self,
+            camera_id: str,
+            session_id: str,
+    ) -> CameraSessionContext:
+        async with self._lock:
+            session = self._get_owned_session(
+                camera_id=camera_id,
+                session_id=session_id,
+            )
+
+            session.register_dropped_frame()
+            return session
+
     async def close_session(
             self,
             camera_id: str,

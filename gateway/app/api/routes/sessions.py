@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from app.api.dependencies import (
     get_camera_session_lifecycle_notifier,
     get_camera_session_validator,
+    get_session_frame_queue_manager,
     get_session_manager,
 )
 from app.api.schemas.session import (
@@ -12,6 +13,13 @@ from app.api.schemas.session import (
     SessionResponse,
 )
 from app.domain.session import CameraSessionContext
+from app.services.session_frame_queue_manager import (
+    FrameQueueConflictError,
+    SessionFrameQueueManager,
+)
+from app.services.session_lifecycle_notifier import (
+    CameraSessionLifecycleNotifier,
+)
 from app.services.session_manager import (
     SessionConflictError,
     SessionManager,
@@ -19,9 +27,6 @@ from app.services.session_manager import (
 )
 from app.services.session_validator import CameraSessionValidator
 
-from app.services.session_lifecycle_notifier import (
-    CameraSessionLifecycleNotifier,
-)
 
 router = APIRouter(
     prefix="/api/v1/sessions",
@@ -57,6 +62,9 @@ async def open_session(
         ),
         session_lifecycle_notifier: CameraSessionLifecycleNotifier = Depends(
             get_camera_session_lifecycle_notifier,
+        ),
+        session_frame_queue_manager: SessionFrameQueueManager = Depends(
+            get_session_frame_queue_manager,
         ),
 ) -> OpenSessionResponse:
     validation_result = await session_validator.validate_open_session(
@@ -94,6 +102,23 @@ async def open_session(
             detail="SESSION_CONFLICT",
         ) from exc
 
+    try:
+        await session_frame_queue_manager.open_queue(
+            camera_id=session.camera_id,
+            session_id=session.session_id,
+        )
+    except FrameQueueConflictError as exc:
+        if created:
+            await session_manager.close_session(
+                camera_id=session.camera_id,
+                session_id=session.session_id,
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="SESSION_CONFLICT",
+        ) from exc
+
     if created:
         await session_lifecycle_notifier.notify_open(
             camera_id=session.camera_id,
@@ -111,6 +136,8 @@ async def open_session(
         created=created,
         session=_to_session_response(session),
     )
+
+
 @router.post(
     "/{session_id}/heartbeat",
     response_model=SessionResponse,
@@ -155,6 +182,7 @@ async def heartbeat_session(
 
     return _to_session_response(session)
 
+
 @router.post(
     "/{session_id}/close",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -171,6 +199,9 @@ async def close_session(
         session_lifecycle_notifier: CameraSessionLifecycleNotifier = Depends(
             get_camera_session_lifecycle_notifier,
         ),
+        session_frame_queue_manager: SessionFrameQueueManager = Depends(
+            get_session_frame_queue_manager,
+        ),
 ) -> Response:
     try:
         closed_session = await session_manager.close_session(
@@ -178,6 +209,17 @@ async def close_session(
             session_id=session_id,
         )
     except SessionConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="SESSION_CONFLICT",
+        ) from exc
+
+    try:
+        await session_frame_queue_manager.close_queue(
+            camera_id=request.camera_id,
+            session_id=session_id,
+        )
+    except FrameQueueConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="SESSION_CONFLICT",
@@ -204,6 +246,7 @@ async def close_session(
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,
     )
+
 
 def _to_session_response(
         session: CameraSessionContext,

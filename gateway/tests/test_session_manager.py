@@ -147,3 +147,20 @@ async def test_clear_closes_and_removes_all_sessions() -> None:
     assert first_session.status is SessionStatus.CLOSED
     assert second_session.status is SessionStatus.CLOSED
     assert await manager.active_session_count() == 0
+
+@pytest.mark.asyncio
+async def test_register_dropped_frame_updates_correct_session() -> None:
+    manager = SessionManager()
+
+    session, _ = await manager.open_session(
+        camera_id="camera-1",
+        session_id="session-1",
+    )
+
+    updated_session = await manager.register_dropped_frame(
+        camera_id="camera-1",
+        session_id="session-1",
+    )
+
+    assert updated_session is session
+    assert session.dropped_frame_count == 1
