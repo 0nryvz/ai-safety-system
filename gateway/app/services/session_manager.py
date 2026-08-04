@@ -87,12 +87,12 @@ class SessionManager:
             self,
             camera_id: str,
             session_id: str,
-    ) -> bool:
+    ) -> CameraSessionContext | None:
         async with self._lock:
             session = self._sessions.get(session_id)
 
             if session is None:
-                return False
+                return None
 
             if session.camera_id != camera_id:
                 raise SessionConflictError(
@@ -102,7 +102,7 @@ class SessionManager:
             session.close()
             del self._sessions[session_id]
 
-            return True
+            return session
 
     async def active_session_count(self) -> int:
         async with self._lock:

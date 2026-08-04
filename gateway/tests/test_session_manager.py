@@ -121,8 +121,8 @@ async def test_close_session_removes_it_and_is_idempotent() -> None:
         session_id="session-1",
     )
 
-    assert first_close_result is True
-    assert second_close_result is False
+    assert first_close_result is session
+    assert second_close_result is None
     assert session.status is SessionStatus.CLOSED
     assert session.closed_at is not None
     assert await manager.active_session_count() == 0

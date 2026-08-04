@@ -155,6 +155,55 @@ async def heartbeat_session(
 
     return _to_session_response(session)
 
+@router.post(
+    "/{session_id}/close",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "description": "Session belongs to another camera",
+        },
+    },
+)
+async def close_session(
+        session_id: str,
+        request: SessionActionRequest,
+        session_manager: SessionManager = Depends(get_session_manager),
+        session_lifecycle_notifier: CameraSessionLifecycleNotifier = Depends(
+            get_camera_session_lifecycle_notifier,
+        ),
+) -> Response:
+    try:
+        closed_session = await session_manager.close_session(
+            camera_id=request.camera_id,
+            session_id=session_id,
+        )
+    except SessionConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="SESSION_CONFLICT",
+        ) from exc
+
+    if closed_session is None:
+        return Response(
+            status_code=status.HTTP_204_NO_CONTENT,
+        )
+
+    closed_at = closed_session.closed_at
+
+    if closed_at is None:
+        raise RuntimeError(
+            "Closed session does not have a closed_at timestamp"
+        )
+
+    await session_lifecycle_notifier.notify_close(
+        camera_id=closed_session.camera_id,
+        session_id=closed_session.session_id,
+        closed_at=closed_at,
+    )
+
+    return Response(
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
 
 def _to_session_response(
         session: CameraSessionContext,
