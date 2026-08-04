@@ -23,6 +23,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtAuthenticationFilter jwtAuthFilter,
+            InternalApiKeyFilter internalApiKeyFilter, // YENİ EKLENDİ: Filtremizi parametre olarak inject ediyoruz
             AuthenticationProvider authenticationProvider) throws Exception {
 
         http
@@ -31,10 +32,10 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // 1. Public Endpointler
-                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/refresh").permitAll() // register endpointini de açık hale getirdim
+                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/refresh").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
-                        // 2. Internal Endpointler (Gateway/AI için - Sonraki adımlarda özel filtre ile korunacak)
+                        // 2. Internal Endpointler (Gateway/AI için - Artık bizim InternalApiKeyFilter ile korunuyor)
                         .requestMatchers("/internal/v1/**").permitAll()
 
                         // 3. Admin-Only Uç Noktalar
@@ -43,7 +44,9 @@ public class SecurityConfig {
                         // 4. Kalan tüm istekler JWT token gerektirir
                         .anyRequest().authenticated()
                 )
-                .authenticationProvider(authenticationProvider) // ApplicationConfig'den gelen provider'ı kullanır
+                .authenticationProvider(authenticationProvider)
+                // YENİ EKLENDİ: Internal API Key filtremizi zincire ekliyoruz
+                .addFilterBefore(internalApiKeyFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

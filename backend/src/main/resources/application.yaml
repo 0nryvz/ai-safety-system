@@ -26,3 +26,13 @@ application:
       expiration: 900000
       refresh-token:
         expiration: 604800000
+
+    # --- YENİ EKLENEN KISIM (ADIM 5 GEREKSİNİMLERİ) ---
+    camera:
+      # Mobil uygulamaya verilecek kısa ömürlü oturum belirteci (token) için bağımsız imza anahtarı
+      secret-key: ${CAMERA_SECRET_KEY:5A7134743777217A25432A462D4A614E645267556B58703273357638792F423F}
+      expiration: 300000 # 5 dakika (300.000 ms) - Kısa ömürlü olması replay riskini azaltır
+
+    internal:
+      # Gateway ve AI Worker'ın /internal/v1/ endpointlerine erişirken kullanacağı servis anahtarı
+      api-key: ${INTERNAL_API_KEY:dev-internal-service-key-12345}
