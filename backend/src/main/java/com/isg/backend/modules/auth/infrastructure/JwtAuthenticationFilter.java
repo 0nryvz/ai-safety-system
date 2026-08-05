@@ -1,6 +1,5 @@
 package com.isg.backend.modules.auth.infrastructure;
 
-import com.isg.backend.modules.auth.application.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

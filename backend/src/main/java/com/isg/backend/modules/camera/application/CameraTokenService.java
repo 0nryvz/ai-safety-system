@@ -1,15 +1,13 @@
 package com.isg.backend.modules.camera.application;
 
-// Kendi klasör yapına uygun olarak "config" kısmı çıkarıldı
 import com.isg.backend.modules.auth.infrastructure.CameraSecurityProperties;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Service;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
 import java.util.Date;
 
 @Service
@@ -24,11 +22,11 @@ public class CameraTokenService {
     // Mobil uygulama oturum açmak istediğinde bu metot çağrılacak
     public String generateCameraToken(String cameraId) {
         return Jwts.builder()
-                .setSubject(cameraId)
+                .subject(cameraId) // setSubject() yerine güncel kullanım
                 .claim("purpose", "CAMERA_SESSION")
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + properties.getExpiration()))
-                .signWith(getSignInKey(), SignatureAlgorithm.HS256)
+                .issuedAt(new Date(System.currentTimeMillis())) // setIssuedAt() yerine güncel kullanım
+                .expiration(new Date(System.currentTimeMillis() + properties.getExpiration())) // setExpiration() yerine güncel kullanım
+                .signWith(getSignInKey()) // Algoritmayı SecretKey üzerinden otomatik algılar
                 .compact();
     }
 
@@ -59,15 +57,15 @@ public class CameraTokenService {
 
     // DRY (Don't Repeat Yourself) prensibi: Parse işlemini tek bir merkeze topladık
     private Claims extractAllClaims(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(getSignInKey())
+        return Jwts.parser() // parserBuilder() yerine güncel parser()
+                .verifyWith(getSignInKey()) // setSigningKey() yerine güncel verifyWith()
                 .build()
-                .parseClaimsJws(token)
-                .getBody();
+                .parseSignedClaims(token) // parseClaimsJws() yerine güncel parseSignedClaims()
+                .getPayload(); // getBody() yerine güncel getPayload()
     }
 
-    // YAML'daki hex/base64 formatlı camera.secret-key'i Key objesine çeviriyoruz
-    private Key getSignInKey() {
+    // YAML'daki hex/base64 formatlı camera.secret-key'i SecretKey objesine çeviriyoruz
+    private SecretKey getSignInKey() {
         byte[] keyBytes = Decoders.BASE64.decode(properties.getSecretKey());
         return Keys.hmacShaKeyFor(keyBytes);
     }

@@ -137,9 +137,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private void checkIfLastAdmin() {
-        long adminCount = userRepository.findAll().stream()
-                .filter(u -> u.isActive() && isAdmin(u))
-                .count();
+        long adminCount = userRepository.countByActiveTrueAndRoles_Name("ADMIN");
 
         if (adminCount <= 1) {
             throw new IllegalStateException("Sistemdeki son aktif ADMIN hesabı pasife alınamaz!");
