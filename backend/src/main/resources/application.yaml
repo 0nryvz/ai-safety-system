@@ -10,8 +10,19 @@ spring:
 
   flyway:
     enabled: true
+    baseline-on-migrate: true
 
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+    show-sql: true
+
+application:
+  security:
+    jwt:
+      # Sunucudaki JWT_SECRET ortam değişkenini okur, bulamazsa default olarak verdiğimiz Hex anahtarı kullanır.
+      secret-key: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      expiration: 900000
+      refresh-token:
+        expiration: 604800000
