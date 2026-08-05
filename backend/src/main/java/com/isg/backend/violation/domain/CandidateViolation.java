@@ -5,6 +5,8 @@ import java.util.UUID;
 
 public record CandidateViolation(
 
+        UUID detectionId,
+
         UUID personId,
 
         UUID cameraId,
