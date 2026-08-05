@@ -3,7 +3,9 @@ import pytest
 from app.api.dependencies import (
     get_camera_session_lifecycle_notifier,
     get_camera_session_validator,
+    get_session_frame_ingestion_worker_coordinator,
     get_session_frame_queue_manager,
+    get_session_frame_ring_buffer_manager,
     get_session_manager,
 )
 from app.core.config import get_settings
@@ -16,6 +18,8 @@ CACHED_DEPENDENCIES = (
     get_camera_session_validator,
     get_camera_session_lifecycle_notifier,
     get_session_frame_queue_manager,
+    get_session_frame_ring_buffer_manager,
+    get_session_frame_ingestion_worker_coordinator,
 )
 
 

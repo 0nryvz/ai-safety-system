@@ -19,6 +19,22 @@ class Settings(BaseSettings):
         ge=1,
     )
 
+    ring_buffer_seconds: int = Field(
+        default=10,
+        ge=5,
+        le=10,
+    )
+
+    ring_buffer_max_frames: int = Field(
+        default=300,
+        ge=1,
+    )
+
+    ring_buffer_max_bytes: int = Field(
+        default=67_108_864,
+        ge=1,
+    )
+
     model_config = SettingsConfigDict(
         env_prefix="GATEWAY_",
         env_file=".env",
