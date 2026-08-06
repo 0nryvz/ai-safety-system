@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
-// java.util.UUID importunu sildik çünkü artık kullanmıyoruz
+import java.util.UUID; // Bu importu geri ekliyoruz
 
 @Data
 public class CameraCreateRequest {
@@ -15,5 +15,5 @@ public class CameraCreateRequest {
     private String code;
 
     @NotNull(message = "Kameranın atanacağı departman ID zorunludur")
-    private Long departmentId; // UUID yerine Long olarak değiştirdik
+    private UUID departmentId; // DÜZELTME: Long yerine kesinlikle UUID olmalı
 }

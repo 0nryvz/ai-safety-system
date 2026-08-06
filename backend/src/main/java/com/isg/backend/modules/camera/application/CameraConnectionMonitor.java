@@ -24,7 +24,7 @@ public class CameraConnectionMonitor {
 
     // Tolerans eşikleri (saniye cinsinden)
     // Gateway'den her 10 saniyede bir heartbeat geldiğini varsayarsak:
-    private static final int WEAK_THRESHOLD_SECONDS = 20;   // 20 saniye sinyal yoksa WEAK
+    private static final int DEGRADED_THRESHOLD_SECONDS = 20;   // 20 saniye sinyal yoksa DEGRADED
     private static final int OFFLINE_THRESHOLD_SECONDS = 45; // 45 saniye sinyal yoksa tamamen OFFLINE
 
     // Her 15 saniyede bir bu metot otomatik çalışır
@@ -51,18 +51,18 @@ public class CameraConnectionMonitor {
                 cameraRepository.save(camera);
 
                 session.setStatus(CameraSession.SessionStatus.TIMEOUT);
-                session.setClosedAt(now);
+                session.setEndedAt(now);
                 cameraSessionRepository.save(session);
 
                 log.warn("Kamera ID: {} zaman aşımına uğradı (OFFLINE). Oturum {} durumuna çekildi.",
                         camera.getId(), CameraSession.SessionStatus.TIMEOUT);
 
-            } else if (secondsSinceLastHeartbeat > WEAK_THRESHOLD_SECONDS) {
-                // Sadece WEAK eşiğini aştıysa ve durumu henüz WEAK değilse:
-                if (camera.getConnectionStatus() != Camera.ConnectionStatus.WEAK) {
-                    camera.setConnectionStatus(Camera.ConnectionStatus.WEAK);
+            } else if (secondsSinceLastHeartbeat > DEGRADED_THRESHOLD_SECONDS) {
+                // Sadece DEGRADED eşiğini aştıysa ve durumu henüz DEGRADED değilse:
+                if (camera.getConnectionStatus() != Camera.ConnectionStatus.DEGRADED) {
+                    camera.setConnectionStatus(Camera.ConnectionStatus.DEGRADED);
                     cameraRepository.save(camera);
-                    log.info("Kamera ID: {} bağlantısı zayıfladı (WEAK).", camera.getId());
+                    log.info("Kamera ID: {} bağlantısı zayıfladı (DEGRADED).", camera.getId());
                 }
             }
         }

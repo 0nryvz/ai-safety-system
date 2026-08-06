@@ -28,16 +28,21 @@ public class CameraSession {
     @Column(name = "session_id", nullable = false, unique = true)
     private String sessionId;
 
-    @Column(name = "device_info")
-    private String deviceInfo;
+    // "device_info" yerine DB şeması (V3) ile uyumlu olan "client_info" olarak güncellendi
+    @Column(name = "client_info")
+    private String clientInfo;
 
-    // Oturumun açıldığı zaman
-    @Column(name = "connected_at", nullable = false)
-    private Instant connectedAt;
+    // "connected_at" yerine DB ile uyumlu olan "started_at"
+    @Column(name = "started_at", nullable = false)
+    private Instant startedAt;
 
-    // Oturum kapandıysa kapanma zamanı
-    @Column(name = "closed_at")
-    private Instant closedAt;
+    // "closed_at" yerine DB ile uyumlu olan "ended_at"
+    @Column(name = "ended_at")
+    private Instant endedAt;
+
+    // Veritabanı ekibinin eklediği son frame (kalp atışı) zamanı
+    @Column(name = "last_frame_at")
+    private Instant lastFrameAt;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

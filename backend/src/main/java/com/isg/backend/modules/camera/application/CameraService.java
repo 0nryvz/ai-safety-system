@@ -26,7 +26,7 @@ public class CameraService {
 
     private final CameraRepository cameraRepository;
     private final DepartmentRepository departmentRepository;
-    private final CameraSessionRepository cameraSessionRepository; // <-- YENİ EKLENDİ (Oturumlar için)
+    private final CameraSessionRepository cameraSessionRepository;
     // private final AuthorizationService authorizationService;
 
     @Transactional
@@ -98,7 +98,7 @@ public class CameraService {
         cameraSessionRepository.findByCameraIdAndStatus(request.getCameraId(), CameraSession.SessionStatus.ACTIVE)
                 .ifPresent(oldSession -> {
                     oldSession.setStatus(CameraSession.SessionStatus.CLOSED);
-                    oldSession.setClosedAt(Instant.now());
+                    oldSession.setEndedAt(Instant.now());
                     cameraSessionRepository.save(oldSession);
                 });
 
@@ -106,15 +106,15 @@ public class CameraService {
         CameraSession session = CameraSession.builder()
                 .sessionId(request.getSessionId())
                 .camera(camera)
-                .deviceInfo(request.getDeviceInfo())
-                .connectedAt(now)
+                // DÜZELTME: Entity'deki değişikliğe uygun olarak clientInfo kullanıldı
+                .clientInfo(request.getDeviceInfo())
+                .startedAt(now)
                 .status(CameraSession.SessionStatus.ACTIVE)
                 .build();
 
         cameraSessionRepository.save(session);
 
         // Kamera ana tablosundaki bağlantı durumunu güncelle
-
         camera.setActiveSessionId(request.getSessionId());
         camera.setConnectionStatus(Camera.ConnectionStatus.ONLINE);
         camera.setLastSeenAt(now);
@@ -132,6 +132,9 @@ public class CameraService {
 
         Instant now = Instant.now();
 
+        session.setLastFrameAt(now);
+        cameraSessionRepository.save(session);
+
         // Kamera son görülme zamanını ve durumunu güncelle
         Camera camera = session.getCamera();
         camera.setLastSeenAt(now);
@@ -145,7 +148,7 @@ public class CameraService {
                 .orElseThrow(() -> new RuntimeException("Oturum bulunamadı!"));
 
         session.setStatus(CameraSession.SessionStatus.CLOSED);
-        session.setClosedAt(Instant.now());
+        session.setEndedAt(Instant.now());
         cameraSessionRepository.save(session);
 
         Camera camera = session.getCamera();

@@ -12,9 +12,9 @@ public class CameraResponse {
     private UUID id; // Kameranın kendi ID'si UUID olarak kalıyor
     private String name;
     private String code;
-    private Long departmentId; // SADECE BURASI DEĞİŞTİ: UUID yerine Long yaptık
+    private UUID departmentId; // DÜZELTME: Long yerine UUID yapıldı
     private boolean active;
-    private String connectionStatus; // ONLINE, WEAK, OFFLINE
+    private String connectionStatus; // ONLINE, DEGRADED, OFFLINE
     private Instant lastSeenAt;
     private String activeSessionId;
 }
