@@ -2,6 +2,8 @@ package com.isg.backend.violation.service;
 
 import com.isg.backend.violation.dto.DetectionRequest;
 import com.isg.backend.camera.service.CameraQueryService;
+import com.isg.backend.violation.mapper.DetectionMapper; // Mapper import eklendi
+import com.isg.backend.violation.domain.detection.DetectionFrame; // Domain nesnesi import eklendi
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -24,6 +26,13 @@ public class DetectionService {
 
     private final Set<UUID> processedEvents = ConcurrentHashMap.newKeySet();
     private final CameraQueryService cameraQueryService;
+    private final DetectionMapper detectionMapper; // 1. Mapper field'ı eklendi
+
+    // 2. Constructor güncellendi: Spring Boot buraya mapper'ı otomatik enjekte edecek
+    public DetectionService(CameraQueryService cameraQueryService, DetectionMapper detectionMapper) {
+        this.cameraQueryService = cameraQueryService;
+        this.detectionMapper = detectionMapper;
+    }
 
     public void process(DetectionRequest request) {
 
@@ -52,6 +61,9 @@ public class DetectionService {
                 request.detections().size()
         );
 
+        // 3. DTO'yu dış dünyadan soyutlanmış tertemiz Domain nesnesine çeviriyoruz
+        DetectionFrame frame = detectionMapper.toDomain(request);
+
         /*
          * Kamera/oturum doğrulama işlemi CameraQueryService'e devredilmiştir.
          * Mevcut uygulama, BE-2 servisi ile değiştirilecektir.
@@ -60,16 +72,13 @@ public class DetectionService {
         /*
          * TODO (BE-3)
          * AI label'ları iş kurallarına dönüştürülecek.
-         * CandidateViolation üretilecek.
+         * CandidateViolation üretilecek. (frame nesnesi kullanılacak)
          */
 
         /*
          * TODO (BE-3)
          * CandidateViolation zaman bazlı doğrulama motoruna gönderilecek.
          */
-    }
-    public DetectionService(CameraQueryService cameraQueryService) {
-        this.cameraQueryService = cameraQueryService;
     }
 
     private void validateTimestamp(Instant frameTimestamp) {
