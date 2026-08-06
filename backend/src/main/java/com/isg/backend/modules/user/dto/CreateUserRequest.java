@@ -5,7 +5,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 @Data
 public class CreateUserRequest {
@@ -20,7 +22,8 @@ public class CreateUserRequest {
     @NotBlank
     private String fullName;
 
-    private Long departmentId;
+    // DEĞİŞİKLİK: Tekil UUID yerine çoklu departman desteği için Set<UUID> yapıldı
+    private Set<UUID> departmentIds = new HashSet<>();
 
-    private Set<String> roleNames;
+    private Set<String> roleNames = new HashSet<>();
 }

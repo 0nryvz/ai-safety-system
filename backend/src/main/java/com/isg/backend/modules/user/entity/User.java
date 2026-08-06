@@ -57,10 +57,15 @@ public class User implements UserDetails {
     @Builder.Default
     private Long version = 0L;
 
-    // YENİ EKLENEN İLİŞKİ: Departman Bağlantısı
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "department_id")
-    private Department department;
+    // Proje dokümanlarına uygun olarak user_departments ara tablosu üzerinden çoklu departman ilişkisi
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "user_departments",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "department_id")
+    )
+    @Builder.Default
+    private Set<Department> departments = new HashSet<>();
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
