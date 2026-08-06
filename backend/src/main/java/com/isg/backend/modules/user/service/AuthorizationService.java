@@ -28,7 +28,7 @@ public class AuthorizationService {
      * Kullanıcının belirli bir departman verisine erişip erişemeyeceğini doğrular.
      * Görev kuralı: Admin tüm bölümlere erişir.
      */
-    public boolean canAccessDepartment(UUID userId, Long departmentId) {
+    public boolean canAccessDepartment(UUID userId, UUID departmentId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
 
@@ -44,18 +44,20 @@ public class AuthorizationService {
             return true;
         }
 
-        if (user.getDepartment() == null) {
+        if (user.getDepartments() == null || user.getDepartments().isEmpty()) {
             return false; // Departmanı olmayan normal/vardiya kullanıcısı erişemez
         }
 
-        return user.getDepartment().getId().equals(departmentId);
+        // Kullanıcının sahip olduğu departmanlar arasında hedef departmentId var mı kontrol et
+        return user.getDepartments().stream()
+                .anyMatch(dept -> dept.getId().equals(departmentId));
     }
 
     /**
      * Kullanıcının veri okuyabileceği departman ID'lerinin listesini döner.
      * Veritabanı sorgularında "WHERE department_id IN (...)" için kullanılır.
      */
-    public List<Long> accessibleDepartmentIds(UUID userId) {
+    public List<UUID> accessibleDepartmentIds(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
 
@@ -73,9 +75,11 @@ public class AuthorizationService {
                     .collect(Collectors.toList());
         }
 
-        if (user.getDepartment() != null) {
-            // Vardiya Sorumlusu veya İSG Uzmanı sadece atandığı departmanı görebilir
-            return List.of(user.getDepartment().getId());
+        if (user.getDepartments() != null && !user.getDepartments().isEmpty()) {
+            // Kullanıcının atandığı tüm departmanların ID'lerini liste olarak dön
+            return user.getDepartments().stream()
+                    .map(Department::getId)
+                    .collect(Collectors.toList());
         }
 
         return List.of();

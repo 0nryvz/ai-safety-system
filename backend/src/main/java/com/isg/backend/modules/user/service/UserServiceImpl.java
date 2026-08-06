@@ -14,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -35,11 +36,7 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("Bu email adresi zaten kullanımda.");
         }
 
-        Department department = null;
-        if (request.getDepartmentId() != null) {
-            department = departmentRepository.findById(request.getDepartmentId())
-                    .orElseThrow(() -> new IllegalArgumentException("Departman bulunamadı."));
-        }
+        Set<Department> departments = resolveDepartments(request.getDepartmentIds());
 
         Set<Role> roles = request.getRoleNames().stream()
                 .map(name -> roleRepository.findByName(name)
@@ -50,7 +47,7 @@ public class UserServiceImpl implements UserService {
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
-                .department(department)
+                .departments(departments)
                 .roles(roles)
                 .active(true)
                 .build();
@@ -76,12 +73,10 @@ public class UserServiceImpl implements UserService {
             user.setActive(request.getActive());
         }
 
-        if (request.getDepartmentId() != null) {
-            Department dept = departmentRepository.findById(request.getDepartmentId())
-                    .orElseThrow(() -> new IllegalArgumentException("Departman bulunamadı."));
-            user.setDepartment(dept);
-        } else {
-            user.setDepartment(null);
+        // Departman güncellemeleri
+        Set<Department> updatedDepartments = resolveDepartments(request.getDepartmentIds());
+        if (updatedDepartments != null) {
+            user.setDepartments(updatedDepartments);
         }
 
         if (request.getRoleNames() != null && !request.getRoleNames().isEmpty()) {
@@ -132,6 +127,17 @@ public class UserServiceImpl implements UserService {
 
     // --- Yardımcı Metotlar ---
 
+    private Set<Department> resolveDepartments(Set<UUID> departmentIds) {
+        Set<Department> departments = new HashSet<>();
+        if (departmentIds != null && !departmentIds.isEmpty()) {
+            departments = new HashSet<>(departmentRepository.findAllById(departmentIds));
+            if (departments.size() != departmentIds.size()) {
+                throw new IllegalArgumentException("Belirtilen departmanlardan biri veya birkaçı bulunamadı.");
+            }
+        }
+        return departments;
+    }
+
     private boolean isAdmin(User user) {
         return user.getRoles().stream().anyMatch(r -> r.getName().equals("ADMIN"));
     }
@@ -150,8 +156,8 @@ public class UserServiceImpl implements UserService {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .active(user.isActive())
-                .departmentId(user.getDepartment() != null ? user.getDepartment().getId() : null)
-                .departmentName(user.getDepartment() != null ? user.getDepartment().getName() : null)
+                .departmentIds(user.getDepartments().stream().map(Department::getId).collect(Collectors.toSet()))
+                .departmentNames(user.getDepartments().stream().map(Department::getName).collect(Collectors.toSet()))
                 .roles(user.getRoles().stream().map(Role::getName).collect(Collectors.toSet()))
                 .createdAt(user.getCreatedAt())
                 .build();
