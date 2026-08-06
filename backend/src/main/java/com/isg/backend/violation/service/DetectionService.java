@@ -53,6 +53,14 @@ public class DetectionService {
             );
         }
 
+        /*
+         * Önce DTO domain modeline dönüştürülür.
+         * Bilinmeyen label veya geçersiz domain bbox varsa event,
+         * duplicate belleğine kaydedilmez.
+         */
+        DetectionFrame frame =
+                detectionMapper.toDomain(request);
+
         if (!duplicateEventGuard.isFirstOccurrence(
                 request.eventId()
         )) {
@@ -61,9 +69,6 @@ public class DetectionService {
                     "Duplicate detection event."
             );
         }
-
-        DetectionFrame frame =
-                detectionMapper.toDomain(request);
 
         logger.info(
                 "Detection accepted. eventId={}, cameraId={}, detectionCount={}",
