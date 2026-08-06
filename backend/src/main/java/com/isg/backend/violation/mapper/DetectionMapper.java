@@ -1,36 +1,53 @@
 package com.isg.backend.violation.mapper;
 
-import com.isg.backend.violation.domain.detection.*;
-import com.isg.backend.violation.dto.BoundingBox;
+import com.isg.backend.violation.domain.detection.BoundingBox;
+import com.isg.backend.violation.domain.detection.DetectedObject;
+import com.isg.backend.violation.domain.detection.DetectionFrame;
+import com.isg.backend.violation.domain.detection.DetectionLabel;
 import com.isg.backend.violation.dto.DetectionItem;
 import com.isg.backend.violation.dto.DetectionRequest;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.Named;
-import org.mapstruct.ReportingPolicy;
+import org.springframework.stereotype.Component;
 
-@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)
-public interface DetectionMapper {
+import java.util.List;
 
-    DetectionFrame toDomain(DetectionRequest src);
+@Component
+public class DetectionMapper {
 
-    @Mapping(target = "label", source = "label", qualifiedByName = "toLabel")
-    @Mapping(target = "rawLabel", source = "label")
-    @Mapping(target = "boundingBox", source = "bbox")
-    DetectedObject toDomain(DetectionItem src);
+    public DetectionFrame toDomain(DetectionRequest request) {
+        List<DetectedObject> detections = request.detections()
+                .stream()
+                .map(this::toDomain)
+                .toList();
 
-    // BigDecimal → double
-    default com.isg.backend.violation.domain.detection.BoundingBox toDomain(BoundingBox dto) {
-        return new com.isg.backend.violation.domain.detection.BoundingBox(
-                dto.x().doubleValue(),
-                dto.y().doubleValue(),
-                dto.width().doubleValue(),
-                dto.height().doubleValue()
+        return new DetectionFrame(
+                request.eventId(),
+                request.cameraId(),
+                request.sessionId(),
+                request.frameTimestamp(),
+                request.modelVersion(),
+                request.inferenceMs(),
+                detections
         );
     }
 
-    @Named("toLabel")
-    default DetectionLabel toLabel(String raw) {
-        return DetectionLabel.fromRawValue(raw);
+    public DetectedObject toDomain(DetectionItem item) {
+        return new DetectedObject(
+                DetectionLabel.fromRawValue(item.label()),
+                item.label(),
+                item.confidence().doubleValue(),
+                toDomain(item.bbox()),
+                null
+        );
+    }
+
+    public BoundingBox toDomain(
+            com.isg.backend.violation.dto.BoundingBox bbox
+    ) {
+        return new BoundingBox(
+                bbox.x().doubleValue(),
+                bbox.y().doubleValue(),
+                bbox.width().doubleValue(),
+                bbox.height().doubleValue()
+        );
     }
 }

@@ -28,8 +28,6 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
-		<!-- MapStruct Sürümü: Sürümü tek yerde tutmak ve güncellemeyi kolaylaştırmak için eklendi -->
-		<mapstruct.version>1.6.3</mapstruct.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -110,12 +108,6 @@
 			<artifactId>spring-boot-starter-websocket-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<!-- Kodun derlenebilmesi için MapStruct API bağımlılığı eklendi -->
-		<dependency>
-			<groupId>org.mapstruct</groupId>
-			<artifactId>mapstruct</artifactId>
-			<version>${mapstruct.version}</version>
-		</dependency>
 	</dependencies>
 
 	<build>
@@ -163,12 +155,6 @@
 									<groupId>org.projectlombok</groupId>
 									<artifactId>lombok</artifactId>
 								</path>
-								<!-- Test derlemesi aşamasında da Lombok ile birlikte çalışması için eklendi -->
-								<path>
-									<groupId>org.mapstruct</groupId>
-									<artifactId>mapstruct-processor</artifactId>
-									<version>${mapstruct.version}</version>
-								</path>
 							</annotationProcessorPaths>
 						</configuration>
 					</execution>
@@ -176,5 +162,4 @@
 			</plugin>
 		</plugins>
 	</build>
-
 </project>

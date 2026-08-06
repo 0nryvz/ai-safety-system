@@ -18,6 +18,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,12 +49,12 @@ class DetectionServiceTest {
     }
 
     @Test
-    void validRequestIsMappedAndRegistered() {
+    void processesValidDetection() {
         DetectionRequest request =
-                validRequest(UUID.randomUUID());
+                validRequest(Instant.now());
 
         DetectionFrame frame =
-                mock(DetectionFrame.class);
+                domainFrame(request);
 
         when(cameraQueryService.isValid(
                 request.cameraId(),
@@ -63,14 +64,16 @@ class DetectionServiceTest {
         when(detectionMapper.toDomain(request))
                 .thenReturn(frame);
 
-        when(frame.detections())
-                .thenReturn(List.of());
-
         when(duplicateEventGuard.isFirstOccurrence(
                 request.eventId()
         )).thenReturn(true);
 
         detectionService.process(request);
+
+        verify(cameraQueryService).isValid(
+                request.cameraId(),
+                request.sessionId()
+        );
 
         verify(detectionMapper).toDomain(request);
 
@@ -81,36 +84,29 @@ class DetectionServiceTest {
     @Test
     void invalidCameraOrSessionReturns404() {
         DetectionRequest request =
-                validRequest(UUID.randomUUID());
+                validRequest(Instant.now());
 
         when(cameraQueryService.isValid(
                 request.cameraId(),
                 request.sessionId()
         )).thenReturn(false);
 
-        assertThatThrownBy(
-                () -> detectionService.process(request)
-        )
-                .isInstanceOf(
-                        ResponseStatusException.class
-                )
-                .satisfies(exception -> {
-                    ResponseStatusException statusException =
-                            (ResponseStatusException) exception;
+        assertStatus(
+                () -> detectionService.process(request),
+                404
+        );
 
-                    assertThat(
-                            statusException.getStatusCode().value()
-                    ).isEqualTo(404);
-                });
+        verify(detectionMapper, never())
+                .toDomain(request);
     }
 
     @Test
     void duplicateEventReturns409() {
         DetectionRequest request =
-                validRequest(UUID.randomUUID());
+                validRequest(Instant.now());
 
         DetectionFrame frame =
-                mock(DetectionFrame.class);
+                domainFrame(request);
 
         when(cameraQueryService.isValid(
                 request.cameraId(),
@@ -124,55 +120,55 @@ class DetectionServiceTest {
                 request.eventId()
         )).thenReturn(false);
 
-        assertThatThrownBy(
-                () -> detectionService.process(request)
-        )
-                .isInstanceOf(
-                        ResponseStatusException.class
-                )
-                .satisfies(exception -> {
-                    ResponseStatusException statusException =
-                            (ResponseStatusException) exception;
-
-                    assertThat(
-                            statusException.getStatusCode().value()
-                    ).isEqualTo(409);
-                });
+        assertStatus(
+                () -> detectionService.process(request),
+                409
+        );
     }
 
     @Test
     void futureTimestampReturns422() {
         DetectionRequest request =
-                requestWithTimestamp(
+                validRequest(
                         Instant.now().plusSeconds(30)
                 );
 
-        assertThatThrownBy(
-                () -> detectionService.process(request)
-        )
-                .isInstanceOf(
-                        ResponseStatusException.class
-                )
-                .satisfies(exception -> {
-                    ResponseStatusException statusException =
-                            (ResponseStatusException) exception;
+        assertStatus(
+                () -> detectionService.process(request),
+                422
+        );
 
-                    assertThat(
-                            statusException.getStatusCode().value()
-                    ).isEqualTo(422);
-                });
+        verify(cameraQueryService, never())
+                .isValid(
+                        request.cameraId(),
+                        request.sessionId()
+                );
     }
 
     @Test
     void oldTimestampReturns422() {
         DetectionRequest request =
-                requestWithTimestamp(
+                validRequest(
                         Instant.now().minusSeconds(180)
                 );
 
-        assertThatThrownBy(
-                () -> detectionService.process(request)
-        )
+        assertStatus(
+                () -> detectionService.process(request),
+                422
+        );
+
+        verify(cameraQueryService, never())
+                .isValid(
+                        request.cameraId(),
+                        request.sessionId()
+                );
+    }
+
+    private void assertStatus(
+            Runnable operation,
+            int expectedStatus
+    ) {
+        assertThatThrownBy(operation::run)
                 .isInstanceOf(
                         ResponseStatusException.class
                 )
@@ -181,35 +177,18 @@ class DetectionServiceTest {
                             (ResponseStatusException) exception;
 
                     assertThat(
-                            statusException.getStatusCode().value()
-                    ).isEqualTo(422);
+                            statusException
+                                    .getStatusCode()
+                                    .value()
+                    ).isEqualTo(expectedStatus);
                 });
     }
 
     private DetectionRequest validRequest(
-            UUID eventId
-    ) {
-        return request(
-                eventId,
-                Instant.now()
-        );
-    }
-
-    private DetectionRequest requestWithTimestamp(
-            Instant timestamp
-    ) {
-        return request(
-                UUID.randomUUID(),
-                timestamp
-        );
-    }
-
-    private DetectionRequest request(
-            UUID eventId,
             Instant timestamp
     ) {
         return new DetectionRequest(
-                eventId,
+                UUID.randomUUID(),
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 timestamp,
@@ -227,6 +206,20 @@ class DetectionServiceTest {
                                 )
                         )
                 )
+        );
+    }
+
+    private DetectionFrame domainFrame(
+            DetectionRequest request
+    ) {
+        return new DetectionFrame(
+                request.eventId(),
+                request.cameraId(),
+                request.sessionId(),
+                request.frameTimestamp(),
+                request.modelVersion(),
+                request.inferenceMs(),
+                List.of()
         );
     }
 }
