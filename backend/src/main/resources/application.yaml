@@ -39,3 +39,8 @@ application:
     internal:
       # Gateway ve AI Worker'ın /internal/v1/ endpointlerine erişirken kullanacağı servis anahtarı
       api-key: ${INTERNAL_API_KEY:dev-internal-service-key-12345}
+
+
+app:
+  seed:
+    enabled: true

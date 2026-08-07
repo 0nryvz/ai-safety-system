@@ -18,7 +18,7 @@ public class UserResponse {
     private UUID id;
     private String email;
     private String fullName;
-    private boolean active;4
+    private boolean active;
 
     // DEĞİŞİKLİK: Tekil alanlar yerine çoklu departman setleri eklendi
     @Builder.Default
