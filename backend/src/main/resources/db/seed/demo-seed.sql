@@ -12,9 +12,10 @@
 -- Tüm satırlar sabit UUID'ler ve ON CONFLICT DO NOTHING ile idempotenttir: uygulama
 -- kaç kez başlatılırsa başlatılsın veri çoğalmaz.
 --
--- Kullanıcı şifreleri buraya YAZILMAZ. DemoDataSeeder, aşağıdaki SEED_PLACEHOLDER
--- değerini uygulama başlarken BCrypt ile hash'lenmiş gerçek değerle değiştirir;
--- böylece kaynak kodda hiçbir şifre hash'i sabitlenmemiş olur.
+-- Demo kullanıcıları için ortak test şifresi kullanılır.
+-- Test şifresi: 123456
+-- BCrypt hash değeri kullanıcı kayıtlarında tutulur.
+
 -- =====================================================================================
 
 
@@ -25,12 +26,22 @@ INSERT INTO departments (id, code, name, description) VALUES
     ON CONFLICT (id) DO NOTHING;
 
 
--- --- Kullanıcılar -----------------------------------------------------------------
 INSERT INTO users (id, email, password_hash, full_name, active) VALUES
-                                                                    ('22222222-0000-4000-8000-000000000001', 'admin@isgvision.local',       'SEED_PLACEHOLDER', 'Sistem Yoneticisi', true),
-                                                                    ('22222222-0000-4000-8000-000000000002', 'isg.uzmani@isgvision.local',  'SEED_PLACEHOLDER', 'ISG Uzmani',        true),
-                                                                    ('22222222-0000-4000-8000-000000000003', 'vardiya@isgvision.local',     'SEED_PLACEHOLDER', 'Vardiya Sorumlusu', true),
-                                                                    ('22222222-0000-4000-8000-000000000004', 'pasif.kullanici@isgvision.local', 'SEED_PLACEHOLDER', 'Pasif Kullanici', false)
+                                                                    ('22222222-0000-4000-8000-000000000001', 'admin@isgvision.local',
+                                                                     '$2a$10$EcbUR3LcVTVHnn28dOmZ9.7rIqKb15POm4T/BR69AKc5YNCqRvHsi',
+                                                                     'Sistem Yoneticisi', true),
+
+                                                                    ('22222222-0000-4000-8000-000000000002', 'isg.uzmani@isgvision.local',
+                                                                     '$2a$10$EcbUR3LcVTVHnn28dOmZ9.7rIqKb15POm4T/BR69AKc5YNCqRvHsi',
+                                                                     'ISG Uzmani', true),
+
+                                                                    ('22222222-0000-4000-8000-000000000003', 'vardiya@isgvision.local',
+                                                                     '$2a$10$EcbUR3LcVTVHnn28dOmZ9.7rIqKb15POm4T/BR69AKc5YNCqRvHsi',
+                                                                     'Vardiya Sorumlusu', true),
+
+                                                                    ('22222222-0000-4000-8000-000000000004', 'pasif.kullanici@isgvision.local',
+                                                                     '$2a$10$EcbUR3LcVTVHnn28dOmZ9.7rIqKb15POm4T/BR69AKc5YNCqRvHsi',
+                                                                     'Pasif Kullanici', false)
     ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id)
