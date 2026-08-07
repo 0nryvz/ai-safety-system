@@ -2,12 +2,10 @@ package com.isg.backend.modules.auth.api;
 
 import com.isg.backend.modules.auth.api.dto.AuthResponse;
 import com.isg.backend.modules.auth.api.dto.LoginRequest;
-import com.isg.backend.modules.auth.api.dto.RegisterRequest;
 import com.isg.backend.modules.auth.api.dto.TokenRequest;
 import com.isg.backend.modules.auth.application.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,16 +16,8 @@ public class AuthController {
 
     private final AuthService authService;
 
-    @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-        // İş mantığını AuthService'e devredip gerçek JWT yanıtını dönüyoruz
-        AuthResponse response = authService.register(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        // Sahte (mock) veriler kaldırıldı, artık veritabanı ve Security kullanılıyor
         return ResponseEntity.ok(authService.login(request));
     }
 
