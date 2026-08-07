@@ -14,6 +14,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Deterministically associates PPE and welding detections with person detections.
+ *
+ * <p>The matcher expects all bounding boxes to use the same normalized coordinate
+ * system. Each associated detection is assigned to at most one person using the
+ * ratio of the detection bounding box area contained within the person's bounding
+ * box. An assignment is accepted only when that containment ratio is greater than
+ * or equal to the configured threshold.</p>
+ *
+ * <p>If multiple persons are eligible, the person with the highest containment
+ * ratio is selected. Ties are resolved deterministically by person order.</p>
+ */
+
 public class PersonPpeMatcher {
 
     private static final Set<DetectionLabel> PERSON_LABELS =
