@@ -54,6 +54,6 @@ public class CameraSession {
     private Instant createdAt;
 
     public enum SessionStatus {
-        ACTIVE, CLOSED, TIMEOUT
+        ACTIVE, CLOSED, TIMED_OUT
     }
 }

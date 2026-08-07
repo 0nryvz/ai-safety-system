@@ -45,17 +45,19 @@ public class CameraConnectionMonitor {
             long secondsSinceLastHeartbeat = ChronoUnit.SECONDS.between(lastSeen, now);
 
             if (secondsSinceLastHeartbeat > OFFLINE_THRESHOLD_SECONDS) {
-                // Eşiği tamamen aştıysa: Kamera bağlantısını kopar, oturumu TIMEOUT'a çek
+                // Eşiği tamamen aştıysa: Kamera bağlantısını kopar, oturumu TIMED_OUT'a çek
                 camera.setConnectionStatus(Camera.ConnectionStatus.OFFLINE);
                 camera.setActiveSessionId(null);
                 cameraRepository.save(camera);
 
-                session.setStatus(CameraSession.SessionStatus.TIMEOUT);
+                // DÜZELTİLEN KISIM: TIMEOUT yerine TIMED_OUT kullanıldı
+                session.setStatus(CameraSession.SessionStatus.TIMED_OUT);
                 session.setEndedAt(now);
                 cameraSessionRepository.save(session);
 
+                // DÜZELTİLEN KISIM: Log mesajındaki statü güncellendi
                 log.warn("Kamera ID: {} zaman aşımına uğradı (OFFLINE). Oturum {} durumuna çekildi.",
-                        camera.getId(), CameraSession.SessionStatus.TIMEOUT);
+                        camera.getId(), CameraSession.SessionStatus.TIMED_OUT);
 
             } else if (secondsSinceLastHeartbeat > DEGRADED_THRESHOLD_SECONDS) {
                 // Sadece DEGRADED eşiğini aştıysa ve durumu henüz DEGRADED değilse:
