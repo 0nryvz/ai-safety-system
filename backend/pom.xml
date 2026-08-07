@@ -73,7 +73,7 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- JWT Dependencies (Yeni Eklenen Bölüm) -->
+        <!-- JWT Dependencies -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
