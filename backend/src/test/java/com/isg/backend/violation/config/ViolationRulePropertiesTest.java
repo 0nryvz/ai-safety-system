@@ -1,8 +1,10 @@
 package com.isg.backend.violation.config;
 
 import com.isg.backend.violation.domain.ViolationType;
+import com.isg.backend.violation.domain.detection.DetectionLabel;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -54,6 +56,19 @@ class ViolationRulePropertiesTest {
     }
 
     @Test
+    void usesDefaultRequiredEquipmentForWelding() {
+        ViolationRuleProperties properties = new ViolationRuleProperties();
+
+        assertThat(properties.getRequiredEquipmentForWelding())
+                .containsExactly(
+                        DetectionLabel.WELDING_MASK,
+                        DetectionLabel.GLOVES,
+                        DetectionLabel.WELDING_APRON,
+                        DetectionLabel.WELDING_JACKET
+                );
+    }
+
+    @Test
     void allowsContainmentThresholdOverride() {
         ViolationRuleProperties properties = new ViolationRuleProperties();
 
@@ -77,6 +92,62 @@ class ViolationRulePropertiesTest {
                         ViolationType.MISSING_GLOVES
                 )
         ).isEqualTo(0.80);
+    }
+
+    @Test
+    void allowsRequiredEquipmentOverride() {
+        ViolationRuleProperties properties = new ViolationRuleProperties();
+
+        properties.setRequiredEquipmentForWelding(List.of(
+                DetectionLabel.WELDING_MASK,
+                DetectionLabel.GLOVES
+        ));
+
+        assertThat(properties.getRequiredEquipmentForWelding())
+                .containsExactly(
+                        DetectionLabel.WELDING_MASK,
+                        DetectionLabel.GLOVES
+                );
+    }
+
+    @Test
+    void copiesRequiredEquipmentListDefensively() {
+        ViolationRuleProperties properties = new ViolationRuleProperties();
+
+        List<DetectionLabel> requiredEquipment = new java.util.ArrayList<>(
+                List.of(
+                        DetectionLabel.WELDING_MASK,
+                        DetectionLabel.GLOVES
+                )
+        );
+
+        properties.setRequiredEquipmentForWelding(requiredEquipment);
+
+        requiredEquipment.clear();
+
+        assertThat(properties.getRequiredEquipmentForWelding())
+                .containsExactly(
+                        DetectionLabel.WELDING_MASK,
+                        DetectionLabel.GLOVES
+                );
+    }
+
+    @Test
+    void rejectsEmptyRequiredEquipmentList() {
+        ViolationRuleProperties properties = new ViolationRuleProperties();
+
+        assertThatThrownBy(() ->
+                properties.setRequiredEquipmentForWelding(List.of()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsNullRequiredEquipmentList() {
+        ViolationRuleProperties properties = new ViolationRuleProperties();
+
+        assertThatThrownBy(() ->
+                properties.setRequiredEquipmentForWelding(null))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

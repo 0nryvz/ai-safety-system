@@ -1,10 +1,12 @@
 package com.isg.backend.violation.config;
 
 import com.isg.backend.violation.domain.ViolationType;
+import com.isg.backend.violation.domain.detection.DetectionLabel;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -16,12 +18,19 @@ public class ViolationRuleProperties {
     private Map<ViolationType, Double> confidenceThresholds =
             defaultConfidenceThresholds();
 
+    private List<DetectionLabel> requiredEquipmentForWelding =
+            defaultRequiredEquipmentForWelding();
+
     public double getContainmentThreshold() {
         return containmentThreshold;
     }
 
     public void setContainmentThreshold(double containmentThreshold) {
-        validateThreshold(containmentThreshold, "containmentThreshold");
+        validateThreshold(
+                containmentThreshold,
+                "containmentThreshold"
+        );
+
         this.containmentThreshold = containmentThreshold;
     }
 
@@ -33,7 +42,8 @@ public class ViolationRuleProperties {
             Map<ViolationType, Double> confidenceThresholds
     ) {
         if (confidenceThresholds == null) {
-            this.confidenceThresholds = defaultConfidenceThresholds();
+            this.confidenceThresholds =
+                    defaultConfidenceThresholds();
             return;
         }
 
@@ -45,14 +55,18 @@ public class ViolationRuleProperties {
                     threshold,
                     "confidenceThresholds." + type
             );
+
             validated.put(type, threshold);
         });
 
         this.confidenceThresholds = validated;
     }
 
-    public double confidenceThresholdFor(ViolationType type) {
-        Double threshold = confidenceThresholds.get(type);
+    public double confidenceThresholdFor(
+            ViolationType type
+    ) {
+        Double threshold =
+                confidenceThresholds.get(type);
 
         if (threshold == null) {
             throw new IllegalArgumentException(
@@ -63,17 +77,67 @@ public class ViolationRuleProperties {
         return threshold;
     }
 
-    private static Map<ViolationType, Double> defaultConfidenceThresholds() {
+    public List<DetectionLabel> getRequiredEquipmentForWelding() {
+        return requiredEquipmentForWelding;
+    }
+
+    public void setRequiredEquipmentForWelding(
+            List<DetectionLabel> requiredEquipmentForWelding
+    ) {
+        if (requiredEquipmentForWelding == null
+                || requiredEquipmentForWelding.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "requiredEquipmentForWelding must not be empty"
+            );
+        }
+
+        this.requiredEquipmentForWelding =
+                List.copyOf(requiredEquipmentForWelding);
+    }
+
+    private static Map<ViolationType, Double>
+    defaultConfidenceThresholds() {
+
         EnumMap<ViolationType, Double> defaults =
                 new EnumMap<>(ViolationType.class);
 
-        defaults.put(ViolationType.MISSING_WELDING_MASK, 0.60);
-        defaults.put(ViolationType.MISSING_GLOVES, 0.60);
-        defaults.put(ViolationType.MISSING_WELDING_APRON, 0.60);
-        defaults.put(ViolationType.RESTRICTED_ZONE, 0.60);
-        defaults.put(ViolationType.UNPROTECTED_PERSON, 0.60);
+        defaults.put(
+                ViolationType.MISSING_WELDING_MASK,
+                0.60
+        );
+
+        defaults.put(
+                ViolationType.MISSING_GLOVES,
+                0.60
+        );
+
+        defaults.put(
+                ViolationType.MISSING_WELDING_APRON,
+                0.60
+        );
+
+        defaults.put(
+                ViolationType.RESTRICTED_ZONE,
+                0.60
+        );
+
+        defaults.put(
+                ViolationType.UNPROTECTED_PERSON,
+                0.60
+        );
 
         return defaults;
+    }
+
+    private static List<DetectionLabel>
+    defaultRequiredEquipmentForWelding() {
+
+        return List.of(
+                DetectionLabel.WELDING_MASK,
+                DetectionLabel.GLOVES,
+                DetectionLabel.WELDING_APRON,
+                DetectionLabel.WELDING_JACKET
+        );
     }
 
     private static void validateThreshold(
@@ -82,7 +146,8 @@ public class ViolationRuleProperties {
     ) {
         if (threshold < 0.0 || threshold > 1.0) {
             throw new IllegalArgumentException(
-                    fieldName + " must be between 0.0 and 1.0"
+                    fieldName
+                            + " must be between 0.0 and 1.0"
             );
         }
     }
