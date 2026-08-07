@@ -9,6 +9,8 @@ import com.isg.backend.modules.user.entity.User;
 import com.isg.backend.modules.user.infrastructure.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,20 +34,30 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.email(),
-                        request.password()
-                )
-        );
-
+        // 1. Önce kullanıcıyı e-posta ile veritabanından buluyoruz
         User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı"));
+                .orElseThrow(() -> new BadCredentialsException("Geçersiz e-posta veya şifre"));
 
+        // 2. Şifre kontrolünden ÖNCE hesabın aktif olup olmadığını denetliyoruz
         if (!user.isActive()) {
-            throw new RuntimeException("Hesabınız pasif duruma alınmıştır, giriş yapılamaz.");
+            throw new DisabledException("Hesabınız pasif duruma alınmıştır, giriş yapılamaz.");
         }
 
+        // 3. Kullanıcı aktifse şifre doğrulama adımını çalıştırıyoruz
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.email(),
+                            request.password()
+                    )
+            );
+        } catch (Exception e) {
+            System.err.println("AUTHENTICATION FAILED: " + e.getClass().getName() + " - " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+
+        // 4. Her şey yolundaysa Token'ları üretiyoruz
         String jwtToken = jwtService.generateToken(user);
         String plainRefreshToken = createAndSaveRefreshToken(user);
 
