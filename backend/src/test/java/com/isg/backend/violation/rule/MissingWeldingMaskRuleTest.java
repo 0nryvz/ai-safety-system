@@ -83,8 +83,8 @@ class MissingWeldingMaskRuleTest {
 
     private static DetectedObject person() {
         return new DetectedObject(
-                DetectionLabel.WELDER,
-                "welder",
+                DetectionLabel.PERSON,
+                "person",
                 0.95,
                 new BoundingBox(0.1, 0.1, 0.4, 0.8),
                 "worker-1"

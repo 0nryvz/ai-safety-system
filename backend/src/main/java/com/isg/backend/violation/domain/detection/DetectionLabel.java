@@ -6,17 +6,18 @@ import java.util.Arrays;
 
 public enum DetectionLabel {
 
+    PERSON("person"),
+
     WELDING_MASK("welding_mask"),
     WELDING_APRON("welding_apron"),
-    GLOVES("gloves"),
     WELDING_JACKET("welding_jacket"),
-    WELDING("welding"),
-    WELDER("welder"),
-
-    NON_WELDER("non_welder"),
+    GLOVES("gloves"),
 
     NON_GLOVES("non_gloves"),
-    NON_MASK("non_mask");
+    NON_MASK("non_mask"),
+    NON_JACKET("non_jacket"),
+
+    WELDING("welding");
 
     private final String[] rawValues;
 
@@ -31,7 +32,8 @@ public enum DetectionLabel {
 
         return Arrays.stream(values())
                 .filter(label -> Arrays.stream(label.rawValues)
-                        .anyMatch(value -> value.equalsIgnoreCase(rawValue.trim())))
+                        .anyMatch(value ->
+                                value.equalsIgnoreCase(rawValue.trim())))
                 .findFirst()
                 .orElseThrow(() ->
                         new UnsupportedDetectionLabelException(rawValue));

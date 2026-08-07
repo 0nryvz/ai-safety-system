@@ -28,7 +28,7 @@ class PersonPpeMatcherTest {
 
     @Test
     void assignsDetectionWhenItIsContainedByPerson() {
-        DetectedObject person = welder(
+        DetectedObject person = person(
                 new BoundingBox(0.1, 0.1, 0.4, 0.8),
                 "person-1"
         );
@@ -49,7 +49,7 @@ class PersonPpeMatcherTest {
 
     @Test
     void doesNotAssignDetectionWhenItIsOutsidePerson() {
-        DetectedObject person = welder(
+        DetectedObject person = person(
                 new BoundingBox(0.1, 0.1, 0.3, 0.7),
                 "person-1"
         );
@@ -70,12 +70,12 @@ class PersonPpeMatcherTest {
 
     @Test
     void assignsDetectionToOnlyBestMatchingPerson() {
-        DetectedObject firstPerson = welder(
+        DetectedObject firstPerson = person(
                 new BoundingBox(0.1, 0.1, 0.4, 0.8),
                 "person-1"
         );
 
-        DetectedObject secondPerson = welder(
+        DetectedObject secondPerson = person(
                 new BoundingBox(0.45, 0.1, 0.4, 0.8),
                 "person-2"
         );
@@ -103,7 +103,7 @@ class PersonPpeMatcherTest {
 
     @Test
     void doesNotAssignDetectionBelowContainmentThreshold() {
-        DetectedObject person = welder(
+        DetectedObject person = person(
                 new BoundingBox(0.1, 0.1, 0.3, 0.7),
                 "person-1"
         );
@@ -124,7 +124,7 @@ class PersonPpeMatcherTest {
 
     @Test
     void usesTrackIdAsPersonKeyWhenAvailable() {
-        DetectedObject person = welder(
+        DetectedObject person = person(
                 new BoundingBox(0.1, 0.1, 0.3, 0.7),
                 "worker-42"
         );
@@ -139,7 +139,7 @@ class PersonPpeMatcherTest {
 
     @Test
     void createsDeterministicFrameScopedPersonKeyWhenTrackIdIsMissing() {
-        DetectedObject person = welder(
+        DetectedObject person = person(
                 new BoundingBox(0.1, 0.1, 0.3, 0.7),
                 null
         );
@@ -153,11 +153,8 @@ class PersonPpeMatcherTest {
     }
 
     @Test
-    void treatsNonWelderAsPersonDetection() {
-        DetectedObject person = new DetectedObject(
-                DetectionLabel.NON_WELDER,
-                "non_welder",
-                0.93,
+    void treatsPersonLabelAsPersonDetection() {
+        DetectedObject person = person(
                 new BoundingBox(0.1, 0.1, 0.3, 0.7),
                 "person-1"
         );
@@ -170,7 +167,7 @@ class PersonPpeMatcherTest {
 
     @Test
     void assignsExplicitNegativeDetectionToPerson() {
-        DetectedObject person = welder(
+        DetectedObject person = person(
                 new BoundingBox(0.1, 0.1, 0.4, 0.8),
                 "person-1"
         );
@@ -189,13 +186,55 @@ class PersonPpeMatcherTest {
                 .isTrue();
     }
 
-    private static DetectedObject welder(
+    @Test
+    void assignsWeldingDetectionToPerson() {
+        DetectedObject person = person(
+                new BoundingBox(0.1, 0.1, 0.4, 0.8),
+                "person-1"
+        );
+
+        DetectedObject welding = detection(
+                DetectionLabel.WELDING,
+                new BoundingBox(0.2, 0.4, 0.1, 0.1)
+        );
+
+        List<PersonContext> contexts =
+                matcher.buildPersonContexts(frame(person, welding), 0.50);
+
+        assertThat(contexts).hasSize(1);
+        assertThat(contexts.get(0)
+                .hasDetection(DetectionLabel.WELDING))
+                .isTrue();
+    }
+
+    @Test
+    void assignsNonJacketDetectionToPerson() {
+        DetectedObject person = person(
+                new BoundingBox(0.1, 0.1, 0.4, 0.8),
+                "person-1"
+        );
+
+        DetectedObject nonJacket = detection(
+                DetectionLabel.NON_JACKET,
+                new BoundingBox(0.2, 0.3, 0.15, 0.3)
+        );
+
+        List<PersonContext> contexts =
+                matcher.buildPersonContexts(frame(person, nonJacket), 0.50);
+
+        assertThat(contexts).hasSize(1);
+        assertThat(contexts.get(0)
+                .hasDetection(DetectionLabel.NON_JACKET))
+                .isTrue();
+    }
+
+    private static DetectedObject person(
             BoundingBox boundingBox,
             String trackId
     ) {
         return new DetectedObject(
-                DetectionLabel.WELDER,
-                "welder",
+                DetectionLabel.PERSON,
+                "person",
                 0.95,
                 boundingBox,
                 trackId
