@@ -14,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet; // <-- EKSİK OLAN IMPORT EKLENDİ
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -147,13 +148,22 @@ public class UserServiceImpl implements UserService {
     }
 
     private UserResponse mapToResponse(User user) {
+        // DEĞİŞİKLİK: UUID yerine Long tipinde Set oluşturuldu
+        Set<Long> deptIds = new HashSet<>();
+        Set<String> deptNames = new HashSet<>();
+
+        if (user.getDepartment() != null) {
+            deptIds.add(user.getDepartment().getId());
+            deptNames.add(user.getDepartment().getName());
+        }
+
         return UserResponse.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .active(user.isActive())
-                .departmentId(user.getDepartment() != null ? user.getDepartment().getId() : null)
-                .departmentName(user.getDepartment() != null ? user.getDepartment().getName() : null)
+                .departmentIds(deptIds) // Set<Long> olarak eklendi
+                .departmentNames(deptNames)
                 .roles(user.getRoles().stream().map(Role::getName).collect(Collectors.toSet()))
                 .createdAt(user.getCreatedAt())
                 .build();
