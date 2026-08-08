@@ -8,10 +8,7 @@ interface ErrorBoundaryState {
   hasError: boolean
 }
 
-class ErrorBoundary extends Component<
-  ErrorBoundaryProps,
-  ErrorBoundaryState
-> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
   }
