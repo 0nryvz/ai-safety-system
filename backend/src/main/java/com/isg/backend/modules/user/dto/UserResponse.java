@@ -20,9 +20,8 @@ public class UserResponse {
     private String fullName;
     private boolean active;
 
-    // DEĞİŞİKLİK: Tekil alanlar yerine çoklu departman setleri eklendi
     @Builder.Default
-    private Set<UUID> departmentIds = new HashSet<>();
+    private Set<Long> departmentIds = new HashSet<>(); // UUID yerine Long yapıldı
 
     @Builder.Default
     private Set<String> departmentNames = new HashSet<>();
