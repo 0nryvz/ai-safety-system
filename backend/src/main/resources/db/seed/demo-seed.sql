@@ -105,11 +105,11 @@ INSERT INTO restricted_zones (id, camera_id, name, polygon) VALUES
     ON CONFLICT (id) DO NOTHING;
 
 -- --- Kamera oturumları ------------------------------------------------------------
-INSERT INTO camera_sessions (id, camera_id, status, started_at, ended_at, last_frame_at, client_info) VALUES
-                                                                                                          ('55555555-0000-4000-8000-000000000001', '33333333-0000-4000-8000-000000000001', 'ACTIVE',
-                                                                                                           now() - interval '35 minutes', NULL, now() - interval '10 seconds', 'Flutter demo / Android 14'),
-                                                                                                          ('55555555-0000-4000-8000-000000000002', '33333333-0000-4000-8000-000000000002', 'TIMED_OUT',
-                                                                                                           now() - interval '4 hours', now() - interval '2 hours', now() - interval '2 hours', 'Flutter demo / Android 13')
+INSERT INTO camera_sessions (id, session_id, camera_id, status, started_at, ended_at, last_frame_at, client_info) VALUES
+                                                                                                                      ('55555555-0000-4000-8000-000000000001', 'demo-session-001', '33333333-0000-4000-8000-000000000001', 'ACTIVE',
+                                                                                                                       now() - interval '35 minutes', NULL, now() - interval '10 seconds', 'Flutter demo / Android 14'),
+                                                                                                                      ('55555555-0000-4000-8000-000000000002', 'demo-session-002', '33333333-0000-4000-8000-000000000002', 'TIMED_OUT',
+                                                                                                                       now() - interval '4 hours', now() - interval '2 hours', now() - interval '2 hours', 'Flutter demo / Android 13')
     ON CONFLICT (id) DO NOTHING;
 
 
