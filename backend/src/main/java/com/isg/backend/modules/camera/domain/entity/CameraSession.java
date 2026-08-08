@@ -28,16 +28,14 @@ public class CameraSession {
     @Column(name = "session_id", nullable = false, unique = true)
     private String sessionId;
 
-    @Column(name = "device_info")
-    private String deviceInfo;
 
-    // Oturumun açıldığı zaman
-    @Column(name = "connected_at", nullable = false)
-    private Instant connectedAt;
+    // Oturumun açıldığı zaman (VERİTABANI İLE UYUMLU)
+    @Column(name = "started_at", nullable = false)
+    private Instant startedAt;
 
-    // Oturum kapandıysa kapanma zamanı
-    @Column(name = "closed_at")
-    private Instant closedAt;
+    // Oturum kapandıysa kapanma zamanı (VERİTABANI İLE UYUMLU)
+    @Column(name = "ended_at")
+    private Instant endedAt;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

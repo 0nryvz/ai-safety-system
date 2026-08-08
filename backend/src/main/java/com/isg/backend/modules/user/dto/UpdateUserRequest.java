@@ -4,13 +4,14 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.util.Set;
+import java.util.UUID;
 
 @Data
 public class UpdateUserRequest {
     @NotBlank
     private String fullName;
 
-    private Long departmentId;
+    private UUID departmentId;
 
     private Set<String> roleNames;
 

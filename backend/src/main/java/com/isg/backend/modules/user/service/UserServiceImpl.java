@@ -14,7 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashSet; // <-- EKSİK OLAN IMPORT EKLENDİ
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -47,14 +47,19 @@ public class UserServiceImpl implements UserService {
                         .orElseThrow(() -> new IllegalArgumentException("Rol bulunamadı: " + name)))
                 .collect(Collectors.toSet());
 
+        // Builder üzerinden .department() kaldırıldı
         User user = User.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
-                .department(department)
                 .roles(roles)
                 .active(true)
                 .build();
+
+        // Akıllı yardımcı metot (helper method) kullanılarak departman atanıyor
+        if (department != null) {
+            user.setDepartment(department);
+        }
 
         user = userRepository.save(user);
         return mapToResponse(user);
@@ -148,13 +153,10 @@ public class UserServiceImpl implements UserService {
     }
 
     private UserResponse mapToResponse(User user) {
-        // DEĞİŞİKLİK: UUID yerine Long tipinde Set oluşturuldu
-        Set<Long> deptIds = new HashSet<>();
-        Set<String> deptNames = new HashSet<>();
+        Set<UUID> deptIds = new HashSet<>(); // <-- Long yerine UUID yapıldı
 
         if (user.getDepartment() != null) {
             deptIds.add(user.getDepartment().getId());
-            deptNames.add(user.getDepartment().getName());
         }
 
         return UserResponse.builder()
@@ -162,8 +164,9 @@ public class UserServiceImpl implements UserService {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .active(user.isActive())
-                .departmentIds(deptIds) // Set<Long> olarak eklendi
-                .departmentNames(deptNames)
+                .departmentId(user.getDepartment() != null ? user.getDepartment().getId() : null)
+                .departmentName(user.getDepartment() != null ? user.getDepartment().getName() : null)
+                .departmentIds(deptIds)
                 .roles(user.getRoles().stream().map(Role::getName).collect(Collectors.toSet()))
                 .createdAt(user.getCreatedAt())
                 .build();

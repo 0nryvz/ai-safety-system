@@ -26,8 +26,7 @@ public class CameraService {
 
     private final CameraRepository cameraRepository;
     private final DepartmentRepository departmentRepository;
-    private final CameraSessionRepository cameraSessionRepository; // <-- YENİ EKLENDİ (Oturumlar için)
-    // private final AuthorizationService authorizationService;
+    private final CameraSessionRepository cameraSessionRepository;
 
     @Transactional
     public CameraResponse createCamera(CameraCreateRequest request) {
@@ -89,16 +88,14 @@ public class CameraService {
             throw new RuntimeException("Pasif kameralar için oturum açılamaz!");
         }
 
-        // Idempotency: Aynı sessionId ile tekrar istek gelirse mükerrer işlem yapma
         if (cameraSessionRepository.findBySessionId(request.getSessionId()).isPresent()) {
             return;
         }
 
-        // Varsa kameranın eski aktif oturumunu kapat ve CLOSED durumuna çek
         cameraSessionRepository.findByCameraIdAndStatus(request.getCameraId(), CameraSession.SessionStatus.ACTIVE)
                 .ifPresent(oldSession -> {
                     oldSession.setStatus(CameraSession.SessionStatus.CLOSED);
-                    oldSession.setClosedAt(Instant.now());
+                    oldSession.setEndedAt(Instant.now());
                     cameraSessionRepository.save(oldSession);
                 });
 
@@ -106,17 +103,14 @@ public class CameraService {
         CameraSession session = CameraSession.builder()
                 .sessionId(request.getSessionId())
                 .camera(camera)
-                .deviceInfo(request.getDeviceInfo())
-                .connectedAt(now)
+                .startedAt(now)
                 .status(CameraSession.SessionStatus.ACTIVE)
                 .build();
 
         cameraSessionRepository.save(session);
 
-        // Kamera ana tablosundaki bağlantı durumunu güncelle
-
-        camera.setActiveSessionId(request.getSessionId());
-        camera.setConnectionStatus(Camera.ConnectionStatus.ONLINE);
+        // Eski setConnectionStatus yerine yeni setStatus kullanıldı
+        camera.setStatus(Camera.Status.ONLINE);
         camera.setLastSeenAt(now);
         cameraRepository.save(camera);
     }
@@ -132,10 +126,10 @@ public class CameraService {
 
         Instant now = Instant.now();
 
-        // Kamera son görülme zamanını ve durumunu güncelle
         Camera camera = session.getCamera();
         camera.setLastSeenAt(now);
-        camera.setConnectionStatus(Camera.ConnectionStatus.ONLINE);
+        // Eski setConnectionStatus yerine yeni setStatus kullanıldı
+        camera.setStatus(Camera.Status.ONLINE);
         cameraRepository.save(camera);
     }
 
@@ -145,16 +139,15 @@ public class CameraService {
                 .orElseThrow(() -> new RuntimeException("Oturum bulunamadı!"));
 
         session.setStatus(CameraSession.SessionStatus.CLOSED);
-        session.setClosedAt(Instant.now());
+        session.setEndedAt(Instant.now());
         cameraSessionRepository.save(session);
 
         Camera camera = session.getCamera();
-        camera.setActiveSessionId(null);
-        camera.setConnectionStatus(Camera.ConnectionStatus.OFFLINE);
+        // Eski setConnectionStatus yerine yeni setStatus kullanıldı
+        camera.setStatus(Camera.Status.OFFLINE);
         cameraRepository.save(camera);
     }
 
-    // Entity -> DTO Dönüştürücü Metot
     private CameraResponse mapToResponse(Camera camera) {
         return CameraResponse.builder()
                 .id(camera.getId())
@@ -162,9 +155,9 @@ public class CameraService {
                 .code(camera.getCode())
                 .departmentId(camera.getDepartment().getId())
                 .active(camera.isActive())
-                .connectionStatus(camera.getConnectionStatus() != null ? camera.getConnectionStatus().name() : "OFFLINE")
+                // DTO'da halen "connectionStatus" adı kullanılıyor olabilir, bu yüzden builder metodu aynı kaldı, içine getStatus() verildi
+                .connectionStatus(camera.getStatus() != null ? camera.getStatus().name() : "OFFLINE")
                 .lastSeenAt(camera.getLastSeenAt())
-                .activeSessionId(camera.getActiveSessionId())
                 .build();
     }
 }
