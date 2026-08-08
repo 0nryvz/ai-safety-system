@@ -1,75 +1,57 @@
-# React + TypeScript + Vite
+# AI Safety System — Web Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React, TypeScript ve Vite ile geliştirilen gerçek zamanlı güvenlik izleme panelidir.
 
-Currently, two official plugins are available:
+## Gereksinimler
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js
+- npm
 
-## React Compiler
+## Kurulum
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Geliştirme
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm run dev
 ```
+
+## Doğrulama
+
+```bash
+npm run lint
+npm run build
+```
+
+## Kaynak Yapısı
+
+```text
+src/
+├── app/          # Uygulama seviyesindeki bileşenler
+├── components/   # Tekrar kullanılabilir arayüz bileşenleri
+├── pages/        # Sayfa bileşenleri
+├── App.tsx       # Oturum durumuna göre ana ekran seçimi
+└── main.tsx      # React uygulamasının başlangıç noktası
+```
+
+## Mevcut Uygulama Altyapısı
+
+- Responsive `AppShell`
+- Header, sidebar ve ana içerik alanı
+- Oturum durumuna göre giriş ve dashboard ekranları
+- Uygulama seviyesinde `ErrorBoundary`
+- Beklenmeyen render hataları için kullanıcı geri bildirimi
+
+## Kod Doğrulama
+
+Değişiklik göndermeden önce aşağıdaki kontroller çalıştırılmalıdır:
+
+```bash
+npm run lint
+npm run build
+```
+
+Feature sahipliği ve route sözleşmesi, frontend geliştiricileri tarafından ortak kararlaştırıldıktan sonra bu belgeye eklenecektir.
