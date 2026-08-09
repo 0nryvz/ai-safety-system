@@ -28,12 +28,15 @@ public class CameraSession {
     @Column(name = "session_id", nullable = false, unique = true)
     private String sessionId;
 
+    // Veritabanındaki client_info kolonu ile uyumlu alan
+    @Column(name = "client_info")
+    private String clientInfo;
 
-    // Oturumun açıldığı zaman (VERİTABANI İLE UYUMLU)
+    // Oturumun açıldığı zaman (VERİTABANI İLE UYUMLU - started_at)
     @Column(name = "started_at", nullable = false)
     private Instant startedAt;
 
-    // Oturum kapandıysa kapanma zamanı (VERİTABANI İLE UYUMLU)
+    // Oturum kapandıysa kapanma zamanı (VERİTABANI İLE UYUMLU - ended_at)
     @Column(name = "ended_at")
     private Instant endedAt;
 

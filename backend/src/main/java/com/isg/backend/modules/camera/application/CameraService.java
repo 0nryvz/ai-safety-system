@@ -103,13 +103,13 @@ public class CameraService {
         CameraSession session = CameraSession.builder()
                 .sessionId(request.getSessionId())
                 .camera(camera)
-                .startedAt(now)
+                .clientInfo(request.getDeviceInfo()) // API'den gelen deviceInfo, ortak DB alanı olan client_info'ya mapleniyor
+                .startedAt(now)                      // ortak DB alanı olan started_at ile uyumlu
                 .status(CameraSession.SessionStatus.ACTIVE)
                 .build();
 
         cameraSessionRepository.save(session);
 
-        // Eski setConnectionStatus yerine yeni setStatus kullanıldı
         camera.setStatus(Camera.Status.ONLINE);
         camera.setLastSeenAt(now);
         cameraRepository.save(camera);
@@ -128,7 +128,6 @@ public class CameraService {
 
         Camera camera = session.getCamera();
         camera.setLastSeenAt(now);
-        // Eski setConnectionStatus yerine yeni setStatus kullanıldı
         camera.setStatus(Camera.Status.ONLINE);
         cameraRepository.save(camera);
     }
@@ -139,11 +138,10 @@ public class CameraService {
                 .orElseThrow(() -> new RuntimeException("Oturum bulunamadı!"));
 
         session.setStatus(CameraSession.SessionStatus.CLOSED);
-        session.setEndedAt(Instant.now());
+        session.setEndedAt(Instant.now()); // ortak DB alanı ended_at ile uyumlu
         cameraSessionRepository.save(session);
 
         Camera camera = session.getCamera();
-        // Eski setConnectionStatus yerine yeni setStatus kullanıldı
         camera.setStatus(Camera.Status.OFFLINE);
         cameraRepository.save(camera);
     }
@@ -155,7 +153,6 @@ public class CameraService {
                 .code(camera.getCode())
                 .departmentId(camera.getDepartment().getId())
                 .active(camera.isActive())
-                // DTO'da halen "connectionStatus" adı kullanılıyor olabilir, bu yüzden builder metodu aynı kaldı, içine getStatus() verildi
                 .connectionStatus(camera.getStatus() != null ? camera.getStatus().name() : "OFFLINE")
                 .lastSeenAt(camera.getLastSeenAt())
                 .build();
