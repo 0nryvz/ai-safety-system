@@ -2,6 +2,7 @@ package com.isg.backend.violation.service;
 
 import com.isg.backend.modules.camera.api.dto.CameraResponse;
 import com.isg.backend.modules.camera.application.CameraService;
+import com.isg.backend.violation.application.event.ViolationStartedEvent;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
 import com.isg.backend.violation.domain.ViolationStatusKind;
@@ -10,6 +11,7 @@ import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationR
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationStatusHistoryRepository;
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
 import com.isg.backend.violation.infrastructure.persistence.ViolationStatusHistoryJpaEntity;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,11 +26,13 @@ public class ViolationLifecycleService {
     private final SpringDataViolationRepository violationRepository;
     private final SpringDataViolationStatusHistoryRepository statusHistoryRepository;
     private final CameraService cameraService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ViolationLifecycleService(
             SpringDataViolationRepository violationRepository,
             SpringDataViolationStatusHistoryRepository statusHistoryRepository,
-            CameraService cameraService
+            CameraService cameraService,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.violationRepository =
                 violationRepository;
@@ -38,6 +42,9 @@ public class ViolationLifecycleService {
 
         this.cameraService =
                 cameraService;
+
+        this.eventPublisher =
+                eventPublisher;
     }
 
     @Transactional
@@ -67,6 +74,9 @@ public class ViolationLifecycleService {
         }
 
         UUID violationId =
+                UUID.randomUUID();
+
+        UUID commandId =
                 UUID.randomUUID();
 
         Instant transitionTime =
@@ -109,6 +119,17 @@ public class ViolationLifecycleService {
 
         statusHistoryRepository.save(
                 history
+        );
+
+        eventPublisher.publishEvent(
+                new ViolationStartedEvent(
+                        commandId,
+                        violationId,
+                        confirmedViolation.cameraId(),
+                        confirmedViolation.sessionId(),
+                        confirmedViolation.violationType(),
+                        confirmedViolation.candidateStartedAt()
+                )
         );
 
         return savedViolation;

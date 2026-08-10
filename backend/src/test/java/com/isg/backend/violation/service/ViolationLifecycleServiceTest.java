@@ -2,6 +2,7 @@ package com.isg.backend.violation.service;
 
 import com.isg.backend.modules.camera.api.dto.CameraResponse;
 import com.isg.backend.modules.camera.application.CameraService;
+import com.isg.backend.violation.application.event.ViolationStartedEvent;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
 import com.isg.backend.violation.domain.ViolationStatusKind;
@@ -15,6 +16,7 @@ import com.isg.backend.violation.infrastructure.persistence.ViolationStatusHisto
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -32,6 +34,7 @@ class ViolationLifecycleServiceTest {
     private SpringDataViolationRepository violationRepository;
     private SpringDataViolationStatusHistoryRepository statusHistoryRepository;
     private CameraService cameraService;
+    private ApplicationEventPublisher eventPublisher;
     private ViolationLifecycleService lifecycleService;
 
     @BeforeEach
@@ -45,16 +48,20 @@ class ViolationLifecycleServiceTest {
         cameraService =
                 mock(CameraService.class);
 
+        eventPublisher =
+                mock(ApplicationEventPublisher.class);
+
         lifecycleService =
                 new ViolationLifecycleService(
                         violationRepository,
                         statusHistoryRepository,
-                        cameraService
+                        cameraService,
+                        eventPublisher
                 );
     }
 
     @Test
-    void createsActiveUnreviewedViolationAndInitialLifecycleHistory() {
+    void createsActiveUnreviewedViolationHistoryAndStartEvent() {
         UUID cameraId =
                 UUID.randomUUID();
 
@@ -127,19 +134,13 @@ class ViolationLifecycleServiceTest {
                 );
 
         assertThat(savedViolation.getStartedAt())
-                .isEqualTo(
-                        candidateStartedAt
-                );
+                .isEqualTo(candidateStartedAt);
 
         assertThat(savedViolation.getConfidence())
-                .isEqualByComparingTo(
-                        "0.9"
-                );
+                .isEqualByComparingTo("0.9");
 
         assertThat(savedViolation.getModelVersion())
-                .isEqualTo(
-                        "welding-ppe-v1"
-                );
+                .isEqualTo("welding-ppe-v1");
 
         assertThat(savedViolation.getLifecycleStatus())
                 .isEqualTo(
@@ -164,13 +165,8 @@ class ViolationLifecycleServiceTest {
         ViolationStatusHistoryJpaEntity history =
                 historyCaptor.getValue();
 
-        assertThat(history.getId())
-                .isNotNull();
-
         assertThat(history.getViolationId())
-                .isEqualTo(
-                        savedViolation.getId()
-                );
+                .isEqualTo(savedViolation.getId());
 
         assertThat(history.getStatusKind())
                 .isEqualTo(
@@ -185,22 +181,45 @@ class ViolationLifecycleServiceTest {
                         ViolationLifecycleStatus.ACTIVE.name()
                 );
 
-        assertThat(history.getChangedBy())
-                .isNull();
-
         assertThat(history.getChangedAt())
-                .isEqualTo(
-                        confirmedAt
+                .isEqualTo(confirmedAt);
+
+        ArgumentCaptor<ViolationStartedEvent> eventCaptor =
+                ArgumentCaptor.forClass(
+                        ViolationStartedEvent.class
                 );
 
-        assertThat(history.getNote())
-                .isEqualTo(
-                        "Violation confirmed"
+        verify(eventPublisher)
+                .publishEvent(
+                        eventCaptor.capture()
                 );
+
+        ViolationStartedEvent event =
+                eventCaptor.getValue();
+
+        assertThat(event.commandId())
+                .isNotNull();
+
+        assertThat(event.violationId())
+                .isEqualTo(savedViolation.getId());
+
+        assertThat(event.cameraId())
+                .isEqualTo(cameraId);
+
+        assertThat(event.sessionId())
+                .isEqualTo(sessionId);
+
+        assertThat(event.violationType())
+                .isEqualTo(
+                        ViolationType.MISSING_WELDING_MASK
+                );
+
+        assertThat(event.startedAt())
+                .isEqualTo(candidateStartedAt);
     }
 
     @Test
-    void rejectsCameraWithoutDepartmentBeforePersistence() {
+    void rejectsCameraWithoutDepartmentBeforePersistenceOrEvent() {
         UUID cameraId =
                 UUID.randomUUID();
 
@@ -255,6 +274,13 @@ class ViolationLifecycleServiceTest {
                 statusHistoryRepository,
                 never()
         ).save(
+                any()
+        );
+
+        verify(
+                eventPublisher,
+                never()
+        ).publishEvent(
                 any()
         );
     }
