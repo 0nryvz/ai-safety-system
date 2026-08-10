@@ -408,7 +408,7 @@ class ViolationLifecycleServiceTest {
                 Optional.of(violation)
         );
 
-        lifecycleService.markRecordingReady(
+        lifecycleService.recordingReady(
                 violationId,
                 readyAt
         );
@@ -481,7 +481,7 @@ class ViolationLifecycleServiceTest {
                 Optional.of(violation)
         );
 
-        lifecycleService.markRecordingError(
+        lifecycleService.recordingError(
                 violationId,
                 errorAt,
                 "UPLOAD_FAILED"
@@ -552,7 +552,7 @@ class ViolationLifecycleServiceTest {
                 Optional.of(violation)
         );
 
-        lifecycleService.markRecordingReady(
+        lifecycleService.recordingReady(
                 violationId,
                 Instant.parse(
                         "2026-08-10T20:00:07Z"
@@ -592,7 +592,7 @@ class ViolationLifecycleServiceTest {
         );
 
         assertThatThrownBy(
-                () -> lifecycleService.markRecordingReady(
+                () -> lifecycleService.recordingReady(
                         violationId,
                         Instant.parse(
                                 "2026-08-10T20:00:07Z"

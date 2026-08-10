@@ -4,6 +4,7 @@ import com.isg.backend.modules.camera.api.dto.CameraResponse;
 import com.isg.backend.modules.camera.application.CameraService;
 import com.isg.backend.violation.application.event.ViolationEndedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
+import com.isg.backend.violation.application.port.RecordingStatusCallbackPort;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
 import com.isg.backend.violation.domain.ViolationStatusKind;
@@ -22,7 +23,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 @Service
-public class ViolationLifecycleService {
+public class ViolationLifecycleService
+        implements RecordingStatusCallbackPort {
 
     private final SpringDataViolationRepository violationRepository;
     private final SpringDataViolationStatusHistoryRepository statusHistoryRepository;
@@ -169,8 +171,9 @@ public class ViolationLifecycleService {
         );
     }
 
+    @Override
     @Transactional
-    public void markRecordingReady(
+    public void recordingReady(
             UUID violationId,
             Instant changedAt
     ) {
@@ -223,8 +226,9 @@ public class ViolationLifecycleService {
         );
     }
 
+    @Override
     @Transactional
-    public void markRecordingError(
+    public void recordingError(
             UUID violationId,
             Instant changedAt,
             String errorCode
