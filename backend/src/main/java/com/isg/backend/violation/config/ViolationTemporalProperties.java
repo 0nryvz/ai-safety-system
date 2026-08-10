@@ -15,6 +15,9 @@ public class ViolationTemporalProperties {
     private Duration frameGapTolerance =
             Duration.ofMillis(750);
 
+    private Duration cooldownDuration =
+            Duration.ofSeconds(10);
+
     public Duration getConfirmationDuration() {
         return confirmationDuration;
     }
@@ -45,6 +48,22 @@ public class ViolationTemporalProperties {
 
         this.frameGapTolerance =
                 frameGapTolerance;
+    }
+
+    public Duration getCooldownDuration() {
+        return cooldownDuration;
+    }
+
+    public void setCooldownDuration(
+            Duration cooldownDuration
+    ) {
+        validatePositive(
+                cooldownDuration,
+                "cooldownDuration"
+        );
+
+        this.cooldownDuration =
+                cooldownDuration;
     }
 
     private static void validatePositive(
