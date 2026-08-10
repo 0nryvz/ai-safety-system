@@ -1,7 +1,7 @@
 package com.isg.backend.violation.application.event;
 
-import com.isg.backend.violation.application.port.RecordingCommandPort;
 import com.isg.backend.violation.domain.ViolationType;
+import com.isg.backend.violation.service.RecordingEventDeliveryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -17,62 +17,47 @@ import static org.mockito.Mockito.verify;
 class ViolationRecordingEventListenerTest {
 
     @Test
-    void forwardsStartedEventToRecordingCommandPort() {
-        RecordingCommandPort recordingCommandPort =
-                mock(RecordingCommandPort.class);
+    void forwardsStartedEventToDeliveryService() {
+        RecordingEventDeliveryService deliveryService =
+                mock(RecordingEventDeliveryService.class);
 
         ViolationRecordingEventListener listener =
                 new ViolationRecordingEventListener(
-                        recordingCommandPort
+                        deliveryService
                 );
 
         ViolationStartedEvent event =
-                new ViolationStartedEvent(
-                        UUID.randomUUID(),
-                        UUID.randomUUID(),
-                        UUID.randomUUID(),
-                        UUID.randomUUID(),
-                        ViolationType.MISSING_WELDING_MASK,
-                        Instant.parse(
-                                "2026-08-10T20:00:00Z"
-                        )
-                );
+                startedEvent();
 
         listener.onViolationStarted(
                 event
         );
 
-        verify(recordingCommandPort)
-                .startRecording(
+        verify(deliveryService)
+                .deliverStart(
                         event
                 );
     }
 
     @Test
-    void forwardsEndedEventToRecordingCommandPort() {
-        RecordingCommandPort recordingCommandPort =
-                mock(RecordingCommandPort.class);
+    void forwardsEndedEventToDeliveryService() {
+        RecordingEventDeliveryService deliveryService =
+                mock(RecordingEventDeliveryService.class);
 
         ViolationRecordingEventListener listener =
                 new ViolationRecordingEventListener(
-                        recordingCommandPort
+                        deliveryService
                 );
 
         ViolationEndedEvent event =
-                new ViolationEndedEvent(
-                        UUID.randomUUID(),
-                        UUID.randomUUID(),
-                        Instant.parse(
-                                "2026-08-10T20:00:05Z"
-                        )
-                );
+                endedEvent();
 
         listener.onViolationEnded(
                 event
         );
 
-        verify(recordingCommandPort)
-                .stopRecording(
+        verify(deliveryService)
+                .deliverStop(
                         event
                 );
     }
@@ -121,5 +106,28 @@ class ViolationRecordingEventListenerTest {
                 .isEqualTo(
                         TransactionPhase.AFTER_COMMIT
                 );
+    }
+
+    private ViolationStartedEvent startedEvent() {
+        return new ViolationStartedEvent(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                ViolationType.MISSING_WELDING_MASK,
+                Instant.parse(
+                        "2026-08-10T20:00:00Z"
+                )
+        );
+    }
+
+    private ViolationEndedEvent endedEvent() {
+        return new ViolationEndedEvent(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                Instant.parse(
+                        "2026-08-10T20:00:05Z"
+                )
+        );
     }
 }

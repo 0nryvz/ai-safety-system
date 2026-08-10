@@ -1,6 +1,7 @@
 package com.isg.backend.violation.application.event;
 
 import com.isg.backend.violation.application.port.RecordingCommandPort;
+import com.isg.backend.violation.service.RecordingEventDeliveryService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -10,13 +11,13 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @ConditionalOnBean(RecordingCommandPort.class)
 public class ViolationRecordingEventListener {
 
-    private final RecordingCommandPort recordingCommandPort;
+    private final RecordingEventDeliveryService deliveryService;
 
     public ViolationRecordingEventListener(
-            RecordingCommandPort recordingCommandPort
+            RecordingEventDeliveryService deliveryService
     ) {
-        this.recordingCommandPort =
-                recordingCommandPort;
+        this.deliveryService =
+                deliveryService;
     }
 
     @TransactionalEventListener(
@@ -25,7 +26,7 @@ public class ViolationRecordingEventListener {
     public void onViolationStarted(
             ViolationStartedEvent event
     ) {
-        recordingCommandPort.startRecording(
+        deliveryService.deliverStart(
                 event
         );
     }
@@ -36,7 +37,7 @@ public class ViolationRecordingEventListener {
     public void onViolationEnded(
             ViolationEndedEvent event
     ) {
-        recordingCommandPort.stopRecording(
+        deliveryService.deliverStop(
                 event
         );
     }
