@@ -34,13 +34,15 @@ public class DetectionService {
     private final DuplicateEventGuard duplicateEventGuard;
     private final CandidateViolationEvaluator candidateViolationEvaluator;
     private final TemporalConfirmationService temporalConfirmationService;
+    private final ViolationLifecycleService violationLifecycleService;
 
     public DetectionService(
             CameraQueryService cameraQueryService,
             DetectionMapper detectionMapper,
             DuplicateEventGuard duplicateEventGuard,
             CandidateViolationEvaluator candidateViolationEvaluator,
-            TemporalConfirmationService temporalConfirmationService
+            TemporalConfirmationService temporalConfirmationService,
+            ViolationLifecycleService violationLifecycleService
     ) {
         this.cameraQueryService =
                 cameraQueryService;
@@ -56,6 +58,9 @@ public class DetectionService {
 
         this.temporalConfirmationService =
                 temporalConfirmationService;
+
+        this.violationLifecycleService =
+                violationLifecycleService;
     }
 
     public void process(
@@ -104,6 +109,13 @@ public class DetectionService {
                         candidates
                 );
 
+        for (ConfirmedViolation confirmation : confirmations) {
+            violationLifecycleService.startViolation(
+                    confirmation,
+                    frame.modelVersion()
+            );
+        }
+
         logger.info(
                 "Detection accepted. eventId={}, cameraId={}, detectionCount={}, candidateCount={}, confirmationCount={}",
                 request.eventId(),
@@ -112,14 +124,6 @@ public class DetectionService {
                 candidates.size(),
                 confirmations.size()
         );
-
-        /*
-         * ADIM 3 ends with temporal confirmation.
-         *
-         * Persisting a confirmed violation and publishing recording
-         * start/stop events belong to ADIM 4. ConfirmedViolation is
-         * intentionally not persisted here.
-         */
     }
 
     private void validateTimestamp(

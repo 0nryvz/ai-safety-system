@@ -33,6 +33,7 @@ class DetectionServiceTest {
     private DuplicateEventGuard duplicateEventGuard;
     private CandidateViolationEvaluator candidateViolationEvaluator;
     private TemporalConfirmationService temporalConfirmationService;
+    private ViolationLifecycleService violationLifecycleService;
     private DetectionService detectionService;
 
     @BeforeEach
@@ -52,13 +53,17 @@ class DetectionServiceTest {
         temporalConfirmationService =
                 mock(TemporalConfirmationService.class);
 
+        violationLifecycleService =
+                mock(ViolationLifecycleService.class);
+
         detectionService =
                 new DetectionService(
                         cameraQueryService,
                         detectionMapper,
                         duplicateEventGuard,
                         candidateViolationEvaluator,
-                        temporalConfirmationService
+                        temporalConfirmationService,
+                        violationLifecycleService
                 );
     }
 
@@ -125,6 +130,14 @@ class DetectionServiceTest {
                         frame.frameTimestamp(),
                         List.of(candidate)
                 );
+
+        verify(
+                violationLifecycleService,
+                never()
+        ).startViolation(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString()
+        );
     }
 
     @Test
@@ -174,10 +187,18 @@ class DetectionServiceTest {
                         frame.frameTimestamp(),
                         List.of()
                 );
+
+        verify(
+                violationLifecycleService,
+                never()
+        ).startViolation(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString()
+        );
     }
 
     @Test
-    void acceptsConfirmedTemporalResultWithoutPersistingInStepThree() {
+    void persistsConfirmedTemporalResultThroughLifecycleService() {
         DetectionRequest request =
                 validRequest(
                         Instant.now()
@@ -226,6 +247,12 @@ class DetectionServiceTest {
                         frame.frameTimestamp(),
                         List.of(candidate)
                 );
+
+        verify(violationLifecycleService)
+                .startViolation(
+                        confirmation,
+                        frame.modelVersion()
+                );
     }
 
     @Test
@@ -261,6 +288,14 @@ class DetectionServiceTest {
         ).processFrame(
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.anyList()
+        );
+
+        verify(
+                violationLifecycleService,
+                never()
+        ).startViolation(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString()
         );
     }
 
@@ -305,6 +340,14 @@ class DetectionServiceTest {
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.anyList()
         );
+
+        verify(
+                violationLifecycleService,
+                never()
+        ).startViolation(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString()
+        );
     }
 
     @Test
@@ -332,6 +375,14 @@ class DetectionServiceTest {
                 .evaluate(
                         org.mockito.ArgumentMatchers.any()
                 );
+
+        verify(
+                violationLifecycleService,
+                never()
+        ).startViolation(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString()
+        );
     }
 
     @Test
@@ -359,6 +410,14 @@ class DetectionServiceTest {
                 .evaluate(
                         org.mockito.ArgumentMatchers.any()
                 );
+
+        verify(
+                violationLifecycleService,
+                never()
+        ).startViolation(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString()
+        );
     }
 
     private void assertStatus(
