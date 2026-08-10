@@ -1,5 +1,4 @@
 package com.isg.backend.modules.user.service;
-
 import com.isg.backend.modules.user.dto.CreateUserRequest;
 import com.isg.backend.modules.user.dto.UpdateUserRequest;
 import com.isg.backend.modules.user.dto.UserResponse;
@@ -150,11 +149,9 @@ public class UserServiceImpl implements UserService {
     private UserResponse mapToResponse(User user) {
         // DEĞİŞİKLİK: UUID yerine Long tipinde Set oluşturuldu
         Set<Long> deptIds = new HashSet<>();
-        Set<String> deptNames = new HashSet<>();
 
         if (user.getDepartment() != null) {
             deptIds.add(user.getDepartment().getId());
-            deptNames.add(user.getDepartment().getName());
         }
 
         return UserResponse.builder()
@@ -163,7 +160,6 @@ public class UserServiceImpl implements UserService {
                 .fullName(user.getFullName())
                 .active(user.isActive())
                 .departmentIds(deptIds) // Set<Long> olarak eklendi
-                .departmentNames(deptNames)
                 .roles(user.getRoles().stream().map(Role::getName).collect(Collectors.toSet()))
                 .createdAt(user.getCreatedAt())
                 .build();
