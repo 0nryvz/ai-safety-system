@@ -16,6 +16,12 @@ from app.services.session_validator import CameraSessionValidator
 from app.services.session_frame_queue_manager import (
     SessionFrameQueueManager,
 )
+from app.services.session_frame_ingestion_worker import (
+    SessionFrameIngestionWorkerCoordinator,
+)
+from app.services.session_frame_ring_buffer_manager import (
+    SessionFrameRingBufferManager,
+)
 
 @lru_cache
 def get_session_manager() -> SessionManager:
@@ -43,3 +49,21 @@ def get_session_frame_queue_manager() -> SessionFrameQueueManager:
     return SessionFrameQueueManager(
         max_frames=settings.frame_queue_max_frames,
     )
+
+
+@lru_cache
+def get_session_frame_ring_buffer_manager(
+) -> SessionFrameRingBufferManager:
+    settings = get_settings()
+
+    return SessionFrameRingBufferManager(
+        buffer_seconds=settings.ring_buffer_seconds,
+        max_frames=settings.ring_buffer_max_frames,
+        max_bytes=settings.ring_buffer_max_bytes,
+    )
+
+
+@lru_cache
+def get_session_frame_ingestion_worker_coordinator(
+) -> SessionFrameIngestionWorkerCoordinator:
+    return SessionFrameIngestionWorkerCoordinator()
