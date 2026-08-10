@@ -106,20 +106,12 @@ public class ViolationLifecycleService {
                         violation
                 );
 
-        ViolationStatusHistoryJpaEntity history =
-                new ViolationStatusHistoryJpaEntity(
-                        UUID.randomUUID(),
-                        violationId,
-                        ViolationStatusKind.LIFECYCLE,
-                        null,
-                        ViolationLifecycleStatus.ACTIVE.name(),
-                        null,
-                        transitionTime,
-                        "Violation confirmed"
-                );
-
-        statusHistoryRepository.save(
-                history
+        saveLifecycleHistory(
+                violationId,
+                null,
+                ViolationLifecycleStatus.ACTIVE,
+                transitionTime,
+                "Violation confirmed"
         );
 
         eventPublisher.publishEvent(
@@ -152,19 +144,10 @@ public class ViolationLifecycleService {
         );
 
         ViolationJpaEntity violation =
-                violationRepository.findById(
+                findViolation(
                         violationId
-                ).orElseThrow(
-                        () -> new IllegalStateException(
-                                "Active violation not found: "
-                                        + violationId
-                        )
                 );
 
-        /*
-         * Idempotency guard:
-         * the same temporal end must never produce another stop event.
-         */
         if (violation.getEndedAt() != null) {
             return;
         }
@@ -182,6 +165,167 @@ public class ViolationLifecycleService {
                         UUID.randomUUID(),
                         violationId,
                         endedAt
+                )
+        );
+    }
+
+    @Transactional
+    public void markRecordingReady(
+            UUID violationId,
+            Instant changedAt
+    ) {
+        Objects.requireNonNull(
+                violationId,
+                "violationId must not be null"
+        );
+
+        Objects.requireNonNull(
+                changedAt,
+                "changedAt must not be null"
+        );
+
+        ViolationJpaEntity violation =
+                findViolation(
+                        violationId
+                );
+
+        requireEnded(
+                violation
+        );
+
+        ViolationLifecycleStatus currentStatus =
+                violation.getLifecycleStatus();
+
+        if (currentStatus == ViolationLifecycleStatus.COMPLETED) {
+            return;
+        }
+
+        if (currentStatus == ViolationLifecycleStatus.ERROR) {
+            throw new IllegalStateException(
+                    "ERROR violation cannot be completed without retry."
+            );
+        }
+
+        violation.changeLifecycleStatus(
+                ViolationLifecycleStatus.COMPLETED
+        );
+
+        violationRepository.save(
+                violation
+        );
+
+        saveLifecycleHistory(
+                violationId,
+                currentStatus,
+                ViolationLifecycleStatus.COMPLETED,
+                changedAt,
+                "Recording ready"
+        );
+    }
+
+    @Transactional
+    public void markRecordingError(
+            UUID violationId,
+            Instant changedAt,
+            String errorCode
+    ) {
+        Objects.requireNonNull(
+                violationId,
+                "violationId must not be null"
+        );
+
+        Objects.requireNonNull(
+                changedAt,
+                "changedAt must not be null"
+        );
+
+        if (errorCode == null || errorCode.isBlank()) {
+            throw new IllegalArgumentException(
+                    "errorCode must not be blank"
+            );
+        }
+
+        ViolationJpaEntity violation =
+                findViolation(
+                        violationId
+                );
+
+        requireEnded(
+                violation
+        );
+
+        ViolationLifecycleStatus currentStatus =
+                violation.getLifecycleStatus();
+
+        if (currentStatus == ViolationLifecycleStatus.ERROR) {
+            return;
+        }
+
+        if (currentStatus == ViolationLifecycleStatus.COMPLETED) {
+            throw new IllegalStateException(
+                    "COMPLETED violation cannot transition to ERROR."
+            );
+        }
+
+        violation.changeLifecycleStatus(
+                ViolationLifecycleStatus.ERROR
+        );
+
+        violationRepository.save(
+                violation
+        );
+
+        saveLifecycleHistory(
+                violationId,
+                currentStatus,
+                ViolationLifecycleStatus.ERROR,
+                changedAt,
+                "Recording error: " + errorCode
+        );
+    }
+
+    private ViolationJpaEntity findViolation(
+            UUID violationId
+    ) {
+        return violationRepository.findById(
+                violationId
+        ).orElseThrow(
+                () -> new IllegalStateException(
+                        "Violation not found: "
+                                + violationId
+                )
+        );
+    }
+
+    private void requireEnded(
+            ViolationJpaEntity violation
+    ) {
+        if (violation.getEndedAt() == null) {
+            throw new IllegalStateException(
+                    "Violation must be ended before recording reaches a terminal status."
+            );
+        }
+    }
+
+    private void saveLifecycleHistory(
+            UUID violationId,
+            ViolationLifecycleStatus fromStatus,
+            ViolationLifecycleStatus toStatus,
+            Instant changedAt,
+            String note
+    ) {
+        statusHistoryRepository.save(
+                new ViolationStatusHistoryJpaEntity(
+                        UUID.randomUUID(),
+                        violationId,
+                        ViolationStatusKind.LIFECYCLE,
+                        fromStatus == null
+                                ? null
+                                : fromStatus.name(),
+                        toStatus.name(),
+                        null,
+                        changedAt,
+                        note
                 )
         );
     }

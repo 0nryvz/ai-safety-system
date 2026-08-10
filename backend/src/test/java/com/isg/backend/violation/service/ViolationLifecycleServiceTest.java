@@ -381,6 +381,240 @@ class ViolationLifecycleServiceTest {
     }
 
     @Test
+    void recordingReadyTransitionsEndedViolationToCompletedWithHistory() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        Instant endedAt =
+                Instant.parse("2026-08-10T20:00:05Z");
+
+        Instant readyAt =
+                endedAt.plusSeconds(2);
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getEndedAt())
+                .thenReturn(endedAt);
+
+        when(violation.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.ACTIVE
+                );
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(violation)
+        );
+
+        lifecycleService.markRecordingReady(
+                violationId,
+                readyAt
+        );
+
+        verify(violation)
+                .changeLifecycleStatus(
+                        ViolationLifecycleStatus.COMPLETED
+                );
+
+        verify(violationRepository)
+                .save(
+                        violation
+                );
+
+        ArgumentCaptor<ViolationStatusHistoryJpaEntity> historyCaptor =
+                ArgumentCaptor.forClass(
+                        ViolationStatusHistoryJpaEntity.class
+                );
+
+        verify(statusHistoryRepository)
+                .save(
+                        historyCaptor.capture()
+                );
+
+        ViolationStatusHistoryJpaEntity history =
+                historyCaptor.getValue();
+
+        assertThat(history.getViolationId())
+                .isEqualTo(violationId);
+
+        assertThat(history.getFromStatus())
+                .isEqualTo(
+                        ViolationLifecycleStatus.ACTIVE.name()
+                );
+
+        assertThat(history.getToStatus())
+                .isEqualTo(
+                        ViolationLifecycleStatus.COMPLETED.name()
+                );
+
+        assertThat(history.getChangedAt())
+                .isEqualTo(readyAt);
+    }
+
+    @Test
+    void recordingErrorTransitionsEndedViolationToErrorWithHistory() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        Instant endedAt =
+                Instant.parse("2026-08-10T20:00:05Z");
+
+        Instant errorAt =
+                endedAt.plusSeconds(1);
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getEndedAt())
+                .thenReturn(endedAt);
+
+        when(violation.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.ACTIVE
+                );
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(violation)
+        );
+
+        lifecycleService.markRecordingError(
+                violationId,
+                errorAt,
+                "UPLOAD_FAILED"
+        );
+
+        verify(violation)
+                .changeLifecycleStatus(
+                        ViolationLifecycleStatus.ERROR
+                );
+
+        verify(violationRepository)
+                .save(
+                        violation
+                );
+
+        ArgumentCaptor<ViolationStatusHistoryJpaEntity> historyCaptor =
+                ArgumentCaptor.forClass(
+                        ViolationStatusHistoryJpaEntity.class
+                );
+
+        verify(statusHistoryRepository)
+                .save(
+                        historyCaptor.capture()
+                );
+
+        ViolationStatusHistoryJpaEntity history =
+                historyCaptor.getValue();
+
+        assertThat(history.getFromStatus())
+                .isEqualTo(
+                        ViolationLifecycleStatus.ACTIVE.name()
+                );
+
+        assertThat(history.getToStatus())
+                .isEqualTo(
+                        ViolationLifecycleStatus.ERROR.name()
+                );
+
+        assertThat(history.getNote())
+                .contains(
+                        "UPLOAD_FAILED"
+                );
+    }
+
+    @Test
+    void recordingReadyIsIdempotentWhenAlreadyCompleted() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getEndedAt())
+                .thenReturn(
+                        Instant.parse(
+                                "2026-08-10T20:00:05Z"
+                        )
+                );
+
+        when(violation.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.COMPLETED
+                );
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(violation)
+        );
+
+        lifecycleService.markRecordingReady(
+                violationId,
+                Instant.parse(
+                        "2026-08-10T20:00:07Z"
+                )
+        );
+
+        verify(
+                violation,
+                never()
+        ).changeLifecycleStatus(
+                any()
+        );
+
+        verify(
+                statusHistoryRepository,
+                never()
+        ).save(
+                any()
+        );
+    }
+
+    @Test
+    void rejectsTerminalRecordingStatusBeforeViolationEnds() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getEndedAt())
+                .thenReturn(null);
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(violation)
+        );
+
+        assertThatThrownBy(
+                () -> lifecycleService.markRecordingReady(
+                        violationId,
+                        Instant.parse(
+                                "2026-08-10T20:00:07Z"
+                        )
+                )
+        )
+                .isInstanceOf(
+                        IllegalStateException.class
+                )
+                .hasMessageContaining(
+                        "must be ended"
+                );
+
+        verify(
+                violationRepository,
+                never()
+        ).save(
+                violation
+        );
+    }
+
+    @Test
     void rejectsEndForUnknownViolation() {
         UUID violationId =
                 UUID.randomUUID();
