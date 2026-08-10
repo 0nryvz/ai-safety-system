@@ -54,6 +54,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
+                        // BE-3: WebSocket bağlantısına izin verilir; kimlik doğrulama STOMP CONNECT aşamasında JWT ile yapılır.
+                        .requestMatchers("/ws", "/ws/**").permitAll()
+
                         // 2. Internal Endpointler (Gateway / AI Worker için)
                         .requestMatchers("/internal/v1/**").permitAll()
 
