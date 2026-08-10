@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Supplier;
 
 @Component
 public class ActiveViolationRegistry {
@@ -15,9 +16,9 @@ public class ActiveViolationRegistry {
     private final ConcurrentMap<ViolationStateKey, UUID> activeViolations =
             new ConcurrentHashMap<>();
 
-    public void register(
+    public UUID getOrCreate(
             ViolationStateKey stateKey,
-            UUID violationId
+            Supplier<UUID> violationIdSupplier
     ) {
         Objects.requireNonNull(
                 stateKey,
@@ -25,27 +26,15 @@ public class ActiveViolationRegistry {
         );
 
         Objects.requireNonNull(
-                violationId,
-                "violationId must not be null"
+                violationIdSupplier,
+                "violationIdSupplier must not be null"
         );
 
-        activeViolations.putIfAbsent(
+        return activeViolations.computeIfAbsent(
                 stateKey,
-                violationId
-        );
-    }
-
-    public Optional<UUID> remove(
-            ViolationStateKey stateKey
-    ) {
-        Objects.requireNonNull(
-                stateKey,
-                "stateKey must not be null"
-        );
-
-        return Optional.ofNullable(
-                activeViolations.remove(
-                        stateKey
+                ignored -> Objects.requireNonNull(
+                        violationIdSupplier.get(),
+                        "violationIdSupplier must not return null"
                 )
         );
     }
@@ -60,6 +49,21 @@ public class ActiveViolationRegistry {
 
         return Optional.ofNullable(
                 activeViolations.get(
+                        stateKey
+                )
+        );
+    }
+
+    public Optional<UUID> remove(
+            ViolationStateKey stateKey
+    ) {
+        Objects.requireNonNull(
+                stateKey,
+                "stateKey must not be null"
+        );
+
+        return Optional.ofNullable(
+                activeViolations.remove(
                         stateKey
                 )
         );

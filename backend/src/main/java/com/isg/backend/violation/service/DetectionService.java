@@ -7,7 +7,6 @@ import com.isg.backend.violation.domain.temporal.ConfirmedViolation;
 import com.isg.backend.violation.domain.temporal.EndedViolation;
 import com.isg.backend.violation.domain.temporal.TemporalViolationTransitions;
 import com.isg.backend.violation.dto.DetectionRequest;
-import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
 import com.isg.backend.violation.mapper.DetectionMapper;
 import com.isg.backend.violation.rule.CandidateViolationEvaluator;
 import org.slf4j.Logger;
@@ -116,15 +115,12 @@ public class DetectionService {
                 );
 
         for (ConfirmedViolation confirmation : transitions.started()) {
-            ViolationJpaEntity violation =
-                    violationLifecycleService.startViolation(
+            activeViolationRegistry.getOrCreate(
+                    confirmation.stateKey(),
+                    () -> violationLifecycleService.startViolation(
                             confirmation,
                             frame.modelVersion()
-                    );
-
-            activeViolationRegistry.register(
-                    confirmation.stateKey(),
-                    violation.getId()
+                    ).getId()
             );
         }
 
