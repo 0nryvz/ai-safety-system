@@ -38,19 +38,15 @@ public class Camera {
     @Builder.Default
     private boolean active = true;
 
-    // Heartbeat gecikmesine göre güncellenecek anlık durum
+    // Heartbeat gecikmesine göre güncellenecek anlık durum (Veritabanındaki 'status' kolonu ile %100 uyumlu)
     @Enumerated(EnumType.STRING)
-    @Column(name = "connection_status")
+    @Column(name = "status", nullable = false)
     @Builder.Default
-    private ConnectionStatus connectionStatus = ConnectionStatus.OFFLINE;
+    private Status status = Status.OFFLINE;
 
     // Son görülme zamanı (UTC olarak tutulur)
     @Column(name = "last_seen_at")
     private Instant lastSeenAt;
-
-    // Gateway'den gelen aktif session id (Gateway tekrar bağlandığında idempotent davranmak için)
-    @Column(name = "active_session_id")
-    private String activeSessionId;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -60,7 +56,7 @@ public class Camera {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
-    public enum ConnectionStatus {
-        ONLINE, WEAK, OFFLINE
+    public enum Status {
+        ONLINE, DEGRADED, OFFLINE
     }
 }

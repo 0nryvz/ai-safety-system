@@ -19,15 +19,19 @@ public class InternalCameraSessionController {
         return ResponseEntity.ok().build();
     }
 
+    // @RequestParam yerine @RequestBody kullanıldı
     @PostMapping("/heartbeat")
-    public ResponseEntity<Void> heartbeat(@RequestParam String sessionId) {
-        cameraService.processHeartbeat(sessionId);
+    public ResponseEntity<Void> heartbeat(@RequestBody CameraSessionRequest request) {
+        // Gelen JSON'ın içinden sessionId'yi alıp servise gönderiyoruz
+        cameraService.processHeartbeat(request.getSessionId());
         return ResponseEntity.ok().build();
     }
 
+    // @RequestParam yerine @RequestBody kullanıldı
     @PostMapping("/close")
-    public ResponseEntity<Void> closeSession(@RequestParam String sessionId) {
-        cameraService.closeSession(sessionId);
+    public ResponseEntity<Void> closeSession(@RequestBody CameraSessionRequest request) {
+        // Gelen JSON'ın içinden sessionId'yi alıp servise gönderiyoruz
+        cameraService.closeSession(request.getSessionId());
         return ResponseEntity.ok().build();
     }
 }

@@ -28,16 +28,17 @@ public class CameraSession {
     @Column(name = "session_id", nullable = false, unique = true)
     private String sessionId;
 
-    @Column(name = "device_info")
-    private String deviceInfo;
+    // Veritabanındaki client_info kolonu ile uyumlu alan
+    @Column(name = "client_info")
+    private String clientInfo;
 
-    // Oturumun açıldığı zaman
-    @Column(name = "connected_at", nullable = false)
-    private Instant connectedAt;
+    // Oturumun açıldığı zaman (VERİTABANI İLE UYUMLU - started_at)
+    @Column(name = "started_at", nullable = false)
+    private Instant startedAt;
 
-    // Oturum kapandıysa kapanma zamanı
-    @Column(name = "closed_at")
-    private Instant closedAt;
+    // Oturum kapandıysa kapanma zamanı (VERİTABANI İLE UYUMLU - ended_at)
+    @Column(name = "ended_at")
+    private Instant endedAt;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -49,6 +50,6 @@ public class CameraSession {
     private Instant createdAt;
 
     public enum SessionStatus {
-        ACTIVE, CLOSED, TIMEOUT
+        ACTIVE, CLOSED, TIMED_OUT
     }
 }
