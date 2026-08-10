@@ -49,14 +49,64 @@ class ViolationRecordingEventListenerTest {
     }
 
     @Test
+    void forwardsEndedEventToRecordingCommandPort() {
+        RecordingCommandPort recordingCommandPort =
+                mock(RecordingCommandPort.class);
+
+        ViolationRecordingEventListener listener =
+                new ViolationRecordingEventListener(
+                        recordingCommandPort
+                );
+
+        ViolationEndedEvent event =
+                new ViolationEndedEvent(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        Instant.parse(
+                                "2026-08-10T20:00:05Z"
+                        )
+                );
+
+        listener.onViolationEnded(
+                event
+        );
+
+        verify(recordingCommandPort)
+                .stopRecording(
+                        event
+                );
+    }
+
+    @Test
     void consumesStartedEventOnlyAfterTransactionCommit()
             throws NoSuchMethodException {
+
+        assertAfterCommit(
+                "onViolationStarted",
+                ViolationStartedEvent.class
+        );
+    }
+
+    @Test
+    void consumesEndedEventOnlyAfterTransactionCommit()
+            throws NoSuchMethodException {
+
+        assertAfterCommit(
+                "onViolationEnded",
+                ViolationEndedEvent.class
+        );
+    }
+
+    private void assertAfterCommit(
+            String methodName,
+            Class<?> eventType
+    ) throws NoSuchMethodException {
 
         Method listenerMethod =
                 ViolationRecordingEventListener.class
                         .getMethod(
-                                "onViolationStarted",
-                                ViolationStartedEvent.class
+                                methodName,
+                                eventType
                         );
 
         TransactionalEventListener annotation =

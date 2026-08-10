@@ -2,6 +2,7 @@ package com.isg.backend.violation.service;
 
 import com.isg.backend.modules.camera.api.dto.CameraResponse;
 import com.isg.backend.modules.camera.application.CameraService;
+import com.isg.backend.violation.application.event.ViolationEndedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
@@ -133,5 +134,55 @@ public class ViolationLifecycleService {
         );
 
         return savedViolation;
+    }
+
+    @Transactional
+    public void endViolation(
+            UUID violationId,
+            Instant endedAt
+    ) {
+        Objects.requireNonNull(
+                violationId,
+                "violationId must not be null"
+        );
+
+        Objects.requireNonNull(
+                endedAt,
+                "endedAt must not be null"
+        );
+
+        ViolationJpaEntity violation =
+                violationRepository.findById(
+                        violationId
+                ).orElseThrow(
+                        () -> new IllegalStateException(
+                                "Active violation not found: "
+                                        + violationId
+                        )
+                );
+
+        /*
+         * Idempotency guard:
+         * the same temporal end must never produce another stop event.
+         */
+        if (violation.getEndedAt() != null) {
+            return;
+        }
+
+        violation.markEnded(
+                endedAt
+        );
+
+        violationRepository.save(
+                violation
+        );
+
+        eventPublisher.publishEvent(
+                new ViolationEndedEvent(
+                        UUID.randomUUID(),
+                        violationId,
+                        endedAt
+                )
+        );
     }
 }

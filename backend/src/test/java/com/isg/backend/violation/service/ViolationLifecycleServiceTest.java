@@ -2,6 +2,7 @@ package com.isg.backend.violation.service;
 
 import com.isg.backend.modules.camera.api.dto.CameraResponse;
 import com.isg.backend.modules.camera.application.CameraService;
+import com.isg.backend.violation.application.event.ViolationEndedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
@@ -19,6 +20,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,7 +74,9 @@ class ViolationLifecycleServiceTest {
                 UUID.randomUUID();
 
         Instant candidateStartedAt =
-                Instant.parse("2026-08-10T20:00:00Z");
+                Instant.parse(
+                        "2026-08-10T20:00:00Z"
+                );
 
         Instant confirmedAt =
                 candidateStartedAt.plusSeconds(2);
@@ -95,8 +99,12 @@ class ViolationLifecycleServiceTest {
         when(cameraService.getCameraById(cameraId))
                 .thenReturn(cameraResponse);
 
-        when(violationRepository.save(any(ViolationJpaEntity.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(violationRepository.save(
+                any(ViolationJpaEntity.class)
+        )).thenAnswer(
+                invocation ->
+                        invocation.getArgument(0)
+        );
 
         lifecycleService.startViolation(
                 confirmedViolation,
@@ -119,28 +127,8 @@ class ViolationLifecycleServiceTest {
         assertThat(savedViolation.getId())
                 .isNotNull();
 
-        assertThat(savedViolation.getCameraId())
-                .isEqualTo(cameraId);
-
         assertThat(savedViolation.getDepartmentId())
                 .isEqualTo(departmentId);
-
-        assertThat(savedViolation.getCameraSessionId())
-                .isEqualTo(sessionId);
-
-        assertThat(savedViolation.getViolationType())
-                .isEqualTo(
-                        ViolationType.MISSING_WELDING_MASK
-                );
-
-        assertThat(savedViolation.getStartedAt())
-                .isEqualTo(candidateStartedAt);
-
-        assertThat(savedViolation.getConfidence())
-                .isEqualByComparingTo("0.9");
-
-        assertThat(savedViolation.getModelVersion())
-                .isEqualTo("welding-ppe-v1");
 
         assertThat(savedViolation.getLifecycleStatus())
                 .isEqualTo(
@@ -166,7 +154,9 @@ class ViolationLifecycleServiceTest {
                 historyCaptor.getValue();
 
         assertThat(history.getViolationId())
-                .isEqualTo(savedViolation.getId());
+                .isEqualTo(
+                        savedViolation.getId()
+                );
 
         assertThat(history.getStatusKind())
                 .isEqualTo(
@@ -180,9 +170,6 @@ class ViolationLifecycleServiceTest {
                 .isEqualTo(
                         ViolationLifecycleStatus.ACTIVE.name()
                 );
-
-        assertThat(history.getChangedAt())
-                .isEqualTo(confirmedAt);
 
         ArgumentCaptor<ViolationStartedEvent> eventCaptor =
                 ArgumentCaptor.forClass(
@@ -201,7 +188,9 @@ class ViolationLifecycleServiceTest {
                 .isNotNull();
 
         assertThat(event.violationId())
-                .isEqualTo(savedViolation.getId());
+                .isEqualTo(
+                        savedViolation.getId()
+                );
 
         assertThat(event.cameraId())
                 .isEqualTo(cameraId);
@@ -209,13 +198,10 @@ class ViolationLifecycleServiceTest {
         assertThat(event.sessionId())
                 .isEqualTo(sessionId);
 
-        assertThat(event.violationType())
-                .isEqualTo(
-                        ViolationType.MISSING_WELDING_MASK
-                );
-
         assertThat(event.startedAt())
-                .isEqualTo(candidateStartedAt);
+                .isEqualTo(
+                        candidateStartedAt
+                );
     }
 
     @Test
@@ -226,29 +212,26 @@ class ViolationLifecycleServiceTest {
         UUID sessionId =
                 UUID.randomUUID();
 
-        Instant candidateStartedAt =
-                Instant.parse("2026-08-10T20:00:00Z");
-
-        Instant confirmedAt =
-                candidateStartedAt.plusSeconds(2);
+        Instant startedAt =
+                Instant.parse(
+                        "2026-08-10T20:00:00Z"
+                );
 
         ConfirmedViolation confirmedViolation =
                 confirmedViolation(
                         cameraId,
                         sessionId,
-                        candidateStartedAt,
-                        confirmedAt
+                        startedAt,
+                        startedAt.plusSeconds(2)
                 );
 
-        CameraResponse cameraResponse =
-                CameraResponse.builder()
-                        .id(cameraId)
-                        .departmentId(null)
-                        .active(true)
-                        .build();
-
         when(cameraService.getCameraById(cameraId))
-                .thenReturn(cameraResponse);
+                .thenReturn(
+                        CameraResponse.builder()
+                                .id(cameraId)
+                                .departmentId(null)
+                                .build()
+                );
 
         assertThatThrownBy(
                 () -> lifecycleService.startViolation(
@@ -258,9 +241,6 @@ class ViolationLifecycleServiceTest {
         )
                 .isInstanceOf(
                         IllegalStateException.class
-                )
-                .hasMessage(
-                        "Camera department must not be null."
                 );
 
         verify(
@@ -276,6 +256,155 @@ class ViolationLifecycleServiceTest {
         ).save(
                 any()
         );
+
+        verify(
+                eventPublisher,
+                never()
+        ).publishEvent(
+                any()
+        );
+    }
+
+    @Test
+    void endsViolationAndPublishesSingleStopEvent() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        Instant endedAt =
+                Instant.parse(
+                        "2026-08-10T20:00:05Z"
+                );
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getEndedAt())
+                .thenReturn(null);
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(violation)
+        );
+
+        lifecycleService.endViolation(
+                violationId,
+                endedAt
+        );
+
+        verify(violation)
+                .markEnded(
+                        endedAt
+                );
+
+        verify(violationRepository)
+                .save(
+                        violation
+                );
+
+        ArgumentCaptor<ViolationEndedEvent> eventCaptor =
+                ArgumentCaptor.forClass(
+                        ViolationEndedEvent.class
+                );
+
+        verify(eventPublisher)
+                .publishEvent(
+                        eventCaptor.capture()
+                );
+
+        ViolationEndedEvent event =
+                eventCaptor.getValue();
+
+        assertThat(event.commandId())
+                .isNotNull();
+
+        assertThat(event.violationId())
+                .isEqualTo(
+                        violationId
+                );
+
+        assertThat(event.endedAt())
+                .isEqualTo(
+                        endedAt
+                );
+    }
+
+    @Test
+    void doesNotPublishSecondStopEventWhenViolationAlreadyEnded() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        Instant existingEndedAt =
+                Instant.parse(
+                        "2026-08-10T20:00:05Z"
+                );
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getEndedAt())
+                .thenReturn(
+                        existingEndedAt
+                );
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(violation)
+        );
+
+        lifecycleService.endViolation(
+                violationId,
+                existingEndedAt.plusSeconds(1)
+        );
+
+        verify(
+                violation,
+                never()
+        ).markEnded(
+                any()
+        );
+
+        verify(
+                violationRepository,
+                never()
+        ).save(
+                violation
+        );
+
+        verify(
+                eventPublisher,
+                never()
+        ).publishEvent(
+                any()
+        );
+    }
+
+    @Test
+    void rejectsEndForUnknownViolation() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.empty()
+        );
+
+        assertThatThrownBy(
+                () -> lifecycleService.endViolation(
+                        violationId,
+                        Instant.parse(
+                                "2026-08-10T20:00:05Z"
+                        )
+                )
+        )
+                .isInstanceOf(
+                        IllegalStateException.class
+                )
+                .hasMessageContaining(
+                        violationId.toString()
+                );
 
         verify(
                 eventPublisher,

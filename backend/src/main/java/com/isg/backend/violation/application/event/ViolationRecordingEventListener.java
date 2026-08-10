@@ -29,4 +29,15 @@ public class ViolationRecordingEventListener {
                 event
         );
     }
+
+    @TransactionalEventListener(
+            phase = TransactionPhase.AFTER_COMMIT
+    )
+    public void onViolationEnded(
+            ViolationEndedEvent event
+    ) {
+        recordingCommandPort.stopRecording(
+                event
+        );
+    }
 }

@@ -5,9 +5,13 @@ import com.isg.backend.violation.domain.CandidateViolation;
 import com.isg.backend.violation.domain.ViolationType;
 import com.isg.backend.violation.domain.detection.DetectionFrame;
 import com.isg.backend.violation.domain.temporal.ConfirmedViolation;
+import com.isg.backend.violation.domain.temporal.EndedViolation;
+import com.isg.backend.violation.domain.temporal.TemporalViolationTransitions;
+import com.isg.backend.violation.domain.temporal.ViolationStateKey;
 import com.isg.backend.violation.dto.BoundingBox;
 import com.isg.backend.violation.dto.DetectionItem;
 import com.isg.backend.violation.dto.DetectionRequest;
+import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
 import com.isg.backend.violation.mapper.DetectionMapper;
 import com.isg.backend.violation.rule.CandidateViolationEvaluator;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,10 +21,13 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -34,6 +41,7 @@ class DetectionServiceTest {
     private CandidateViolationEvaluator candidateViolationEvaluator;
     private TemporalConfirmationService temporalConfirmationService;
     private ViolationLifecycleService violationLifecycleService;
+    private ActiveViolationRegistry activeViolationRegistry;
     private DetectionService detectionService;
 
     @BeforeEach
@@ -56,6 +64,9 @@ class DetectionServiceTest {
         violationLifecycleService =
                 mock(ViolationLifecycleService.class);
 
+        activeViolationRegistry =
+                mock(ActiveViolationRegistry.class);
+
         detectionService =
                 new DetectionService(
                         cameraQueryService,
@@ -63,7 +74,8 @@ class DetectionServiceTest {
                         duplicateEventGuard,
                         candidateViolationEvaluator,
                         temporalConfirmationService,
-                        violationLifecycleService
+                        violationLifecycleService,
+                        activeViolationRegistry
                 );
     }
 
@@ -98,11 +110,14 @@ class DetectionServiceTest {
                 List.of(candidate)
         );
 
-        when(temporalConfirmationService.processFrame(
+        when(temporalConfirmationService.processFrameTransitions(
                 frame.frameTimestamp(),
                 List.of(candidate)
         )).thenReturn(
-                List.of()
+                new TemporalViolationTransitions(
+                        List.of(),
+                        List.of()
+                )
         );
 
         detectionService.process(
@@ -126,7 +141,7 @@ class DetectionServiceTest {
                 .evaluate(frame);
 
         verify(temporalConfirmationService)
-                .processFrame(
+                .processFrameTransitions(
                         frame.frameTimestamp(),
                         List.of(candidate)
                 );
@@ -135,8 +150,8 @@ class DetectionServiceTest {
                 violationLifecycleService,
                 never()
         ).startViolation(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyString()
+                any(),
+                any()
         );
     }
 
@@ -168,11 +183,14 @@ class DetectionServiceTest {
                 List.of()
         );
 
-        when(temporalConfirmationService.processFrame(
+        when(temporalConfirmationService.processFrameTransitions(
                 frame.frameTimestamp(),
                 List.of()
         )).thenReturn(
-                List.of()
+                new TemporalViolationTransitions(
+                        List.of(),
+                        List.of()
+                )
         );
 
         detectionService.process(
@@ -183,22 +201,14 @@ class DetectionServiceTest {
                 .evaluate(frame);
 
         verify(temporalConfirmationService)
-                .processFrame(
+                .processFrameTransitions(
                         frame.frameTimestamp(),
                         List.of()
                 );
-
-        verify(
-                violationLifecycleService,
-                never()
-        ).startViolation(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyString()
-        );
     }
 
     @Test
-    void persistsConfirmedTemporalResultThroughLifecycleService() {
+    void persistsStartedViolationAndRegistersActiveMapping() {
         DetectionRequest request =
                 validRequest(
                         Instant.now()
@@ -212,6 +222,15 @@ class DetectionServiceTest {
 
         ConfirmedViolation confirmation =
                 confirmed(candidate);
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getId())
+                .thenReturn(violationId);
 
         when(cameraQueryService.isValid(
                 request.cameraId(),
@@ -231,28 +250,315 @@ class DetectionServiceTest {
                 List.of(candidate)
         );
 
-        when(temporalConfirmationService.processFrame(
+        when(temporalConfirmationService.processFrameTransitions(
                 frame.frameTimestamp(),
                 List.of(candidate)
         )).thenReturn(
-                List.of(confirmation)
+                new TemporalViolationTransitions(
+                        List.of(confirmation),
+                        List.of()
+                )
+        );
+
+        when(violationLifecycleService.startViolation(
+                confirmation,
+                frame.modelVersion()
+        )).thenReturn(
+                violation
         );
 
         detectionService.process(
                 request
         );
 
-        verify(temporalConfirmationService)
-                .processFrame(
-                        frame.frameTimestamp(),
-                        List.of(candidate)
-                );
-
         verify(violationLifecycleService)
                 .startViolation(
                         confirmation,
                         frame.modelVersion()
                 );
+
+        verify(activeViolationRegistry)
+                .register(
+                        confirmation.stateKey(),
+                        violationId
+                );
+    }
+
+    @Test
+    void endsMappedViolationWhenTemporalEngineReportsEnd() {
+        DetectionRequest request =
+                validRequest(
+                        Instant.now()
+                );
+
+        DetectionFrame frame =
+                domainFrame(request);
+
+        CandidateViolation candidate =
+                candidate(frame);
+
+        ViolationStateKey stateKey =
+                ViolationStateKey.from(
+                        candidate
+                );
+
+        Instant endedAt =
+                frame.frameTimestamp()
+                        .minusMillis(100);
+
+        EndedViolation endedViolation =
+                new EndedViolation(
+                        stateKey,
+                        candidate.cameraId(),
+                        candidate.sessionId(),
+                        candidate.violationType(),
+                        endedAt
+                );
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        when(cameraQueryService.isValid(
+                request.cameraId(),
+                request.sessionId()
+        )).thenReturn(true);
+
+        when(detectionMapper.toDomain(request))
+                .thenReturn(frame);
+
+        when(duplicateEventGuard.isFirstOccurrence(
+                request.eventId()
+        )).thenReturn(true);
+
+        when(candidateViolationEvaluator.evaluate(
+                frame
+        )).thenReturn(
+                List.of()
+        );
+
+        when(temporalConfirmationService.processFrameTransitions(
+                frame.frameTimestamp(),
+                List.of()
+        )).thenReturn(
+                new TemporalViolationTransitions(
+                        List.of(),
+                        List.of(endedViolation)
+                )
+        );
+
+        when(activeViolationRegistry.find(
+                stateKey
+        )).thenReturn(
+                Optional.of(violationId)
+        );
+
+        detectionService.process(
+                request
+        );
+
+        verify(activeViolationRegistry)
+                .find(
+                        stateKey
+                );
+
+        verify(violationLifecycleService)
+                .endViolation(
+                        violationId,
+                        endedAt
+                );
+
+        verify(activeViolationRegistry)
+                .remove(
+                        stateKey
+                );
+    }
+
+    @Test
+    void keepsActiveMappingWhenEndingViolationFails() {
+        DetectionRequest request =
+                validRequest(
+                        Instant.now()
+                );
+
+        DetectionFrame frame =
+                domainFrame(request);
+
+        CandidateViolation candidate =
+                candidate(frame);
+
+        ViolationStateKey stateKey =
+                ViolationStateKey.from(
+                        candidate
+                );
+
+        Instant endedAt =
+                frame.frameTimestamp();
+
+        EndedViolation endedViolation =
+                new EndedViolation(
+                        stateKey,
+                        candidate.cameraId(),
+                        candidate.sessionId(),
+                        candidate.violationType(),
+                        endedAt
+                );
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        when(cameraQueryService.isValid(
+                request.cameraId(),
+                request.sessionId()
+        )).thenReturn(true);
+
+        when(detectionMapper.toDomain(request))
+                .thenReturn(frame);
+
+        when(duplicateEventGuard.isFirstOccurrence(
+                request.eventId()
+        )).thenReturn(true);
+
+        when(candidateViolationEvaluator.evaluate(
+                frame
+        )).thenReturn(
+                List.of()
+        );
+
+        when(temporalConfirmationService.processFrameTransitions(
+                frame.frameTimestamp(),
+                List.of()
+        )).thenReturn(
+                new TemporalViolationTransitions(
+                        List.of(),
+                        List.of(endedViolation)
+                )
+        );
+
+        when(activeViolationRegistry.find(
+                stateKey
+        )).thenReturn(
+                Optional.of(violationId)
+        );
+
+        org.mockito.Mockito.doThrow(
+                new RuntimeException("database failure")
+        ).when(
+                violationLifecycleService
+        ).endViolation(
+                violationId,
+                endedAt
+        );
+
+        assertThatThrownBy(
+                () -> detectionService.process(
+                        request
+                )
+        )
+                .isInstanceOf(
+                        RuntimeException.class
+                )
+                .hasMessage(
+                        "database failure"
+                );
+
+        verify(violationLifecycleService)
+                .endViolation(
+                        violationId,
+                        endedAt
+                );
+
+        verify(
+                activeViolationRegistry,
+                never()
+        ).remove(
+                stateKey
+        );
+    }
+
+    @Test
+    void doesNotEndDatabaseViolationWhenActiveMappingIsMissing() {
+        DetectionRequest request =
+                validRequest(
+                        Instant.now()
+                );
+
+        DetectionFrame frame =
+                domainFrame(request);
+
+        CandidateViolation candidate =
+                candidate(frame);
+
+        ViolationStateKey stateKey =
+                ViolationStateKey.from(
+                        candidate
+                );
+
+        EndedViolation endedViolation =
+                new EndedViolation(
+                        stateKey,
+                        candidate.cameraId(),
+                        candidate.sessionId(),
+                        candidate.violationType(),
+                        frame.frameTimestamp()
+                );
+
+        when(cameraQueryService.isValid(
+                request.cameraId(),
+                request.sessionId()
+        )).thenReturn(true);
+
+        when(detectionMapper.toDomain(request))
+                .thenReturn(frame);
+
+        when(duplicateEventGuard.isFirstOccurrence(
+                request.eventId()
+        )).thenReturn(true);
+
+        when(candidateViolationEvaluator.evaluate(
+                frame
+        )).thenReturn(
+                List.of()
+        );
+
+        when(temporalConfirmationService.processFrameTransitions(
+                frame.frameTimestamp(),
+                List.of()
+        )).thenReturn(
+                new TemporalViolationTransitions(
+                        List.of(),
+                        List.of(endedViolation)
+                )
+        );
+
+        when(activeViolationRegistry.find(
+                stateKey
+        )).thenReturn(
+                Optional.empty()
+        );
+
+        detectionService.process(
+                request
+        );
+
+        verify(activeViolationRegistry)
+                .find(
+                        stateKey
+                );
+
+        verify(
+                violationLifecycleService,
+                never()
+        ).endViolation(
+                any(),
+                any()
+        );
+
+        verify(
+                activeViolationRegistry,
+                never()
+        ).remove(
+                stateKey
+        );
     }
 
     @Test
@@ -279,23 +585,15 @@ class DetectionServiceTest {
 
         verify(candidateViolationEvaluator, never())
                 .evaluate(
-                        org.mockito.ArgumentMatchers.any()
+                        any()
                 );
 
         verify(
                 temporalConfirmationService,
                 never()
-        ).processFrame(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyList()
-        );
-
-        verify(
-                violationLifecycleService,
-                never()
-        ).startViolation(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyString()
+        ).processFrameTransitions(
+                any(),
+                anyList()
         );
     }
 
@@ -330,23 +628,15 @@ class DetectionServiceTest {
 
         verify(candidateViolationEvaluator, never())
                 .evaluate(
-                        org.mockito.ArgumentMatchers.any()
+                        any()
                 );
 
         verify(
                 temporalConfirmationService,
                 never()
-        ).processFrame(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyList()
-        );
-
-        verify(
-                violationLifecycleService,
-                never()
-        ).startViolation(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyString()
+        ).processFrameTransitions(
+                any(),
+                anyList()
         );
     }
 
@@ -370,19 +660,6 @@ class DetectionServiceTest {
                         request.cameraId(),
                         request.sessionId()
                 );
-
-        verify(candidateViolationEvaluator, never())
-                .evaluate(
-                        org.mockito.ArgumentMatchers.any()
-                );
-
-        verify(
-                violationLifecycleService,
-                never()
-        ).startViolation(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyString()
-        );
     }
 
     @Test
@@ -405,19 +682,6 @@ class DetectionServiceTest {
                         request.cameraId(),
                         request.sessionId()
                 );
-
-        verify(candidateViolationEvaluator, never())
-                .evaluate(
-                        org.mockito.ArgumentMatchers.any()
-                );
-
-        verify(
-                violationLifecycleService,
-                never()
-        ).startViolation(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyString()
-        );
     }
 
     private void assertStatus(
@@ -461,18 +725,10 @@ class DetectionServiceTest {
                                         "0.90"
                                 ),
                                 new BoundingBox(
-                                        new BigDecimal(
-                                                "0.10"
-                                        ),
-                                        new BigDecimal(
-                                                "0.10"
-                                        ),
-                                        new BigDecimal(
-                                                "0.20"
-                                        ),
-                                        new BigDecimal(
-                                                "0.20"
-                                        )
+                                        new BigDecimal("0.10"),
+                                        new BigDecimal("0.10"),
+                                        new BigDecimal("0.20"),
+                                        new BigDecimal("0.20")
                                 )
                         )
                 )
@@ -517,7 +773,7 @@ class DetectionServiceTest {
             CandidateViolation candidate
     ) {
         return new ConfirmedViolation(
-                com.isg.backend.violation.domain.temporal.ViolationStateKey.from(
+                ViolationStateKey.from(
                         candidate
                 ),
                 candidate.cameraId(),
