@@ -1,9 +1,10 @@
-package com.isg.backend.modules.auth.infrastructure; // Kendi paket yolunla değiştirmeyi unutma
+package com.isg.backend.modules.auth.infrastructure;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -12,12 +13,12 @@ import java.io.IOException;
 @Component
 public class InternalApiKeyFilter extends OncePerRequestFilter {
 
-    private final InternalSecurityProperties properties;
-    private static final String API_KEY_HEADER = "X-Internal-Api-Key"; // İstemcilerin göndereceği header adı
+    private final Environment environment;
+    private static final String API_KEY_HEADER = "X-Internal-Api-Key";
 
-    // YAML'dan okuduğumuz değerleri enjekte ediyoruz
-    public InternalApiKeyFilter(InternalSecurityProperties properties) {
-        this.properties = properties;
+    // InternalSecurityProperties yerine Spring'in yerleşik Environment sınıfını enjekte ediyoruz
+    public InternalApiKeyFilter(Environment environment) {
+        this.environment = environment;
     }
 
     @Override
@@ -30,16 +31,19 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
         if (requestURI.startsWith("/internal/")) {
             String providedKey = request.getHeader(API_KEY_HEADER);
 
-            // Eğer header boşsa veya YAML'daki şifreyle eşleşmiyorsa isteği 401 Unauthorized ile reddet
-            if (providedKey == null || !providedKey.equals(properties.getApiKey())) {
+            // application.yaml veya application.properties içindeki değeri güvenle oku
+            String expectedApiKey = environment.getProperty("application.security.internal.api-key");
+
+            // Eğer header boşsa veya şifreyle eşleşmiyorsa isteği 401 Unauthorized ile reddet
+            if (providedKey == null || !providedKey.equals(expectedApiKey)) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
                 response.getWriter().write("{\"error\": \"Unauthorized: Gecersiz veya eksik Internal API Key\"}");
-                return; // Filtre zincirini burada kırıyoruz, istek controller'a ulaşmıyor
+                return; // Filtre zincirini burada kırıyoruz
             }
         }
 
-        // Eğer istek /internal/ değilse veya API Key doğruysa normal akışa (diğer filtrelere) devam et
+        // Normal akışa devam et
         filterChain.doFilter(request, response);
     }
 }
