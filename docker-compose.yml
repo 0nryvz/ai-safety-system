@@ -24,7 +24,7 @@ services:
       retries: 10
 
   minio:
-    image: quay.io/minio/minio
+    image: minio/minio:RELEASE.2024-06-29T01-20-47Z
     container_name: isg-minio
     restart: unless-stopped
 

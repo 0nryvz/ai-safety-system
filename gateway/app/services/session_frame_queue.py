@@ -38,6 +38,9 @@ class SessionFrameQueue:
     async def dequeue(self) -> FramePacket:
         return await self._queue.get()
 
+    async def join(self) -> None:
+        await self._queue.join()
+
     def mark_processed(self) -> None:
         self._queue.task_done()
 

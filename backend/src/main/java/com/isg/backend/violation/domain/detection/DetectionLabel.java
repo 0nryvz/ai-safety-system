@@ -10,8 +10,8 @@ public enum DetectionLabel {
 
     WELDING_MASK("welding_mask"),
     WELDING_APRON("welding_apron"),
-    GLOVES("gloves"),
     WELDING_JACKET("welding_jacket"),
+    GLOVES("gloves"),
     WELDING("welding"),
 
     NON_GLOVES("non_gloves"),

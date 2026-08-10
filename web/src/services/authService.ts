@@ -33,12 +33,9 @@ export class AuthError extends Error {
   }
 }
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
-export async function login(
-  credentials: LoginCredentials,
-): Promise<LoginResponse> {
+export async function login(credentials: LoginCredentials): Promise<LoginResponse> {
   const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
     method: 'POST',
     headers: {

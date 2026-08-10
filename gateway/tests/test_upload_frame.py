@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.dependencies import (
+    get_session_frame_ingestion_worker_coordinator,
     get_session_frame_queue_manager,
     get_session_manager,
 )
@@ -13,6 +14,30 @@ from app.services.session_frame_queue_manager import (
     SessionFrameQueueManager,
 )
 from app.services.session_manager import SessionManager
+
+
+class NoOpIngestionWorkerCoordinator:
+    async def start_worker(
+            self,
+            camera_id: str,
+            session_id: str,
+            queue,
+            ring_buffer_manager,
+    ) -> bool:
+        return False
+
+    async def stop_worker(
+            self,
+            camera_id: str,
+            session_id: str,
+    ) -> bool:
+        return False
+
+    async def active_worker_count(self) -> int:
+        return 0
+
+    async def clear(self) -> int:
+        return 0
 
 
 def jpeg(payload: bytes = b"frame") -> bytes:
@@ -66,6 +91,7 @@ def gateway_state():
     queue_manager = SessionFrameQueueManager(
         max_frames=2,
     )
+    ingestion_worker_coordinator = NoOpIngestionWorkerCoordinator()
 
     app.dependency_overrides[get_session_manager] = (
         lambda: session_manager
@@ -73,6 +99,9 @@ def gateway_state():
     app.dependency_overrides[
         get_session_frame_queue_manager
     ] = lambda: queue_manager
+    app.dependency_overrides[
+        get_session_frame_ingestion_worker_coordinator
+    ] = lambda: ingestion_worker_coordinator
 
     yield session_manager, queue_manager
 
@@ -127,7 +156,15 @@ def test_full_queue_drops_oldest_frame(
     assert second_response.status_code == 202
     assert third_response.status_code == 202
 
+    first_body = first_response.json()
+    second_body = second_response.json()
     body = third_response.json()
+
+    assert first_body["queueDepth"] == 1
+    assert first_body["droppedFrameCount"] == 0
+
+    assert second_body["queueDepth"] == 2
+    assert second_body["droppedFrameCount"] == 0
 
     assert body["queueDepth"] == 2
     assert body["queueCapacity"] == 2

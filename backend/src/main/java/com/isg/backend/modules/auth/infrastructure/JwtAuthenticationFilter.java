@@ -1,6 +1,5 @@
 package com.isg.backend.modules.auth.infrastructure;
 
-import com.isg.backend.modules.auth.application.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,7 +37,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String jwt;
         final String userEmail;
 
-        // Token yoksa veya Bearer ile başlamıyorsa filtreyi geç ve diğerlerine bırak
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
@@ -49,7 +47,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             userEmail = jwtService.extractUsername(jwt);
 
-            // Kullanıcı email'i token'dan başarıyla çıkarıldıysa ve henüz sisteme authenticate olmadıysa
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
 
@@ -61,12 +58,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     );
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                    // Kullanıcıyı Spring Security context'ine güvenli olarak kaydet
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
         } catch (Exception e) {
-            // Token süresi dolmuşsa veya geçersizse sessizce yakala ve logla, uygulamanın çökmesini engelle
             logger.warn("JWT doğrulanırken bir hata oluştu veya token süresi dolmuş: {}", e.getMessage());
         }
 

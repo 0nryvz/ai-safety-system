@@ -3,7 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from app.api.dependencies import (
     get_camera_session_lifecycle_notifier,
     get_camera_session_validator,
+    get_session_frame_ingestion_worker_coordinator,
     get_session_frame_queue_manager,
+    get_session_frame_ring_buffer_manager,
     get_session_manager,
 )
 from app.api.schemas.session import (
@@ -16,6 +18,16 @@ from app.domain.session import CameraSessionContext
 from app.services.session_frame_queue_manager import (
     FrameQueueConflictError,
     SessionFrameQueueManager,
+)
+from app.services.session_frame_ingestion_worker import (
+    SessionFrameIngestionWorkerConflictError,
+    SessionFrameIngestionWorkerCoordinator,
+)
+from app.services.session_frame_ring_buffer import (
+    FrameRingBufferConflictError,
+)
+from app.services.session_frame_ring_buffer_manager import (
+    SessionFrameRingBufferManager,
 )
 from app.services.session_lifecycle_notifier import (
     CameraSessionLifecycleNotifier,
@@ -66,6 +78,16 @@ async def open_session(
         session_frame_queue_manager: SessionFrameQueueManager = Depends(
             get_session_frame_queue_manager,
         ),
+        session_frame_ring_buffer_manager: (
+            SessionFrameRingBufferManager
+        ) = Depends(
+            get_session_frame_ring_buffer_manager,
+        ),
+        ingestion_worker_coordinator: (
+            SessionFrameIngestionWorkerCoordinator
+        ) = Depends(
+            get_session_frame_ingestion_worker_coordinator,
+        ),
 ) -> OpenSessionResponse:
     validation_result = await session_validator.validate_open_session(
         camera_id=request.camera_id,
@@ -102,17 +124,50 @@ async def open_session(
             detail="SESSION_CONFLICT",
         ) from exc
 
+    queue_created = False
+    buffer_created = False
+    worker_started = False
+
     try:
-        await session_frame_queue_manager.open_queue(
+        queue, queue_created = await session_frame_queue_manager.open_queue(
             camera_id=session.camera_id,
             session_id=session.session_id,
         )
-    except FrameQueueConflictError as exc:
-        if created:
-            await session_manager.close_session(
+
+        _, buffer_created = (
+            await session_frame_ring_buffer_manager.open_buffer(
                 camera_id=session.camera_id,
                 session_id=session.session_id,
             )
+        )
+
+        worker_started = await ingestion_worker_coordinator.start_worker(
+            camera_id=session.camera_id,
+            session_id=session.session_id,
+            queue=queue,
+            ring_buffer_manager=session_frame_ring_buffer_manager,
+        )
+    except (
+            FrameQueueConflictError,
+            FrameRingBufferConflictError,
+            SessionFrameIngestionWorkerConflictError,
+    ) as exc:
+        await _rollback_open_session_resources(
+            camera_id=session.camera_id,
+            session_id=session.session_id,
+            session_created=created,
+            queue_created=queue_created,
+            buffer_created=buffer_created,
+            worker_started=worker_started,
+            session_manager=session_manager,
+            session_frame_queue_manager=session_frame_queue_manager,
+            session_frame_ring_buffer_manager=(
+                session_frame_ring_buffer_manager
+            ),
+            ingestion_worker_coordinator=(
+                ingestion_worker_coordinator
+            ),
+        )
 
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -202,24 +257,57 @@ async def close_session(
         session_frame_queue_manager: SessionFrameQueueManager = Depends(
             get_session_frame_queue_manager,
         ),
+        session_frame_ring_buffer_manager: (
+            SessionFrameRingBufferManager
+        ) = Depends(
+            get_session_frame_ring_buffer_manager,
+        ),
+        ingestion_worker_coordinator: (
+            SessionFrameIngestionWorkerCoordinator
+        ) = Depends(
+            get_session_frame_ingestion_worker_coordinator,
+        ),
 ) -> Response:
     try:
-        closed_session = await session_manager.close_session(
-            camera_id=request.camera_id,
-            session_id=session_id,
-        )
-    except SessionConflictError as exc:
+        session = await session_manager.get_session(session_id)
+    except SessionNotFoundError:
+        session = None
+
+    if (
+            session is not None
+            and session.camera_id != request.camera_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="SESSION_CONFLICT",
-        ) from exc
+        )
 
     try:
+        await ingestion_worker_coordinator.stop_worker(
+            camera_id=request.camera_id,
+            session_id=session_id,
+        )
+
         await session_frame_queue_manager.close_queue(
             camera_id=request.camera_id,
             session_id=session_id,
         )
-    except FrameQueueConflictError as exc:
+
+        await session_frame_ring_buffer_manager.close_buffer(
+            camera_id=request.camera_id,
+            session_id=session_id,
+        )
+
+        closed_session = await session_manager.close_session(
+            camera_id=request.camera_id,
+            session_id=session_id,
+        )
+    except (
+            SessionConflictError,
+            FrameQueueConflictError,
+            FrameRingBufferConflictError,
+            SessionFrameIngestionWorkerConflictError,
+    ) as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="SESSION_CONFLICT",
@@ -246,6 +334,45 @@ async def close_session(
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,
     )
+
+
+async def _rollback_open_session_resources(
+        camera_id: str,
+        session_id: str,
+        session_created: bool,
+        queue_created: bool,
+        buffer_created: bool,
+        worker_started: bool,
+        session_manager: SessionManager,
+        session_frame_queue_manager: SessionFrameQueueManager,
+        session_frame_ring_buffer_manager: SessionFrameRingBufferManager,
+        ingestion_worker_coordinator: (
+            SessionFrameIngestionWorkerCoordinator
+        ),
+) -> None:
+    if worker_started:
+        await ingestion_worker_coordinator.stop_worker(
+            camera_id=camera_id,
+            session_id=session_id,
+        )
+
+    if queue_created:
+        await session_frame_queue_manager.close_queue(
+            camera_id=camera_id,
+            session_id=session_id,
+        )
+
+    if buffer_created:
+        await session_frame_ring_buffer_manager.close_buffer(
+            camera_id=camera_id,
+            session_id=session_id,
+        )
+
+    if session_created:
+        await session_manager.close_session(
+            camera_id=camera_id,
+            session_id=session_id,
+        )
 
 
 def _to_session_response(
