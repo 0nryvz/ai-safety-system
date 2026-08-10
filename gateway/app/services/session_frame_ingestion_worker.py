@@ -8,7 +8,10 @@ from app.services.session_ai_frame_dispatch_worker import (
     SessionAIFrameDispatchWorkerConflictError,
     SessionAIFrameDispatchWorkerCoordinator,
 )
-from app.services.session_ai_frame_sampler import SessionAIFrameSampler
+from app.services.session_ai_frame_sampler import (
+    SessionAIFrameSampler,
+    SessionAIFrameSamplerStats,
+)
 from app.services.session_frame_queue import SessionFrameQueue
 from app.services.session_frame_ring_buffer import FrameRingBufferError
 from app.services.session_frame_ring_buffer_manager import (
@@ -25,6 +28,17 @@ class SessionFrameIngestionWorkerConflictError(RuntimeError):
 class SessionFrameIngestionWorkerStats:
     ring_buffer_error_count: int
     unexpected_error_count: int
+    sampled_frame_count: int
+    ai_dispatched_frame_count: int
+    ai_dropped_stale_frame_count: int
+    ai_dispatch_failure_count: int
+    ai_dispatch_timeout_count: int
+    ai_dispatch_retry_count: int
+    ai_dispatch_latency_avg_ms: float
+    active_ai_dispatch_worker_count: int
+    ai_dispatch_configured: bool
+    ai_dispatch_available: bool
+    ai_dispatch_circuit_open: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,7 +74,8 @@ class SessionFrameIngestionWorkerCoordinator:
                     ai_frame_client
                     if ai_frame_client is not None
                     else NoOpAIFrameClient()
-                )
+                ),
+                ai_configured=(ai_frame_client is not None),
             )
         )
 
@@ -126,29 +141,42 @@ class SessionFrameIngestionWorkerCoordinator:
             camera_id: str,
             session_id: str,
     ) -> bool:
+        worker: SessionFrameIngestionWorker | None = None
+
         async with self._lock:
-            worker = self._workers.get(session_id)
+            existing_worker = self._workers.get(session_id)
 
-            if worker is None:
-                return False
+            if existing_worker is not None:
+                self._validate_ownership(
+                    worker=existing_worker,
+                    camera_id=camera_id,
+                )
 
-            self._validate_ownership(
-                worker=worker,
+                worker = self._workers.pop(session_id)
+
+        ingestion_stopped = False
+
+        if worker is not None:
+            await self._stop_task(worker.task)
+            ingestion_stopped = True
+
+        dispatch_stopped = (
+            await self._ai_frame_dispatch_worker_coordinator.stop_worker(
                 camera_id=camera_id,
+                session_id=session_id,
             )
+        )
 
-            del self._workers[session_id]
-
-        await self._stop_task(worker.task)
-        await self._ai_frame_dispatch_worker_coordinator.stop_worker(
+        sampler_cleared = await self._ai_frame_sampler.clear_session(
             camera_id=camera_id,
             session_id=session_id,
         )
-        await self._ai_frame_sampler.clear_session(
-            camera_id=camera_id,
-            session_id=session_id,
+
+        return (
+                ingestion_stopped
+                or dispatch_stopped
+                or sampler_cleared
         )
-        return True
 
     async def active_worker_count(self) -> int:
         async with self._lock:
@@ -160,11 +188,45 @@ class SessionFrameIngestionWorkerCoordinator:
     ) -> SessionFrameIngestionWorkerStats:
         async with self._lock:
             self._remove_finished_workers()
+            ring_buffer_error_count = self._ring_buffer_error_count
+            unexpected_error_count = self._unexpected_error_count
 
-            return SessionFrameIngestionWorkerStats(
-                ring_buffer_error_count=self._ring_buffer_error_count,
-                unexpected_error_count=self._unexpected_error_count,
+        sampler_stats = await self._get_sampler_stats()
+        dispatch_stats = (
+            await self._ai_frame_dispatch_worker_coordinator.stats()
+        )
+        ai_dispatch_latency_avg_ms = 0.0
+
+        if dispatch_stats.latency_measurement_count > 0:
+            ai_dispatch_latency_avg_ms = (
+                dispatch_stats.total_send_latency_seconds
+                * 1000
+                / dispatch_stats.latency_measurement_count
             )
+
+        return SessionFrameIngestionWorkerStats(
+            ring_buffer_error_count=ring_buffer_error_count,
+            unexpected_error_count=unexpected_error_count,
+            sampled_frame_count=sampler_stats.sampled_frame_count,
+            ai_dispatched_frame_count=(
+                dispatch_stats.dispatched_frame_count
+            ),
+            ai_dropped_stale_frame_count=(
+                dispatch_stats.dropped_pending_frame_count
+            ),
+            ai_dispatch_failure_count=dispatch_stats.send_error_count,
+            ai_dispatch_timeout_count=(
+                dispatch_stats.timeout_error_count
+            ),
+            ai_dispatch_retry_count=dispatch_stats.retry_attempt_count,
+            ai_dispatch_latency_avg_ms=ai_dispatch_latency_avg_ms,
+            active_ai_dispatch_worker_count=(
+                dispatch_stats.active_worker_count
+            ),
+            ai_dispatch_configured=dispatch_stats.ai_configured,
+            ai_dispatch_available=dispatch_stats.ai_available,
+            ai_dispatch_circuit_open=dispatch_stats.circuit_open,
+        )
 
     async def clear(self) -> int:
         async with self._lock:
@@ -186,6 +248,23 @@ class SessionFrameIngestionWorkerCoordinator:
                     camera_id=worker.camera_id,
                     session_id=worker.session_id,
                 )
+
+        # Ingestion registry'den daha önce düşmüş orphan dispatch
+        # worker'ları da garanti olarak temizle.
+        with suppress(Exception):
+            await self._ai_frame_dispatch_worker_coordinator.clear()
+
+        # Ingestion worker daha önce öldüyse geride kalmış sampler
+        # state'lerini de temizle.
+        sampler_clear = getattr(
+            self._ai_frame_sampler,
+            "clear",
+            None,
+        )
+
+        if sampler_clear is not None:
+            with suppress(Exception):
+                await sampler_clear()
 
         return len(workers)
 
@@ -265,6 +344,30 @@ class SessionFrameIngestionWorkerCoordinator:
         for session_id in finished_session_ids:
             worker = self._workers.pop(session_id)
             self._consume_task_result(worker.task)
+
+    async def _get_sampler_stats(self) -> SessionAIFrameSamplerStats:
+        stats_getter = getattr(self._ai_frame_sampler, "stats", None)
+
+        if stats_getter is None:
+            return SessionAIFrameSamplerStats(sampled_frame_count=0)
+
+        try:
+            sampler_stats = await stats_getter()
+        except Exception:
+            return SessionAIFrameSamplerStats(sampled_frame_count=0)
+
+        sampled_frame_count = getattr(
+            sampler_stats,
+            "sampled_frame_count",
+            0,
+        )
+
+        if not isinstance(sampled_frame_count, int):
+            return SessionAIFrameSamplerStats(sampled_frame_count=0)
+
+        return SessionAIFrameSamplerStats(
+            sampled_frame_count=sampled_frame_count,
+        )
 
     @staticmethod
     def _consume_task_result(

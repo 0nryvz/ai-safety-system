@@ -9,6 +9,11 @@ class SessionAIFrameSamplerConflictError(RuntimeError):
     """Sampler session identity belongs to another camera."""
 
 
+@dataclass(frozen=True, slots=True)
+class SessionAIFrameSamplerStats:
+    sampled_frame_count: int
+
+
 @dataclass(slots=True)
 class SessionAIFrameSamplingState:
     camera_id: str
@@ -28,6 +33,7 @@ class SessionAIFrameSampler:
         self._sample_interval = sample_interval
         self._states: dict[str, SessionAIFrameSamplingState] = {}
         self._lock = asyncio.Lock()
+        self._sampled_frame_count = 0
 
     async def offer_frame(
             self,
@@ -45,6 +51,7 @@ class SessionAIFrameSampler:
                     sample_interval=state.sample_interval,
             ):
                 state.last_selected_at = frame.captured_at
+                self._sampled_frame_count += 1
                 return frame
 
             return None
@@ -68,6 +75,19 @@ class SessionAIFrameSampler:
 
             del self._states[session_id]
             return True
+
+    async def stats(self) -> SessionAIFrameSamplerStats:
+        async with self._lock:
+            return SessionAIFrameSamplerStats(
+                sampled_frame_count=self._sampled_frame_count,
+            )
+
+    async def clear(self) -> int:
+        async with self._lock:
+            cleared_count = len(self._states)
+            self._states.clear()
+            return cleared_count
+
 
     @staticmethod
     def _is_selected(

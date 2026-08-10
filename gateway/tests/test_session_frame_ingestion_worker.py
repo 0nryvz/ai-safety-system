@@ -4,6 +4,9 @@ from datetime import datetime, timezone
 import pytest
 
 from app.domain.frame import FramePacket
+from app.services.session_ai_frame_dispatch_worker import (
+    SessionAIFrameDispatchWorkerCoordinator,
+)
 from app.services.session_frame_ingestion_worker import (
     SessionFrameIngestionWorkerConflictError,
     SessionFrameIngestionWorkerCoordinator,
@@ -85,10 +88,14 @@ class FailingOnceSampler:
 
 
 class AlwaysSelectingSampler:
+    def __init__(self) -> None:
+        self.sampled_frame_count = 0
+
     async def offer_frame(
             self,
             frame: FramePacket,
     ) -> FramePacket:
+        self.sampled_frame_count += 1
         return frame
 
     async def clear_session(
@@ -97,6 +104,13 @@ class AlwaysSelectingSampler:
             session_id: str,
     ) -> bool:
         return True
+
+    async def stats(self):
+        return type(
+            "SamplerStats",
+            (),
+            {"sampled_frame_count": self.sampled_frame_count},
+        )()
 
 
 class RecordingAIFrameClient:
@@ -165,6 +179,20 @@ class FailingOnceAIFrameClient:
         while len(self.sent_frames) < count:
             await asyncio.wait_for(self._frame_sent.wait(), timeout=1)
             self._frame_sent.clear()
+
+
+class AlwaysTimeoutAIFrameClient:
+    def __init__(self) -> None:
+        self.send_started = asyncio.Event()
+        self.call_count = 0
+
+    async def send_frame(
+            self,
+            frame: FramePacket,
+    ) -> None:
+        self.call_count += 1
+        self.send_started.set()
+        await asyncio.sleep(0.2)
 
 
 class BlockingAndFailingRingBufferManager:
@@ -339,9 +367,13 @@ async def test_worker_continues_ingestion_when_ai_client_is_slow() -> None:
 @pytest.mark.asyncio
 async def test_worker_continues_when_ai_client_raises_error() -> None:
     ai_client = FailingOnceAIFrameClient()
+    ai_dispatch_coordinator = SessionAIFrameDispatchWorkerCoordinator(
+        ai_frame_client=ai_client,
+        max_retries=0,
+    )
     coordinator = SessionFrameIngestionWorkerCoordinator(
         ai_frame_sampler=AlwaysSelectingSampler(),
-        ai_frame_client=ai_client,
+        ai_frame_dispatch_worker_coordinator=ai_dispatch_coordinator,
     )
     queue = SessionFrameQueue(
         camera_id="camera-1",
@@ -551,3 +583,153 @@ async def test_stop_worker_consumes_task_exception_without_warning() -> None:
         context.get("message") != "Task exception was never retrieved"
         for context in captured_contexts
     )
+
+
+@pytest.mark.asyncio
+async def test_clear_cleans_orphan_dispatch_workers_after_ingestion_crash() -> None:
+    ai_dispatch_coordinator = SessionAIFrameDispatchWorkerCoordinator(
+        ai_frame_client=BlockingAIFrameClient(),
+    )
+    coordinator = SessionFrameIngestionWorkerCoordinator(
+        ai_frame_sampler=AlwaysSelectingSampler(),
+        ai_frame_dispatch_worker_coordinator=ai_dispatch_coordinator,
+    )
+    queue = SessionFrameQueue(
+        camera_id="camera-1",
+        session_id="session-orphan",
+        max_frames=2,
+    )
+
+    await coordinator.start_worker(
+        camera_id="camera-1",
+        session_id="session-orphan",
+        queue=queue,
+        ring_buffer_manager=AlwaysFailingRingBufferManager(),
+    )
+
+    queue.enqueue(
+        create_frame(
+            camera_id="camera-1",
+            session_id="session-orphan",
+            data=b"frame-1",
+        )
+    )
+    await asyncio.wait_for(queue.join(), timeout=1)
+    await asyncio.sleep(0.05)
+
+    assert await coordinator.active_worker_count() == 0
+    assert await ai_dispatch_coordinator.active_worker_count() == 1
+
+    cleared_count = await coordinator.clear()
+    cleared_count_again = await coordinator.clear()
+
+    assert cleared_count == 0
+    assert cleared_count_again == 0
+    assert await ai_dispatch_coordinator.active_worker_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_worker_timeout_in_ai_dispatch_does_not_stop_ingestion() -> None:
+    ai_client = AlwaysTimeoutAIFrameClient()
+    ai_dispatch_coordinator = SessionAIFrameDispatchWorkerCoordinator(
+        ai_frame_client=ai_client,
+        send_timeout_seconds=0.01,
+        max_retries=0,
+        circuit_failure_threshold=10,
+        circuit_cooldown_seconds=0.1,
+    )
+    coordinator = SessionFrameIngestionWorkerCoordinator(
+        ai_frame_sampler=AlwaysSelectingSampler(),
+        ai_frame_dispatch_worker_coordinator=ai_dispatch_coordinator,
+    )
+    queue = SessionFrameQueue(
+        camera_id="camera-1",
+        session_id="session-1",
+        max_frames=3,
+    )
+    ring_buffer_manager = RecordingRingBufferManager()
+
+    await coordinator.start_worker(
+        camera_id="camera-1",
+        session_id="session-1",
+        queue=queue,
+        ring_buffer_manager=ring_buffer_manager,
+    )
+
+    queue.enqueue(
+        create_frame(
+            camera_id="camera-1",
+            session_id="session-1",
+            data=b"frame-1",
+        )
+    )
+    await asyncio.wait_for(ai_client.send_started.wait(), timeout=1)
+
+    queue.enqueue(
+        create_frame(
+            camera_id="camera-1",
+            session_id="session-1",
+            data=b"frame-2",
+        )
+    )
+    await asyncio.wait_for(queue.join(), timeout=1)
+    await asyncio.sleep(0.05)
+
+    stats = await coordinator.stats()
+    stopped = await coordinator.stop_worker(
+        camera_id="camera-1",
+        session_id="session-1",
+    )
+
+    assert stopped is True
+    assert len(ring_buffer_manager.appended_frames) == 2
+    assert stats.ai_dispatch_timeout_count >= 1
+    assert await coordinator.active_worker_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_worker_stats_include_ai_sampling_and_dispatch_metrics() -> None:
+    ai_client = RecordingAIFrameClient()
+    sampler = AlwaysSelectingSampler()
+    coordinator = SessionFrameIngestionWorkerCoordinator(
+        ai_frame_sampler=sampler,
+        ai_frame_client=ai_client,
+    )
+    queue = SessionFrameQueue(
+        camera_id="camera-1",
+        session_id="session-1",
+        max_frames=2,
+    )
+    ring_buffer_manager = RecordingRingBufferManager()
+
+    await coordinator.start_worker(
+        camera_id="camera-1",
+        session_id="session-1",
+        queue=queue,
+        ring_buffer_manager=ring_buffer_manager,
+    )
+
+    queue.enqueue(
+        create_frame(
+            camera_id="camera-1",
+            session_id="session-1",
+            data=b"frame-1",
+        )
+    )
+    await asyncio.wait_for(queue.join(), timeout=1)
+    await ai_client.wait_for_sent_count(1)
+
+    stats_while_active = await coordinator.stats()
+    await coordinator.stop_worker(
+        camera_id="camera-1",
+        session_id="session-1",
+    )
+    stats_after_stop = await coordinator.stats()
+
+    assert stats_while_active.sampled_frame_count >= 1
+    assert stats_while_active.ai_dispatched_frame_count >= 1
+    assert stats_while_active.ai_dispatch_failure_count == 0
+    assert stats_while_active.ai_dispatch_latency_avg_ms >= 0
+    assert stats_while_active.active_ai_dispatch_worker_count == 1
+    assert stats_while_active.ai_dispatch_available is True
+    assert stats_after_stop.active_ai_dispatch_worker_count == 0

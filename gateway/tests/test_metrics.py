@@ -10,6 +10,10 @@ from app.api.dependencies import (
     get_session_manager,
 )
 from app.main import app
+from app.services.ai_frame_client import NoOpAIFrameClient
+from app.services.session_ai_frame_dispatch_worker import (
+    SessionAIFrameDispatchWorkerCoordinator,
+)
 from app.services.session_frame_ingestion_worker import (
     SessionFrameIngestionWorkerCoordinator,
 )
@@ -46,6 +50,8 @@ def wait_until_frame_buffered(
         if (
                 body["buffered_frames"] >= 1
                 and body["buffered_bytes"] >= expected_min_bytes
+                and body["ai_sampled_frames"] >= 1
+                and body["ai_dispatch_failures"] >= 1
         ):
             return body
 
@@ -65,8 +71,13 @@ def test_metrics_returns_gateway_state() -> None:
         max_frames=300,
         max_bytes=67_108_864,
     )
-    ingestion_worker_coordinator = (
-        SessionFrameIngestionWorkerCoordinator()
+    ingestion_worker_coordinator = SessionFrameIngestionWorkerCoordinator(
+        ai_frame_dispatch_worker_coordinator=(
+            SessionAIFrameDispatchWorkerCoordinator(
+                ai_frame_client=NoOpAIFrameClient(),
+                ai_configured=False,
+            )
+        ),
     )
 
     app.dependency_overrides[get_session_manager] = (
@@ -133,4 +144,15 @@ def test_metrics_returns_gateway_state() -> None:
     assert metrics_body["buffered_frames"] >= 1
     assert metrics_body["buffered_bytes"] >= len(jpeg_data)
     assert metrics_body["frame_queue_capacity_per_session"] >= 1
+    assert metrics_body["ai_sampled_frames"] >= 1
+    assert metrics_body["ai_dispatched_frames"] == 0
+    assert metrics_body["ai_dropped_stale_frames"] >= 0
+    assert metrics_body["ai_dispatch_failures"] >= 1
+    assert metrics_body["ai_dispatch_timeouts"] >= 0
+    assert metrics_body["ai_dispatch_retries"] >= 0
+    assert metrics_body["ai_dispatch_latency_avg_ms"] >= 0
+    assert metrics_body["active_ai_dispatch_workers"] == 1
+    assert metrics_body["ai_dispatch_configured"] is False
+    assert metrics_body["ai_dispatch_available"] is False
+    assert metrics_body["ai_dispatch_circuit_open"] is False
     assert "timestamp" in metrics_body

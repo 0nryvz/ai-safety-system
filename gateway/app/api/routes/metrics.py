@@ -39,6 +39,17 @@ class GatewayMetricsResponse(BaseModel):
     ring_buffer_max_frames_per_session: int
     ring_buffer_max_bytes_per_session: int
     active_ingestion_workers: int
+    ai_sampled_frames: int
+    ai_dispatched_frames: int
+    ai_dropped_stale_frames: int
+    ai_dispatch_failures: int
+    ai_dispatch_timeouts: int
+    ai_dispatch_retries: int
+    ai_dispatch_latency_avg_ms: float
+    active_ai_dispatch_workers: int
+    ai_dispatch_configured: bool
+    ai_dispatch_available: bool
+    ai_dispatch_circuit_open: bool
     timestamp: datetime
 
 
@@ -65,6 +76,8 @@ async def gateway_metrics(
         ),
         settings: Settings = Depends(get_settings),
 ) -> GatewayMetricsResponse:
+    ingestion_stats = await ingestion_worker_coordinator.stats()
+
     return GatewayMetricsResponse(
         active_sessions=(
             await session_manager.active_session_count()
@@ -108,6 +121,35 @@ async def gateway_metrics(
         ),
         active_ingestion_workers=(
             await ingestion_worker_coordinator.active_worker_count()
+        ),
+        ai_sampled_frames=ingestion_stats.sampled_frame_count,
+        ai_dispatched_frames=(
+            ingestion_stats.ai_dispatched_frame_count
+        ),
+        ai_dropped_stale_frames=(
+            ingestion_stats.ai_dropped_stale_frame_count
+        ),
+        ai_dispatch_failures=(
+            ingestion_stats.ai_dispatch_failure_count
+        ),
+        ai_dispatch_timeouts=(
+            ingestion_stats.ai_dispatch_timeout_count
+        ),
+        ai_dispatch_retries=(
+            ingestion_stats.ai_dispatch_retry_count
+        ),
+        ai_dispatch_latency_avg_ms=(
+            ingestion_stats.ai_dispatch_latency_avg_ms
+        ),
+        active_ai_dispatch_workers=(
+            ingestion_stats.active_ai_dispatch_worker_count
+        ),
+        ai_dispatch_configured=(
+            ingestion_stats.ai_dispatch_configured
+        ),
+        ai_dispatch_available=ingestion_stats.ai_dispatch_available,
+        ai_dispatch_circuit_open=(
+            ingestion_stats.ai_dispatch_circuit_open
         ),
         timestamp=datetime.now(timezone.utc),
     )
