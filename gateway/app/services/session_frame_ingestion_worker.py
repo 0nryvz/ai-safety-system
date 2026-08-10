@@ -2,6 +2,13 @@ import asyncio
 from contextlib import suppress
 from dataclasses import dataclass
 
+from app.domain.frame import FramePacket
+from app.services.ai_frame_client import AIFrameClient, NoOpAIFrameClient
+from app.services.session_ai_frame_dispatch_worker import (
+    SessionAIFrameDispatchWorkerConflictError,
+    SessionAIFrameDispatchWorkerCoordinator,
+)
+from app.services.session_ai_frame_sampler import SessionAIFrameSampler
 from app.services.session_frame_queue import SessionFrameQueue
 from app.services.session_frame_ring_buffer import FrameRingBufferError
 from app.services.session_frame_ring_buffer_manager import (
@@ -28,11 +35,34 @@ class SessionFrameIngestionWorker:
 
 
 class SessionFrameIngestionWorkerCoordinator:
-    def __init__(self) -> None:
+    def __init__(
+            self,
+            ai_frame_sampler: SessionAIFrameSampler | None = None,
+            ai_frame_dispatch_worker_coordinator: (
+                SessionAIFrameDispatchWorkerCoordinator | None
+            ) = None,
+            ai_frame_client: AIFrameClient | None = None,
+    ) -> None:
         self._workers: dict[str, SessionFrameIngestionWorker] = {}
         self._lock = asyncio.Lock()
         self._ring_buffer_error_count = 0
         self._unexpected_error_count = 0
+        self._ai_frame_sampler = (
+            ai_frame_sampler
+            if ai_frame_sampler is not None
+            else SessionAIFrameSampler()
+        )
+        self._ai_frame_dispatch_worker_coordinator = (
+            ai_frame_dispatch_worker_coordinator
+            if ai_frame_dispatch_worker_coordinator is not None
+            else SessionAIFrameDispatchWorkerCoordinator(
+                ai_frame_client=(
+                    ai_frame_client
+                    if ai_frame_client is not None
+                    else NoOpAIFrameClient()
+                )
+            )
+        )
 
     async def start_worker(
             self,
@@ -61,6 +91,17 @@ class SessionFrameIngestionWorkerCoordinator:
 
                 self._consume_task_result(existing_worker.task)
                 del self._workers[session_id]
+
+            try:
+                await self._ai_frame_dispatch_worker_coordinator.start_worker(
+                    camera_id=camera_id,
+                    session_id=session_id,
+                )
+            except SessionAIFrameDispatchWorkerConflictError as exc:
+                raise SessionFrameIngestionWorkerConflictError(
+                    f"AI dispatch worker for session "
+                    f"'{session_id}' belongs to another camera"
+                ) from exc
 
             task = asyncio.create_task(
                 self._run_worker(
@@ -99,6 +140,14 @@ class SessionFrameIngestionWorkerCoordinator:
             del self._workers[session_id]
 
         await self._stop_task(worker.task)
+        await self._ai_frame_dispatch_worker_coordinator.stop_worker(
+            camera_id=camera_id,
+            session_id=session_id,
+        )
+        await self._ai_frame_sampler.clear_session(
+            camera_id=camera_id,
+            session_id=session_id,
+        )
         return True
 
     async def active_worker_count(self) -> int:
@@ -123,10 +172,20 @@ class SessionFrameIngestionWorkerCoordinator:
             self._workers.clear()
 
         for worker in workers:
-            try:
+            with suppress(Exception):
                 await self._stop_task(worker.task)
-            except Exception:
-                continue
+
+            with suppress(Exception):
+                await self._ai_frame_dispatch_worker_coordinator.stop_worker(
+                    camera_id=worker.camera_id,
+                    session_id=worker.session_id,
+                )
+
+            with suppress(Exception):
+                await self._ai_frame_sampler.clear_session(
+                    camera_id=worker.camera_id,
+                    session_id=worker.session_id,
+                )
 
         return len(workers)
 
@@ -146,6 +205,27 @@ class SessionFrameIngestionWorkerCoordinator:
                     session_id=session_id,
                     frame=frame,
                 )
+
+                sampled_frame: FramePacket | None = None
+
+                try:
+                    sampled_frame = await self._ai_frame_sampler.offer_frame(
+                        frame=frame,
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    self._unexpected_error_count += 1
+
+                if sampled_frame is not None:
+                    try:
+                        await self._ai_frame_dispatch_worker_coordinator.offer_frame(
+                            frame=sampled_frame,
+                        )
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        self._unexpected_error_count += 1
             except asyncio.CancelledError:
                 raise
             except (
