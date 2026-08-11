@@ -1,4 +1,6 @@
 spring:
+  profiles:
+    active: local
   application:
     name: backend
 
@@ -25,8 +27,14 @@ application:
       expiration: 900000
       refresh-token:
         expiration: 604800000
-    internal: # <--- Doğru hizalama (jwt ile aynı hizada, security'nin altında)
+    internal:
       api-key: "benim-gizli-anahtarim-123"
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
 recording:
   command:

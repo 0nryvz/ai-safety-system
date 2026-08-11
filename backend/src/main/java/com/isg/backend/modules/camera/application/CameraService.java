@@ -9,9 +9,13 @@ import com.isg.backend.modules.camera.domain.entity.CameraSession;
 import com.isg.backend.modules.camera.infrastructure.repository.CameraRepository;
 import com.isg.backend.modules.camera.infrastructure.repository.CameraSessionRepository;
 import com.isg.backend.modules.user.entity.Department;
+import com.isg.backend.modules.user.entity.User;
 import com.isg.backend.modules.user.infrastructure.DepartmentRepository;
+import com.isg.backend.modules.user.infrastructure.UserRepository;
+import com.isg.backend.modules.user.service.AuthorizationService;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +31,8 @@ public class CameraService {
     private final CameraRepository cameraRepository;
     private final DepartmentRepository departmentRepository;
     private final CameraSessionRepository cameraSessionRepository;
+    private final AuthorizationService authorizationService;
+    private final UserRepository userRepository;
 
     @Transactional
     public CameraResponse createCamera(CameraCreateRequest request) {
@@ -45,7 +51,20 @@ public class CameraService {
 
     @Transactional(readOnly = true)
     public List<CameraResponse> getAllCameras() {
-        return cameraRepository.findAll().stream()
+        // 1. Giriş yapan kullanıcının bilgilerini SecurityContext'ten al
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı!"));
+
+        // 2. Kullanıcının erişebileceği departman ID'lerini AuthorizationService'ten sorgula
+        List<UUID> accessibleDeptIds = authorizationService.accessibleDepartmentIds(user.getId());
+
+        if (accessibleDeptIds.isEmpty()) {
+            return List.of();
+        }
+
+        // 3. Sadece yetkili olunan departmanlardaki kameraları getir (Metot adı düzeltildi)
+        return cameraRepository.findByDepartmentIdIn(accessibleDeptIds).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -54,6 +73,16 @@ public class CameraService {
     public CameraResponse getCameraById(UUID id) {
         Camera camera = cameraRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Kamera bulunamadı!"));
+
+        // Kullanıcının bu kameranın departmanına erişim yetkisi var mı kontrol et
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı!"));
+
+        if (!authorizationService.canAccessDepartment(user.getId(), camera.getDepartment().getId())) {
+            throw new RuntimeException("Bu kameraya erişim yetkiniz yok!");
+        }
+
         return mapToResponse(camera);
     }
 
@@ -103,8 +132,8 @@ public class CameraService {
         CameraSession session = CameraSession.builder()
                 .sessionId(request.getSessionId())
                 .camera(camera)
-                .clientInfo(request.getDeviceInfo()) // API'den gelen deviceInfo, ortak DB alanı olan client_info'ya mapleniyor
-                .startedAt(now)                      // ortak DB alanı olan started_at ile uyumlu
+                .clientInfo(request.getDeviceInfo())
+                .startedAt(now)
                 .status(CameraSession.SessionStatus.ACTIVE)
                 .build();
 
@@ -138,7 +167,7 @@ public class CameraService {
                 .orElseThrow(() -> new RuntimeException("Oturum bulunamadı!"));
 
         session.setStatus(CameraSession.SessionStatus.CLOSED);
-        session.setEndedAt(Instant.now()); // ortak DB alanı ended_at ile uyumlu
+        session.setEndedAt(Instant.now());
         cameraSessionRepository.save(session);
 
         Camera camera = session.getCamera();
