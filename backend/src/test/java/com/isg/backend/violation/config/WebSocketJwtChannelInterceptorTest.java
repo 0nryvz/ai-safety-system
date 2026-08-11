@@ -9,10 +9,12 @@ import org.springframework.messaging.MessagingException;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
 import java.util.List;
 
@@ -48,7 +50,7 @@ class WebSocketJwtChannelInterceptorTest {
     }
 
     @Test
-    void authenticatesValidStompConnect() {
+    void authenticatesValidStompConnectAndSetsPrincipal() {
         String token =
                 "valid-token";
 
@@ -99,6 +101,28 @@ class WebSocketJwtChannelInterceptorTest {
         assertThat(result)
                 .isSameAs(
                         message
+                );
+
+        StompHeaderAccessor accessor =
+                MessageHeaderAccessor.getAccessor(
+                        result,
+                        StompHeaderAccessor.class
+                );
+
+        assertThat(accessor)
+                .isNotNull();
+
+        assertThat(accessor.getUser())
+                .isNotNull();
+
+        assertThat(accessor.getUser().getName())
+                .isEqualTo(
+                        email
+                );
+
+        assertThat(accessor.getUser())
+                .isInstanceOf(
+                        UsernamePasswordAuthenticationToken.class
                 );
 
         verify(jwtService)

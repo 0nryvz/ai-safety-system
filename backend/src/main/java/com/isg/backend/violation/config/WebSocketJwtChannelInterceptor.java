@@ -7,6 +7,7 @@ import org.springframework.messaging.MessagingException;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -42,12 +43,13 @@ public class WebSocketJwtChannelInterceptor
             MessageChannel channel
     ) {
         StompHeaderAccessor accessor =
-                StompHeaderAccessor.wrap(
-                        message
+                MessageHeaderAccessor.getAccessor(
+                        message,
+                        StompHeaderAccessor.class
                 );
 
-        if (accessor.getCommand()
-                != StompCommand.CONNECT) {
+        if (accessor == null
+                || accessor.getCommand() != StompCommand.CONNECT) {
             return message;
         }
 
