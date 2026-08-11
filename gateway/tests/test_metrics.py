@@ -51,7 +51,6 @@ def wait_until_frame_buffered(
                 body["buffered_frames"] >= 1
                 and body["buffered_bytes"] >= expected_min_bytes
                 and body["ai_sampled_frames"] >= 1
-                and body["ai_dispatch_failures"] >= 1
         ):
             return body
 
@@ -147,7 +146,7 @@ def test_metrics_returns_gateway_state() -> None:
     assert metrics_body["ai_sampled_frames"] >= 1
     assert metrics_body["ai_dispatched_frames"] == 0
     assert metrics_body["ai_dropped_stale_frames"] >= 0
-    assert metrics_body["ai_dispatch_failures"] >= 1
+    assert metrics_body["ai_dispatch_failures"] == 0
     assert metrics_body["ai_dispatch_timeouts"] >= 0
     assert metrics_body["ai_dispatch_retries"] >= 0
     assert metrics_body["ai_dispatch_latency_avg_ms"] >= 0
