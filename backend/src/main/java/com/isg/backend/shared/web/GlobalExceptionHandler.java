@@ -1,6 +1,7 @@
 package com.isg.backend.shared.web;
 
 import com.isg.backend.violation.exception.UnsupportedDetectionLabelException;
+import com.isg.backend.violation.exception.ViolationNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,8 +20,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UnsupportedDetectionLabelException.class)
     public ResponseEntity<ApiErrorResponse> unsupported(
             UnsupportedDetectionLabelException ex,
-            HttpServletRequest req) {
-
+            HttpServletRequest req
+    ) {
         return build(
                 HttpStatus.UNPROCESSABLE_ENTITY,
                 ex.getMessage(),
@@ -31,13 +32,23 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> validation(
             MethodArgumentNotValidException ex,
-            HttpServletRequest req) {
-
-        String message = ex.getBindingResult()
-                .getFieldErrors()
-                .stream()
-                .map(error -> error.getField() + ": " + error.getDefaultMessage())
-                .collect(Collectors.joining(", "));
+            HttpServletRequest req
+    ) {
+        String message =
+                ex.getBindingResult()
+                        .getFieldErrors()
+                        .stream()
+                        .map(
+                                error ->
+                                        error.getField()
+                                                + ": "
+                                                + error.getDefaultMessage()
+                        )
+                        .collect(
+                                Collectors.joining(
+                                        ", "
+                                )
+                        );
 
         return build(
                 HttpStatus.BAD_REQUEST,
@@ -49,9 +60,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiErrorResponse> typeMismatch(
             MethodArgumentTypeMismatchException ex,
-            HttpServletRequest req) {
-
-        String message = "Invalid value for parameter '" + ex.getName() + "'.";
+            HttpServletRequest req
+    ) {
+        String message =
+                "Invalid value for parameter '"
+                        + ex.getName()
+                        + "'.";
 
         return build(
                 HttpStatus.BAD_REQUEST,
@@ -60,11 +74,23 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(ViolationNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> violationNotFound(
+            ViolationNotFoundException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.NOT_FOUND,
+                "Violation not found.",
+                req
+        );
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiErrorResponse> notFound(
             NoResourceFoundException ex,
-            HttpServletRequest req) {
-
+            HttpServletRequest req
+    ) {
         return build(
                 HttpStatus.NOT_FOUND,
                 "Resource not found.",
@@ -75,8 +101,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> unexpected(
             Exception ex,
-            HttpServletRequest req) {
-
+            HttpServletRequest req
+    ) {
         return build(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "An unexpected error occurred.",
@@ -87,16 +113,23 @@ public class GlobalExceptionHandler {
     private ResponseEntity<ApiErrorResponse> build(
             HttpStatus status,
             String message,
-            HttpServletRequest req) {
+            HttpServletRequest req
+    ) {
+        ApiErrorResponse body =
+                new ApiErrorResponse(
+                        Instant.now(),
+                        status.value(),
+                        status.getReasonPhrase(),
+                        message,
+                        req.getRequestURI()
+                );
 
-        ApiErrorResponse body = new ApiErrorResponse(
-                Instant.now(),
-                status.value(),
-                status.getReasonPhrase(),
-                message,
-                req.getRequestURI()
-        );
-
-        return ResponseEntity.status(status).body(body);
+        return ResponseEntity
+                .status(
+                        status
+                )
+                .body(
+                        body
+                );
     }
-} 
+}
