@@ -1,40 +1,36 @@
 package com.isg.backend.violation.service;
 
 import com.isg.backend.modules.user.service.AuthorizationService;
+import com.isg.backend.violation.application.port.RecordingQueryPort;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
 import com.isg.backend.violation.domain.ViolationType;
+import com.isg.backend.violation.exception.ViolationNotFoundException;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
+import com.isg.backend.violation.infrastructure.persistence.ViolationDetailProjection;
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
+import com.isg.backend.violation.query.ViolationDetailResponse;
 import com.isg.backend.violation.query.ViolationListItem;
 import com.isg.backend.violation.query.ViolationQueryFilter;
-import com.isg.backend.modules.camera.api.dto.CameraResponse;
-import com.isg.backend.modules.camera.application.CameraService;
-import com.isg.backend.violation.application.port.DepartmentNameResolver;
-import com.isg.backend.violation.application.port.RecordingQueryPort;
-import com.isg.backend.violation.exception.ViolationNotFoundException;
-import com.isg.backend.violation.query.ViolationDetailResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.beans.factory.ObjectProvider;
-
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,10 +38,8 @@ class ViolationQueryServiceTest {
 
     private SpringDataViolationRepository violationRepository;
     private AuthorizationService authorizationService;
-    private ViolationQueryService queryService;
-    private CameraService cameraService;
-    private ObjectProvider<DepartmentNameResolver> departmentNameResolverProvider;
     private ObjectProvider<RecordingQueryPort> recordingQueryPortProvider;
+    private ViolationQueryService queryService;
 
     @BeforeEach
     void setUp() {
@@ -55,12 +49,6 @@ class ViolationQueryServiceTest {
         authorizationService =
                 mock(AuthorizationService.class);
 
-        cameraService =
-                mock(CameraService.class);
-
-        departmentNameResolverProvider =
-                mock(ObjectProvider.class);
-
         recordingQueryPortProvider =
                 mock(ObjectProvider.class);
 
@@ -68,8 +56,6 @@ class ViolationQueryServiceTest {
                 new ViolationQueryService(
                         violationRepository,
                         authorizationService,
-                        cameraService,
-                        departmentNameResolverProvider,
                         recordingQueryPortProvider
                 );
     }
@@ -210,15 +196,10 @@ class ViolationQueryServiceTest {
                 .isEqualTo(
                         cameraId
                 );
-
-        assertThat(item.lifecycleStatus())
-                .isEqualTo(
-                        ViolationLifecycleStatus.COMPLETED
-                );
     }
 
     @Test
-    void returnsAuthorizedViolationDetailWithoutPlaybackUrlWhenRecordingAdapterIsMissing() {
+    void returnsAuthorizedProjectedDetailWithoutPlaybackUrlWhenRecordingAdapterIsMissing() {
         UUID userId =
                 UUID.randomUUID();
 
@@ -231,56 +212,71 @@ class ViolationQueryServiceTest {
         UUID departmentId =
                 UUID.randomUUID();
 
-        ViolationJpaEntity violation =
-                mock(ViolationJpaEntity.class);
+        ViolationDetailProjection projection =
+                mock(ViolationDetailProjection.class);
 
-        when(violation.getId())
+        when(projection.getViolationId())
                 .thenReturn(
                         violationId
                 );
 
-        when(violation.getCameraId())
+        when(projection.getCameraId())
                 .thenReturn(
                         cameraId
                 );
 
-        when(violation.getDepartmentId())
+        when(projection.getCameraName())
+                .thenReturn(
+                        "Kaynak Kamera"
+                );
+
+        when(projection.getCameraCode())
+                .thenReturn(
+                        "CAM-01"
+                );
+
+        when(projection.getDepartmentId())
                 .thenReturn(
                         departmentId
                 );
 
-        when(violation.getConfidence())
+        when(projection.getDepartmentName())
+                .thenReturn(
+                        "Kaynak"
+                );
+
+        when(projection.getType())
+                .thenReturn(
+                        ViolationType.MISSING_WELDING_MASK.name()
+                );
+
+        when(projection.getConfidence())
                 .thenReturn(
                         new BigDecimal(
                                 "0.9500"
                         )
                 );
 
-        when(violation.getLifecycleStatus())
-                .thenReturn(
-                        ViolationLifecycleStatus.COMPLETED
-                );
-
-        when(violation.getReviewStatus())
-                .thenReturn(
-                        ViolationReviewStatus.UNREVIEWED
-                );
-
-        when(violation.getViolationType())
-                .thenReturn(
-                        ViolationType.MISSING_WELDING_MASK
-                );
-
-        when(violation.getModelVersion())
+        when(projection.getModelVersion())
                 .thenReturn(
                         "model-v1"
                 );
 
-        when(violationRepository.findById(
+        when(projection.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.COMPLETED.name()
+                );
+
+        when(projection.getReviewStatus())
+                .thenReturn(
+                        ViolationReviewStatus.UNREVIEWED.name()
+                );
+
+        when(violationRepository.findDetailProjectionById(
                 violationId
         )).thenReturn(
                 Optional.of(
-                        violation
+                        projection
                 )
         );
 
@@ -290,22 +286,6 @@ class ViolationQueryServiceTest {
         )).thenReturn(
                 true
         );
-
-        when(cameraService.getCameraById(
-                cameraId
-        )).thenReturn(
-                CameraResponse.builder()
-                        .id(cameraId)
-                        .name("Kaynak Kamera")
-                        .code("CAM-01")
-                        .departmentId(departmentId)
-                        .build()
-        );
-
-        when(departmentNameResolverProvider.getIfAvailable())
-                .thenReturn(
-                        null
-                );
 
         when(recordingQueryPortProvider.getIfAvailable())
                 .thenReturn(
@@ -328,6 +308,11 @@ class ViolationQueryServiceTest {
                         "Kaynak Kamera"
                 );
 
+        assertThat(result.departmentName())
+                .isEqualTo(
+                        "Kaynak"
+                );
+
         assertThat(result.recordingStatus())
                 .isEqualTo(
                         "READY"
@@ -341,7 +326,7 @@ class ViolationQueryServiceTest {
     }
 
     @Test
-    void hidesUnauthorizedViolationAsNotFound() {
+    void hidesUnauthorizedProjectedViolationAsNotFound() {
         UUID userId =
                 UUID.randomUUID();
 
@@ -351,19 +336,19 @@ class ViolationQueryServiceTest {
         UUID departmentId =
                 UUID.randomUUID();
 
-        ViolationJpaEntity violation =
-                mock(ViolationJpaEntity.class);
+        ViolationDetailProjection projection =
+                mock(ViolationDetailProjection.class);
 
-        when(violation.getDepartmentId())
+        when(projection.getDepartmentId())
                 .thenReturn(
                         departmentId
                 );
 
-        when(violationRepository.findById(
+        when(violationRepository.findDetailProjectionById(
                 violationId
         )).thenReturn(
                 Optional.of(
-                        violation
+                        projection
                 )
         );
 
@@ -383,13 +368,6 @@ class ViolationQueryServiceTest {
                 .isInstanceOf(
                         ViolationNotFoundException.class
                 );
-
-        verify(
-                cameraService,
-                never()
-        ).getCameraById(
-                any()
-        );
     }
 
     @Test

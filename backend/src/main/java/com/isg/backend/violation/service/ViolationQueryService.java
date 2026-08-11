@@ -1,14 +1,14 @@
 package com.isg.backend.violation.service;
 
-import com.isg.backend.modules.camera.api.dto.CameraResponse;
-import com.isg.backend.modules.camera.application.CameraService;
 import com.isg.backend.modules.user.service.AuthorizationService;
-import com.isg.backend.violation.application.port.DepartmentNameResolver;
 import com.isg.backend.violation.application.port.RecordingQueryPort;
 import com.isg.backend.violation.application.port.RecordingQueryResult;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
+import com.isg.backend.violation.domain.ViolationReviewStatus;
+import com.isg.backend.violation.domain.ViolationType;
 import com.isg.backend.violation.exception.ViolationNotFoundException;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
+import com.isg.backend.violation.infrastructure.persistence.ViolationDetailProjection;
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
 import com.isg.backend.violation.infrastructure.persistence.ViolationSpecifications;
 import com.isg.backend.violation.query.ViolationDetailResponse;
@@ -31,15 +31,11 @@ public class ViolationQueryService {
 
     private final SpringDataViolationRepository violationRepository;
     private final AuthorizationService authorizationService;
-    private final CameraService cameraService;
-    private final ObjectProvider<DepartmentNameResolver> departmentNameResolverProvider;
     private final ObjectProvider<RecordingQueryPort> recordingQueryPortProvider;
 
     public ViolationQueryService(
             SpringDataViolationRepository violationRepository,
             AuthorizationService authorizationService,
-            CameraService cameraService,
-            ObjectProvider<DepartmentNameResolver> departmentNameResolverProvider,
             ObjectProvider<RecordingQueryPort> recordingQueryPortProvider
     ) {
         this.violationRepository =
@@ -47,12 +43,6 @@ public class ViolationQueryService {
 
         this.authorizationService =
                 authorizationService;
-
-        this.cameraService =
-                cameraService;
-
-        this.departmentNameResolverProvider =
-                departmentNameResolverProvider;
 
         this.recordingQueryPortProvider =
                 recordingQueryPortProvider;
@@ -109,8 +99,8 @@ public class ViolationQueryService {
                 "violationId must not be null"
         );
 
-        ViolationJpaEntity violation =
-                violationRepository.findById(
+        ViolationDetailProjection projection =
+                violationRepository.findDetailProjectionById(
                         violationId
                 ).orElseThrow(
                         () -> new ViolationNotFoundException(
@@ -121,7 +111,7 @@ public class ViolationQueryService {
         boolean authorized =
                 authorizationService.canAccessDepartment(
                         userId,
-                        violation.getDepartmentId()
+                        projection.getDepartmentId()
                 );
 
         if (!authorized) {
@@ -130,47 +120,47 @@ public class ViolationQueryService {
             );
         }
 
-        CameraResponse camera =
-                cameraService.getCameraById(
-                        violation.getCameraId()
-                );
-
-        String departmentName =
-                resolveDepartmentName(
-                        violation.getDepartmentId()
+        ViolationLifecycleStatus lifecycleStatus =
+                ViolationLifecycleStatus.valueOf(
+                        projection.getLifecycleStatus()
                 );
 
         RecordingQueryResult recording =
                 resolveRecording(
-                        violation
+                        violationId,
+                        lifecycleStatus
                 );
 
         String coverImageKey =
-                violation.getCoverImageKey();
+                projection.getCoverImageKey();
 
         boolean coverImageReady =
                 coverImageKey != null
                         && !coverImageKey.isBlank();
 
         return new ViolationDetailResponse(
-                violation.getId(),
-                violation.getCameraId(),
-                camera.getName(),
-                camera.getCode(),
-                violation.getDepartmentId(),
-                departmentName,
-                violation.getCameraSessionId(),
-                violation.getViolationType(),
-                violation.getConfidence()
+                projection.getViolationId(),
+                projection.getCameraId(),
+                projection.getCameraName(),
+                projection.getCameraCode(),
+                projection.getDepartmentId(),
+                projection.getDepartmentName(),
+                projection.getSessionId(),
+                ViolationType.valueOf(
+                        projection.getType()
+                ),
+                projection.getConfidence()
                         .doubleValue(),
-                violation.getModelVersion(),
-                violation.getDetectedAt(),
-                violation.getStartedAt(),
-                violation.getEndedAt(),
-                violation.getLifecycleStatus(),
-                violation.getReviewStatus(),
-                violation.getReviewedBy(),
-                violation.getReviewedAt(),
+                projection.getModelVersion(),
+                projection.getDetectedAt(),
+                projection.getStartedAt(),
+                projection.getEndedAt(),
+                lifecycleStatus,
+                ViolationReviewStatus.valueOf(
+                        projection.getReviewStatus()
+                ),
+                projection.getReviewedBy(),
+                projection.getReviewedAt(),
                 recording.recordingStatus(),
                 recording.clipReady(),
                 recording.playbackUrl(),
@@ -196,23 +186,9 @@ public class ViolationQueryService {
         );
     }
 
-    private String resolveDepartmentName(
-            UUID departmentId
-    ) {
-        DepartmentNameResolver resolver =
-                departmentNameResolverProvider.getIfAvailable();
-
-        if (resolver == null) {
-            return null;
-        }
-
-        return resolver.resolveDepartmentName(
-                departmentId
-        );
-    }
-
     private RecordingQueryResult resolveRecording(
-            ViolationJpaEntity violation
+            UUID violationId,
+            ViolationLifecycleStatus lifecycleStatus
     ) {
         RecordingQueryPort recordingQueryPort =
                 recordingQueryPortProvider.getIfAvailable();
@@ -220,7 +196,7 @@ public class ViolationQueryService {
         if (recordingQueryPort != null) {
             Optional<RecordingQueryResult> result =
                     recordingQueryPort.findByViolationId(
-                            violation.getId()
+                            violationId
                     );
 
             if (result.isPresent()) {
@@ -229,11 +205,11 @@ public class ViolationQueryService {
         }
 
         /*
-         * BE-4 query adapter henüz bağlı değilse
-         * BE-3 lifecycle bilgisinden yalnızca hazır/durum
-         * bilgisi türetilir. Playback URL üretilmez.
+         * BE-4 query adapter henüz bağlı değilse yalnızca
+         * lifecycle durumundan güvenli bir durum bilgisi
+         * türetilir. Playback URL BE-3 tarafından üretilmez.
          */
-        if (violation.getLifecycleStatus()
+        if (lifecycleStatus
                 == ViolationLifecycleStatus.COMPLETED) {
             return new RecordingQueryResult(
                     "READY",
@@ -242,7 +218,7 @@ public class ViolationQueryService {
             );
         }
 
-        if (violation.getLifecycleStatus()
+        if (lifecycleStatus
                 == ViolationLifecycleStatus.ERROR) {
             return RecordingQueryResult.notReady(
                     "ERROR"
