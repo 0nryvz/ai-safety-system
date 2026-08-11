@@ -29,6 +29,10 @@ application:
       api-key: "benim-gizli-anahtarim-123"
 
 recording:
+  command:
+    pre-buffer-seconds: ${RECORDING_COMMAND_PRE_BUFFER_SECONDS:5}
+    post-buffer-seconds: ${RECORDING_COMMAND_POST_BUFFER_SECONDS:5}
+    max-clip-seconds: ${RECORDING_COMMAND_MAX_CLIP_SECONDS:30}
   gateway:
     base-url: ${RECORDING_GATEWAY_BASE_URL:http://localhost:8081}
     connect-timeout: ${RECORDING_GATEWAY_CONNECT_TIMEOUT:1s}
