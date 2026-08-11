@@ -1,12 +1,15 @@
 package com.isg.backend.violation.service;
 
+import com.isg.backend.modules.user.service.AuthorizationService;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
 import com.isg.backend.violation.domain.ViolationStatusKind;
+import com.isg.backend.violation.exception.ViolationNotFoundException;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationStatusHistoryRepository;
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
 import com.isg.backend.violation.infrastructure.persistence.ViolationStatusHistoryJpaEntity;
 import com.isg.backend.violation.query.ViolationReviewCommand;
+import com.isg.backend.violation.query.ViolationReviewResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,20 +22,25 @@ public class ViolationReviewService {
 
     private final SpringDataViolationRepository violationRepository;
     private final SpringDataViolationStatusHistoryRepository statusHistoryRepository;
+    private final AuthorizationService authorizationService;
 
     public ViolationReviewService(
             SpringDataViolationRepository violationRepository,
-            SpringDataViolationStatusHistoryRepository statusHistoryRepository
+            SpringDataViolationStatusHistoryRepository statusHistoryRepository,
+            AuthorizationService authorizationService
     ) {
         this.violationRepository =
                 violationRepository;
 
         this.statusHistoryRepository =
                 statusHistoryRepository;
+
+        this.authorizationService =
+                authorizationService;
     }
 
     @Transactional
-    public ViolationJpaEntity review(
+    public ViolationReviewResponse review(
             ViolationReviewCommand command
     ) {
         Objects.requireNonNull(
@@ -44,21 +52,30 @@ public class ViolationReviewService {
                 violationRepository.findById(
                         command.violationId()
                 ).orElseThrow(
-                        () -> new IllegalStateException(
-                                "Violation not found: "
-                                        + command.violationId()
+                        () -> new ViolationNotFoundException(
+                                command.violationId()
                         )
                 );
+
+        boolean authorized =
+                authorizationService.canAccessDepartment(
+                        command.reviewerId(),
+                        violation.getDepartmentId()
+                );
+
+        if (!authorized) {
+            throw new ViolationNotFoundException(
+                    command.violationId()
+            );
+        }
 
         ViolationReviewStatus currentStatus =
                 violation.getReviewStatus();
 
-        /*
-         * Aynı review sonucu tekrar gönderildiyse
-         * gereksiz audit kaydı üretmeyiz.
-         */
         if (currentStatus == command.reviewStatus()) {
-            return violation;
+            return toResponse(
+                    violation
+            );
         }
 
         Instant reviewedAt =
@@ -90,6 +107,19 @@ public class ViolationReviewService {
                 )
         );
 
-        return savedViolation;
+        return toResponse(
+                savedViolation
+        );
+    }
+
+    private ViolationReviewResponse toResponse(
+            ViolationJpaEntity violation
+    ) {
+        return new ViolationReviewResponse(
+                violation.getId(),
+                violation.getReviewStatus(),
+                violation.getReviewedBy(),
+                violation.getReviewedAt()
+        );
     }
 }
