@@ -1,4 +1,5 @@
 package com.isg.backend.modules.user.service;
+
 import com.isg.backend.modules.user.dto.CreateUserRequest;
 import com.isg.backend.modules.user.dto.UpdateUserRequest;
 import com.isg.backend.modules.user.dto.UserResponse;
@@ -13,7 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashSet; // <-- EKSİK OLAN IMPORT EKLENDİ
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -50,10 +51,13 @@ public class UserServiceImpl implements UserService {
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
-                .department(department)
                 .roles(roles)
                 .active(true)
                 .build();
+
+        if (department != null) {
+            user.setDepartment(department);
+        }
 
         user = userRepository.save(user);
         return mapToResponse(user);
@@ -65,7 +69,6 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
 
-        // Admin pasife alınmaya çalışılıyorsa son admin kontrolü yap
         if (request.getActive() != null && !request.getActive() && isAdmin(user)) {
             checkIfLastAdmin();
         }
@@ -110,6 +113,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public UserResponse getUserById(UUID id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
@@ -117,6 +121,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream()
                 .map(this::mapToResponse)
@@ -124,6 +129,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public UserResponse getMe(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
@@ -147,8 +153,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private UserResponse mapToResponse(User user) {
-        // DEĞİŞİKLİK: UUID yerine Long tipinde Set oluşturuldu
-        Set<Long> deptIds = new HashSet<>();
+        Set<UUID> deptIds = new HashSet<>();
 
         if (user.getDepartment() != null) {
             deptIds.add(user.getDepartment().getId());
@@ -159,7 +164,9 @@ public class UserServiceImpl implements UserService {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .active(user.isActive())
-                .departmentIds(deptIds) // Set<Long> olarak eklendi
+                .departmentId(user.getDepartment() != null ? user.getDepartment().getId() : null)
+                .departmentName(user.getDepartment() != null ? user.getDepartment().getName() : null)
+                .departmentIds(deptIds)
                 .roles(user.getRoles().stream().map(Role::getName).collect(Collectors.toSet()))
                 .createdAt(user.getCreatedAt())
                 .build();

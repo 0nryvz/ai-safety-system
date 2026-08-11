@@ -19,12 +19,12 @@ public class UserResponse {
     private String email;
     private String fullName;
     private boolean active;
-    private Long departmentId;
+    private UUID departmentId; // Long yerine UUID yapıldı
     private String departmentName;
     private Set<String> roles;
 
     @Builder.Default
-    private Set<Long> departmentIds = new HashSet<>();
+    private Set<UUID> departmentIds = new HashSet<>(); // Set<Long> yerine Set<UUID> yapıldı
 
     private OffsetDateTime createdAt;
 }

@@ -1,13 +1,14 @@
-package com.isg.backend.modules.auth.infrastructure; // Kendi paket adınla değiştir
+package com.isg.backend.modules.auth.infrastructure;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
 
-@Configuration
+@Component
 @ConfigurationProperties(prefix = "application.security.internal")
+@Getter
+@Setter
 public class InternalSecurityProperties {
     private String apiKey;
-
-    public String getApiKey() { return apiKey; }
-    public void setApiKey(String apiKey) { this.apiKey = apiKey; }
 }
