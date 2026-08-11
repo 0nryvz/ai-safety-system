@@ -10,8 +10,31 @@ spring:
 
   flyway:
     enabled: true
+    baseline-on-migrate: true
 
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+    show-sql: true
+
+application:
+  security:
+    jwt:
+      secret-key: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      expiration: 900000
+      refresh-token:
+        expiration: 604800000
+    internal: # <--- Doğru hizalama (jwt ile aynı hizada, security'nin altında)
+      api-key: "benim-gizli-anahtarim-123"
+
+recording:
+  command:
+    pre-buffer-seconds: ${RECORDING_COMMAND_PRE_BUFFER_SECONDS:5}
+    post-buffer-seconds: ${RECORDING_COMMAND_POST_BUFFER_SECONDS:5}
+    max-clip-seconds: ${RECORDING_COMMAND_MAX_CLIP_SECONDS:30}
+  gateway:
+    base-url: ${RECORDING_GATEWAY_BASE_URL:http://localhost:8081}
+    connect-timeout: ${RECORDING_GATEWAY_CONNECT_TIMEOUT:1s}
+    read-timeout: ${RECORDING_GATEWAY_READ_TIMEOUT:2s}
+    max-retries: ${RECORDING_GATEWAY_MAX_RETRIES:2}

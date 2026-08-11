@@ -17,6 +17,7 @@ backend/target/
 .venv/
 venv/
 env/
+
 ENV/
 __pycache__/
 *.pyc
@@ -35,3 +36,7 @@ mobile/build/
 # Operating system
 .DS_Store
 Thumbs.db
+
+.pdf
+pdf
+*.pdf
