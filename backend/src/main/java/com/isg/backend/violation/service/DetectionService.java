@@ -4,6 +4,8 @@ import com.isg.backend.camera.service.CameraQueryService;
 import com.isg.backend.violation.domain.CandidateViolation;
 import com.isg.backend.violation.domain.detection.DetectionFrame;
 import com.isg.backend.violation.domain.temporal.ConfirmedViolation;
+import com.isg.backend.violation.domain.temporal.EndedViolation;
+import com.isg.backend.violation.domain.temporal.TemporalViolationTransitions;
 import com.isg.backend.violation.dto.DetectionRequest;
 import com.isg.backend.violation.mapper.DetectionMapper;
 import com.isg.backend.violation.rule.CandidateViolationEvaluator;
@@ -16,6 +18,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class DetectionService {
@@ -34,13 +38,17 @@ public class DetectionService {
     private final DuplicateEventGuard duplicateEventGuard;
     private final CandidateViolationEvaluator candidateViolationEvaluator;
     private final TemporalConfirmationService temporalConfirmationService;
+    private final ViolationLifecycleService violationLifecycleService;
+    private final ActiveViolationRegistry activeViolationRegistry;
 
     public DetectionService(
             CameraQueryService cameraQueryService,
             DetectionMapper detectionMapper,
             DuplicateEventGuard duplicateEventGuard,
             CandidateViolationEvaluator candidateViolationEvaluator,
-            TemporalConfirmationService temporalConfirmationService
+            TemporalConfirmationService temporalConfirmationService,
+            ViolationLifecycleService violationLifecycleService,
+            ActiveViolationRegistry activeViolationRegistry
     ) {
         this.cameraQueryService =
                 cameraQueryService;
@@ -56,6 +64,12 @@ public class DetectionService {
 
         this.temporalConfirmationService =
                 temporalConfirmationService;
+
+        this.violationLifecycleService =
+                violationLifecycleService;
+
+        this.activeViolationRegistry =
+                activeViolationRegistry;
     }
 
     public void process(
@@ -75,14 +89,10 @@ public class DetectionService {
             );
         }
 
-        /*
-         * DTO is converted to the domain model before the event is
-         * registered in duplicate memory. An unsupported label or
-         * invalid domain bounding box therefore does not consume the
-         * event id.
-         */
         DetectionFrame frame =
-                detectionMapper.toDomain(request);
+                detectionMapper.toDomain(
+                        request
+                );
 
         if (!duplicateEventGuard.isFirstOccurrence(
                 request.eventId()
@@ -98,28 +108,56 @@ public class DetectionService {
                         frame
                 );
 
-        List<ConfirmedViolation> confirmations =
-                temporalConfirmationService.processFrame(
+        TemporalViolationTransitions transitions =
+                temporalConfirmationService.processFrameTransitions(
                         frame.frameTimestamp(),
                         candidates
                 );
 
+        for (ConfirmedViolation confirmation : transitions.started()) {
+            activeViolationRegistry.getOrCreate(
+                    confirmation.stateKey(),
+                    () -> violationLifecycleService.startViolation(
+                            confirmation,
+                            frame.modelVersion()
+                    ).getId()
+            );
+        }
+
+        for (EndedViolation endedViolation : transitions.ended()) {
+            Optional<UUID> violationId =
+                    activeViolationRegistry.find(
+                            endedViolation.stateKey()
+                    );
+
+            if (violationId.isEmpty()) {
+                logger.warn(
+                        "Ended temporal violation has no active DB mapping. stateKey={}",
+                        endedViolation.stateKey()
+                );
+
+                continue;
+            }
+
+            violationLifecycleService.endViolation(
+                    violationId.get(),
+                    endedViolation.endedAt()
+            );
+
+            activeViolationRegistry.remove(
+                    endedViolation.stateKey()
+            );
+        }
+
         logger.info(
-                "Detection accepted. eventId={}, cameraId={}, detectionCount={}, candidateCount={}, confirmationCount={}",
+                "Detection accepted. eventId={}, cameraId={}, detectionCount={}, candidateCount={}, confirmationCount={}, endedCount={}",
                 request.eventId(),
                 request.cameraId(),
                 frame.detections().size(),
                 candidates.size(),
-                confirmations.size()
+                transitions.started().size(),
+                transitions.ended().size()
         );
-
-        /*
-         * ADIM 3 ends with temporal confirmation.
-         *
-         * Persisting a confirmed violation and publishing recording
-         * start/stop events belong to ADIM 4. ConfirmedViolation is
-         * intentionally not persisted here.
-         */
     }
 
     private void validateTimestamp(
