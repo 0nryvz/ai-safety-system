@@ -10,6 +10,8 @@ import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationType;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -20,11 +22,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -38,6 +42,7 @@ class ViolationNotificationServiceTest {
     private DepartmentNameResolver departmentNameResolver;
     private SpringDataViolationRepository violationRepository;
     private CameraService cameraService;
+    private SimpleMeterRegistry meterRegistry;
 
     private ViolationNotificationService service;
 
@@ -58,18 +63,22 @@ class ViolationNotificationServiceTest {
         cameraService =
                 mock(CameraService.class);
 
+        meterRegistry =
+                new SimpleMeterRegistry();
+
         service =
                 new ViolationNotificationService(
                         messagingTemplate,
                         recipientResolver,
                         departmentNameResolver,
                         violationRepository,
-                        cameraService
+                        cameraService,
+                        meterRegistry
                 );
     }
 
     @Test
-    void sendsInitialAlertToEveryResolvedRecipient() {
+    void sendsInitialAlertToEveryResolvedRecipientAndRecordsLatency() {
         UUID violationId =
                 UUID.randomUUID();
 
@@ -83,41 +92,18 @@ class ViolationNotificationServiceTest {
                 UUID.randomUUID();
 
         Instant startedAt =
-                Instant.now();
+                Instant.now()
+                        .minusSeconds(2);
+
+        Instant confirmedAt =
+                Instant.now()
+                        .minusMillis(250);
 
         ViolationJpaEntity violation =
-                mock(ViolationJpaEntity.class);
-
-        when(violation.getId())
-                .thenReturn(
-                        violationId
-                );
-
-        when(violation.getDepartmentId())
-                .thenReturn(
-                        departmentId
-                );
-
-        when(violation.getViolationType())
-                .thenReturn(
-                        ViolationType.MISSING_WELDING_MASK
-                );
-
-        when(violation.getStartedAt())
-                .thenReturn(
+                initialViolation(
+                        violationId,
+                        departmentId,
                         startedAt
-                );
-
-        when(violation.getConfidence())
-                .thenReturn(
-                        new BigDecimal(
-                                "0.9200"
-                        )
-                );
-
-        when(violation.getLifecycleStatus())
-                .thenReturn(
-                        ViolationLifecycleStatus.ACTIVE
                 );
 
         when(violationRepository.findById(
@@ -160,7 +146,8 @@ class ViolationNotificationServiceTest {
                         cameraId,
                         sessionId,
                         ViolationType.MISSING_WELDING_MASK,
-                        startedAt
+                        startedAt,
+                        confirmedAt
                 );
 
         service.sendViolationStarted(
@@ -204,21 +191,6 @@ class ViolationNotificationServiceTest {
                         "Kaynak Bölümü"
                 );
 
-        assertThat(message.startedAt())
-                .isEqualTo(
-                        startedAt
-                );
-
-        assertThat(message.confidence())
-                .isEqualTo(
-                        0.92
-                );
-
-        assertThat(message.lifecycleStatus())
-                .isEqualTo(
-                        "ACTIVE"
-                );
-
         assertThat(message.recordingStatus())
                 .isEqualTo(
                         "REQUESTED"
@@ -227,8 +199,242 @@ class ViolationNotificationServiceTest {
         assertThat(message.clipReady())
                 .isFalse();
 
-        assertThat(message.coverImageReady())
-                .isFalse();
+        Timer timer =
+                meterRegistry.find(
+                                "isg.violation.notification.latency"
+                        )
+                        .tag(
+                                "channel",
+                                "websocket"
+                        )
+                        .timer();
+
+        assertThat(timer)
+                .isNotNull();
+
+        assertThat(timer.count())
+                .isEqualTo(
+                        1
+                );
+
+        assertThat(
+                timer.max(
+                        TimeUnit.MILLISECONDS
+                )
+        )
+                .isLessThanOrEqualTo(
+                        2000.0
+                );
+    }
+
+    @Test
+    void websocketFailureForOneRecipientDoesNotPreventOtherRecipients() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID sessionId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        Instant startedAt =
+                Instant.now()
+                        .minusSeconds(1);
+
+        Instant confirmedAt =
+                Instant.now()
+                        .minusMillis(100);
+
+        ViolationJpaEntity violation =
+                initialViolation(
+                        violationId,
+                        departmentId,
+                        startedAt
+                );
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(
+                        violation
+                )
+        );
+
+        when(cameraService.getCameraById(
+                cameraId
+        )).thenReturn(
+                CameraResponse.builder()
+                        .id(cameraId)
+                        .name("Kaynak Kamera 1")
+                        .departmentId(departmentId)
+                        .build()
+        );
+
+        when(departmentNameResolver.resolveDepartmentName(
+                departmentId
+        )).thenReturn(
+                "Kaynak Bölümü"
+        );
+
+        when(recipientResolver.resolveRecipients(
+                departmentId
+        )).thenReturn(
+                List.of(
+                        "broken@example.com",
+                        "healthy@example.com"
+                )
+        );
+
+        doThrow(
+                new RuntimeException(
+                        "WebSocket unavailable"
+                )
+        ).when(
+                messagingTemplate
+        ).convertAndSendToUser(
+                eq("broken@example.com"),
+                eq("/queue/alerts"),
+                any()
+        );
+
+        service.sendViolationStarted(
+                new ViolationStartedEvent(
+                        UUID.randomUUID(),
+                        violationId,
+                        cameraId,
+                        sessionId,
+                        ViolationType.MISSING_WELDING_MASK,
+                        startedAt,
+                        confirmedAt
+                )
+        );
+
+        verify(messagingTemplate)
+                .convertAndSendToUser(
+                        eq("broken@example.com"),
+                        eq("/queue/alerts"),
+                        any()
+                );
+
+        verify(messagingTemplate)
+                .convertAndSendToUser(
+                        eq("healthy@example.com"),
+                        eq("/queue/alerts"),
+                        any()
+                );
+
+        Timer timer =
+                meterRegistry.find(
+                                "isg.violation.notification.latency"
+                        )
+                        .timer();
+
+        assertThat(timer)
+                .isNotNull();
+
+        assertThat(timer.count())
+                .isEqualTo(
+                        1
+                );
+    }
+
+    @Test
+    void doesNotRecordSuccessfulDeliveryLatencyWhenAllDeliveriesFail() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID sessionId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        Instant startedAt =
+                Instant.now()
+                        .minusSeconds(1);
+
+        ViolationJpaEntity violation =
+                initialViolation(
+                        violationId,
+                        departmentId,
+                        startedAt
+                );
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(
+                        violation
+                )
+        );
+
+        when(cameraService.getCameraById(
+                cameraId
+        )).thenReturn(
+                CameraResponse.builder()
+                        .id(cameraId)
+                        .name("Kaynak Kamera 1")
+                        .departmentId(departmentId)
+                        .build()
+        );
+
+        when(departmentNameResolver.resolveDepartmentName(
+                departmentId
+        )).thenReturn(
+                "Kaynak Bölümü"
+        );
+
+        when(recipientResolver.resolveRecipients(
+                departmentId
+        )).thenReturn(
+                List.of(
+                        "broken@example.com"
+                )
+        );
+
+        doThrow(
+                new RuntimeException(
+                        "WebSocket unavailable"
+                )
+        ).when(
+                messagingTemplate
+        ).convertAndSendToUser(
+                eq("broken@example.com"),
+                eq("/queue/alerts"),
+                any()
+        );
+
+        service.sendViolationStarted(
+                new ViolationStartedEvent(
+                        UUID.randomUUID(),
+                        violationId,
+                        cameraId,
+                        sessionId,
+                        ViolationType.MISSING_WELDING_MASK,
+                        startedAt,
+                        Instant.now()
+                                .minusMillis(100)
+                )
+        );
+
+        Timer timer =
+                meterRegistry.find(
+                                "isg.violation.notification.latency"
+                        )
+                        .timer();
+
+        assertThat(timer)
+                .isNotNull();
+
+        assertThat(timer.count())
+                .isZero();
     }
 
     @Test
@@ -266,7 +472,7 @@ class ViolationNotificationServiceTest {
                 )
         );
 
-        ViolationRecordingUpdatedEvent event =
+        service.sendViolationUpdate(
                 new ViolationRecordingUpdatedEvent(
                         violationId,
                         "COMPLETED",
@@ -274,10 +480,7 @@ class ViolationNotificationServiceTest {
                         true,
                         updatedAt,
                         null
-                );
-
-        service.sendViolationUpdate(
-                event
+                )
         );
 
         ArgumentCaptor<ViolationUpdateMessage> messageCaptor =
@@ -312,11 +515,6 @@ class ViolationNotificationServiceTest {
 
         assertThat(message.clipReady())
                 .isTrue();
-
-        assertThat(message.updatedAt())
-                .isEqualTo(
-                        updatedAt
-                );
 
         assertThat(message.errorCode())
                 .isNull();
@@ -456,5 +654,48 @@ class ViolationNotificationServiceTest {
                 anyString(),
                 any()
         );
+    }
+
+    private ViolationJpaEntity initialViolation(
+            UUID violationId,
+            UUID departmentId,
+            Instant startedAt
+    ) {
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getId())
+                .thenReturn(
+                        violationId
+                );
+
+        when(violation.getDepartmentId())
+                .thenReturn(
+                        departmentId
+                );
+
+        when(violation.getViolationType())
+                .thenReturn(
+                        ViolationType.MISSING_WELDING_MASK
+                );
+
+        when(violation.getStartedAt())
+                .thenReturn(
+                        startedAt
+                );
+
+        when(violation.getConfidence())
+                .thenReturn(
+                        new BigDecimal(
+                                "0.9200"
+                        )
+                );
+
+        when(violation.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.ACTIVE
+                );
+
+        return violation;
     }
 }

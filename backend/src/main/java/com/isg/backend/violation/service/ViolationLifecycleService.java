@@ -124,7 +124,8 @@ public class ViolationLifecycleService
                         confirmedViolation.cameraId(),
                         confirmedViolation.sessionId(),
                         confirmedViolation.violationType(),
-                        confirmedViolation.candidateStartedAt()
+                        confirmedViolation.candidateStartedAt(),
+                        confirmedViolation.confirmedAt()
                 )
         );
 

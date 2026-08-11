@@ -8,10 +8,16 @@ import com.isg.backend.violation.application.port.DepartmentNameResolver;
 import com.isg.backend.violation.application.port.NotificationRecipientResolver;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
@@ -22,21 +28,31 @@ import java.util.Objects;
 })
 public class ViolationNotificationService {
 
+    private static final Logger logger =
+            LoggerFactory.getLogger(
+                    ViolationNotificationService.class
+            );
+
     private static final String ALERT_DESTINATION =
             "/queue/alerts";
+
+    private static final String INITIAL_ALERT_LATENCY_METRIC =
+            "isg.violation.notification.latency";
 
     private final SimpMessagingTemplate messagingTemplate;
     private final NotificationRecipientResolver recipientResolver;
     private final DepartmentNameResolver departmentNameResolver;
     private final SpringDataViolationRepository violationRepository;
     private final CameraService cameraService;
+    private final Timer initialAlertLatencyTimer;
 
     public ViolationNotificationService(
             SimpMessagingTemplate messagingTemplate,
             NotificationRecipientResolver recipientResolver,
             DepartmentNameResolver departmentNameResolver,
             SpringDataViolationRepository violationRepository,
-            CameraService cameraService
+            CameraService cameraService,
+            MeterRegistry meterRegistry
     ) {
         this.messagingTemplate =
                 messagingTemplate;
@@ -52,6 +68,21 @@ public class ViolationNotificationService {
 
         this.cameraService =
                 cameraService;
+
+        this.initialAlertLatencyTimer =
+                Timer.builder(
+                                INITIAL_ALERT_LATENCY_METRIC
+                        )
+                        .description(
+                                "Time from violation confirmation to first successful WebSocket alert delivery"
+                        )
+                        .tag(
+                                "channel",
+                                "websocket"
+                        )
+                        .register(
+                                meterRegistry
+                        );
     }
 
     public void sendViolationStarted(
@@ -103,10 +134,42 @@ public class ViolationNotificationService {
                         false
                 );
 
-        sendToRecipients(
-                recipients,
-                message
-        );
+        boolean delivered =
+                sendToRecipients(
+                        recipients,
+                        message,
+                        event.violationId()
+                );
+
+        if (delivered) {
+            Instant notificationSentAt =
+                    Instant.now();
+
+            Duration latency =
+                    Duration.between(
+                            event.confirmedAt(),
+                            notificationSentAt
+                    );
+
+            if (latency.isNegative()) {
+                latency =
+                        Duration.ZERO;
+            }
+
+            initialAlertLatencyTimer.record(
+                    latency
+            );
+
+            if (latency.compareTo(
+                    Duration.ofSeconds(2)
+            ) > 0) {
+                logger.warn(
+                        "Violation initial alert exceeded latency target. violationId={}, latencyMs={}",
+                        event.violationId(),
+                        latency.toMillis()
+                );
+            }
+        }
     }
 
     public void sendViolationUpdate(
@@ -144,28 +207,48 @@ public class ViolationNotificationService {
 
         sendToRecipients(
                 recipients,
-                message
+                message,
+                event.violationId()
         );
     }
 
-    private void sendToRecipients(
+    private boolean sendToRecipients(
             List<String> recipients,
-            Object message
+            Object message,
+            java.util.UUID violationId
     ) {
         if (recipients == null || recipients.isEmpty()) {
-            return;
+            return false;
         }
+
+        boolean delivered =
+                false;
 
         for (String recipient : recipients) {
             if (recipient == null || recipient.isBlank()) {
                 continue;
             }
 
-            messagingTemplate.convertAndSendToUser(
-                    recipient,
-                    ALERT_DESTINATION,
-                    message
-            );
+            try {
+                messagingTemplate.convertAndSendToUser(
+                        recipient,
+                        ALERT_DESTINATION,
+                        message
+                );
+
+                delivered =
+                        true;
+
+            } catch (RuntimeException exception) {
+                logger.error(
+                        "WebSocket violation notification delivery failed. violationId={}, recipient={}",
+                        violationId,
+                        recipient,
+                        exception
+                );
+            }
         }
+
+        return delivered;
     }
 }
