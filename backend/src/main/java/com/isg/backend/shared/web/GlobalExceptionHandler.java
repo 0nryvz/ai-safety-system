@@ -8,10 +8,12 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
-import java.util.stream.Collectors;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -22,9 +24,11 @@ public class GlobalExceptionHandler {
             HttpServletRequest req) {
 
         return build(
-                HttpStatus.UNPROCESSABLE_ENTITY,
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "UNSUPPORTED_DETECTION_LABEL",
                 ex.getMessage(),
-                req
+                req,
+                Map.of()
         );
     }
 
@@ -33,16 +37,23 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException ex,
             HttpServletRequest req) {
 
-        String message = ex.getBindingResult()
+        Map<String, String> fieldErrors = new LinkedHashMap<>();
+
+        ex.getBindingResult()
                 .getFieldErrors()
-                .stream()
-                .map(error -> error.getField() + ": " + error.getDefaultMessage())
-                .collect(Collectors.joining(", "));
+                .forEach(error ->
+                        fieldErrors.put(
+                                error.getField(),
+                                error.getDefaultMessage()
+                        )
+                );
 
         return build(
                 HttpStatus.BAD_REQUEST,
-                message,
-                req
+                "VALIDATION_ERROR",
+                "Request validation failed.",
+                req,
+                fieldErrors
         );
     }
 
@@ -51,12 +62,12 @@ public class GlobalExceptionHandler {
             MethodArgumentTypeMismatchException ex,
             HttpServletRequest req) {
 
-        String message = "Invalid value for parameter '" + ex.getName() + "'.";
-
         return build(
                 HttpStatus.BAD_REQUEST,
-                message,
-                req
+                "TYPE_MISMATCH",
+                "Invalid value for parameter '" + ex.getName() + "'.",
+                req,
+                Map.of()
         );
     }
 
@@ -67,8 +78,39 @@ public class GlobalExceptionHandler {
 
         return build(
                 HttpStatus.NOT_FOUND,
+                "RESOURCE_NOT_FOUND",
                 "Resource not found.",
-                req
+                req,
+                Map.of()
+        );
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> responseStatus(
+            ResponseStatusException ex,
+            HttpServletRequest req) {
+
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+
+        if (status == null) {
+            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+
+        String code = switch (status) {
+            case NOT_FOUND -> "RESOURCE_NOT_FOUND";
+            case CONFLICT -> "CONFLICT";
+            case UNPROCESSABLE_ENTITY -> "UNPROCESSABLE_CONTENT";
+            default -> "HTTP_ERROR";
+        };
+
+        return build(
+                status,
+                code,
+                ex.getReason() != null
+                        ? ex.getReason()
+                        : status.getReasonPhrase(),
+                req,
+                Map.of()
         );
     }
 
@@ -79,24 +121,31 @@ public class GlobalExceptionHandler {
 
         return build(
                 HttpStatus.INTERNAL_SERVER_ERROR,
+                "INTERNAL_ERROR",
                 "An unexpected error occurred.",
-                req
+                req,
+                Map.of()
         );
     }
 
     private ResponseEntity<ApiErrorResponse> build(
             HttpStatus status,
+            String code,
             String message,
-            HttpServletRequest req) {
+            HttpServletRequest req,
+            Map<String, String> fieldErrors) {
 
         ApiErrorResponse body = new ApiErrorResponse(
                 Instant.now(),
                 status.value(),
-                status.getReasonPhrase(),
+                code,
                 message,
-                req.getRequestURI()
+                req.getRequestURI(),
+                fieldErrors
         );
 
-        return ResponseEntity.status(status).body(body);
+        return ResponseEntity
+                .status(status)
+                .body(body);
     }
-} 
+}

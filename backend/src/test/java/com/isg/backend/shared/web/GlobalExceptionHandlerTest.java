@@ -36,7 +36,7 @@ class GlobalExceptionHandlerTest {
         )
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.status").value(404))
-        .andExpect(jsonPath("$.error").value("Not Found"))
+        .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"))
         .andExpect(jsonPath("$.message").value("Resource not found."))
         .andExpect(jsonPath("$.path").value("/does-not-exist"))
         .andExpect(jsonPath("$.timestamp").exists());
