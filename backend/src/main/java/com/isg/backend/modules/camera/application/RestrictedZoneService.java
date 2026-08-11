@@ -4,7 +4,13 @@ import com.isg.backend.modules.camera.api.dto.PointDto;
 import com.isg.backend.modules.camera.api.dto.RestrictedZoneUpdateReq;
 import com.isg.backend.modules.camera.domain.RestrictedZone;
 import com.isg.backend.modules.camera.domain.RestrictedZoneRepository;
+import com.isg.backend.modules.camera.domain.entity.Camera;
+import com.isg.backend.modules.camera.infrastructure.repository.CameraRepository;
+import com.isg.backend.modules.user.entity.User;
+import com.isg.backend.modules.user.infrastructure.UserRepository;
+import com.isg.backend.modules.user.service.AuthorizationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,13 +22,27 @@ import java.util.UUID;
 public class RestrictedZoneService implements RestrictedZoneProvider {
 
     private final RestrictedZoneRepository restrictedZoneRepository;
+    private final CameraRepository cameraRepository;
+    private final AuthorizationService authorizationService;
+    private final UserRepository userRepository;
 
     @Transactional
     public void updateRestrictedZone(UUID cameraId, RestrictedZoneUpdateReq request) {
-        // Not: Burada kameranın var olup olmadığı ve kullanıcının kameranın
-        // bulunduğu bölüme yetkisi olup olmadığı (department access)
-        // Controller veya ayrı bir Authorization metoduyla doğrulanmalıdır.
+        // 1. Giriş yapan kullanıcıyı bul
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı!"));
 
+        // 2. İlgili kamerayı bul
+        Camera camera = cameraRepository.findById(cameraId)
+                .orElseThrow(() -> new IllegalArgumentException("Kamera bulunamadı!"));
+
+        // 3. Yetki Kontrolü: Kullanıcının bu kameranın departmanına erişimi var mı?
+        if (!authorizationService.canAccessDepartment(user.getId(), camera.getDepartment().getId())) {
+            throw new RuntimeException("Bu kameranın yasaklı alanını güncelleme yetkiniz yok!");
+        }
+
+        // 4. Upsert (Varsa getir, yoksa yeni oluştur)
         RestrictedZone zone = restrictedZoneRepository.findByCameraIdAndActiveTrue(cameraId)
                 .orElse(new RestrictedZone());
 
@@ -35,10 +55,6 @@ public class RestrictedZoneService implements RestrictedZoneProvider {
         zone.setActive(true);
 
         restrictedZoneRepository.save(zone);
-
-        // Görev planı kuralı: "Zone değişikliğinde version veya updatedAt tut;
-        // Backend 3 cache kullanıyorsa invalidation eventi yayınla."
-        // (Şu anlık MVP için doğrudan veritabanına kaydetmemiz yeterli)
     }
 
     @Override
