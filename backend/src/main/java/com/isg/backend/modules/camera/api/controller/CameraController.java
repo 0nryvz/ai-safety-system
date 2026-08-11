@@ -3,11 +3,15 @@ package com.isg.backend.modules.camera.api.controller;
 import com.isg.backend.modules.camera.api.dto.CameraCreateRequest;
 import com.isg.backend.modules.camera.api.dto.CameraResponse;
 import com.isg.backend.modules.camera.api.dto.CameraUpdateRequest;
+import com.isg.backend.modules.camera.api.dto.RestrictedZoneUpdateReq;
 import com.isg.backend.modules.camera.application.CameraService;
+import com.isg.backend.modules.camera.application.RestrictedZoneService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,6 +22,7 @@ import java.util.UUID;
 public class CameraController {
 
     private final CameraService cameraService;
+    private final RestrictedZoneService restrictedZoneService;
 
     @PostMapping
     public ResponseEntity<CameraResponse> createCamera(@RequestBody CameraCreateRequest request) {
@@ -41,5 +46,43 @@ public class CameraController {
     public ResponseEntity<CameraResponse> updateCamera(@PathVariable UUID id, @RequestBody CameraUpdateRequest request) {
         CameraResponse response = cameraService.updateCamera(id, request);
         return ResponseEntity.ok(response);
+    }
+
+    // --- Yasaklı Alan (Restricted Zone) Endpoint'leri ---
+
+    @PutMapping("/{id}/restricted-zone")
+    public ResponseEntity<Void> updateRestrictedZone(
+            @PathVariable UUID id,
+            @Valid @RequestBody RestrictedZoneUpdateReq request) {
+
+        // Gelen verilerdeki PointDto validasyonları (0-1 arası sınırları ve en az 3 nokta kuralı)
+        // @Valid anotasyonu sayesinde otomatik olarak kontrol edilecektir.
+        restrictedZoneService.updateRestrictedZone(id, request);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{id}/restricted-zone")
+    public ResponseEntity<RestrictedZoneUpdateReq> getRestrictedZone(@PathVariable UUID id) {
+        // Frontend ekibinin çizimi aynen tekrar oluşturabilmesi için
+        // kaydettiğimiz koordinatları DTO formatında geri dönüyoruz.
+        RestrictedZoneUpdateReq response = restrictedZoneService.getRestrictedZoneDto(id);
+        return ResponseEntity.ok(response);
+    }
+
+    // --- Referans Görüntü Endpoint'i (Hazırlık) ---
+
+    @PostMapping("/{id}/reference-image")
+    public ResponseEntity<Void> uploadReferenceImage(
+            @PathVariable UUID id,
+            @RequestParam("file") MultipartFile file) {
+
+        // 1. Gelen dosya MinIO servisine gönderilecek (Backend 4/1 istemcisi aracılığıyla).
+        // 2. Dönen objectKey, "cameras" tablosundaki reference_image_key sütununa yazılacak.
+        // Güvenlik kuralı: "Reference image objectKey doğrudan public URL olarak dönülmemeli"
+        // olduğu için frontend'e sadece 200 OK döneceğiz.
+
+        // TODO: MinIO entegrasyonu ve Kamera servis çağrısı buraya eklenecek.
+
+        return ResponseEntity.ok().build();
     }
 }
