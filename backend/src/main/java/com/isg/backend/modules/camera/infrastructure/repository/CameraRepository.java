@@ -13,4 +13,5 @@ public interface CameraRepository extends JpaRepository<Camera, UUID> {
     Optional<Camera> findByCode(String code);
     List<Camera> findByDepartmentId(UUID departmentId);
     List<Camera> findByDepartmentIdAndActiveTrue(UUID departmentId);
+    List<Camera> findByDepartmentIdIn(List<UUID> departmentIds); // Eklendi
 }
