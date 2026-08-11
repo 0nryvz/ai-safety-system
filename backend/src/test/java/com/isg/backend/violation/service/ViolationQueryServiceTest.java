@@ -2,6 +2,7 @@ package com.isg.backend.violation.service;
 
 import com.isg.backend.modules.user.service.AuthorizationService;
 import com.isg.backend.violation.application.port.RecordingQueryPort;
+import com.isg.backend.violation.application.port.RecordingQueryResult;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
 import com.isg.backend.violation.domain.ViolationType;
@@ -57,6 +58,206 @@ class ViolationQueryServiceTest {
                         violationRepository,
                         authorizationService,
                         recordingQueryPortProvider
+                );
+    }
+
+    @Test
+    void usesReadyRecordingResultFromRecordingAdapter() {
+        UUID userId = UUID.randomUUID();
+        UUID violationId = UUID.randomUUID();
+        UUID cameraId = UUID.randomUUID();
+        UUID departmentId = UUID.randomUUID();
+
+        ViolationDetailProjection projection =
+                mock(ViolationDetailProjection.class);
+
+        when(projection.getViolationId())
+                .thenReturn(violationId);
+
+        when(projection.getCameraId())
+                .thenReturn(cameraId);
+
+        when(projection.getDepartmentId())
+                .thenReturn(departmentId);
+
+        when(projection.getCameraName())
+                .thenReturn("Kaynak Kamera");
+
+        when(projection.getCameraCode())
+                .thenReturn("CAM-01");
+
+        when(projection.getDepartmentName())
+                .thenReturn("Kaynak");
+
+        when(projection.getType())
+                .thenReturn(
+                        ViolationType.MISSING_WELDING_MASK.name()
+                );
+
+        when(projection.getConfidence())
+                .thenReturn(
+                        new BigDecimal("0.9500")
+                );
+
+        when(projection.getModelVersion())
+                .thenReturn("model-v1");
+
+        when(projection.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.COMPLETED.name()
+                );
+
+        when(projection.getReviewStatus())
+                .thenReturn(
+                        ViolationReviewStatus.UNREVIEWED.name()
+                );
+
+        when(violationRepository.findDetailProjectionById(
+                violationId
+        )).thenReturn(
+                Optional.of(projection)
+        );
+
+        when(authorizationService.canAccessDepartment(
+                userId,
+                departmentId
+        )).thenReturn(true);
+
+        RecordingQueryPort recordingQueryPort =
+                mock(RecordingQueryPort.class);
+
+        when(recordingQueryPortProvider.getIfAvailable())
+                .thenReturn(recordingQueryPort);
+
+        when(recordingQueryPort.findByViolationId(
+                violationId
+        )).thenReturn(
+                Optional.of(
+                        RecordingQueryResult.ready(
+                                "https://example.test/clip"
+                        )
+                )
+        );
+
+        ViolationDetailResponse result =
+                queryService.findDetail(
+                        userId,
+                        violationId
+                );
+
+        assertThat(result.recordingStatus())
+                .isEqualTo("READY");
+
+        assertThat(result.clipReady())
+                .isTrue();
+
+        assertThat(result.playbackUrl())
+                .isEqualTo(
+                        "https://example.test/clip"
+                );
+
+        verify(recordingQueryPort)
+                .findByViolationId(
+                        violationId
+                );
+    }
+
+    @Test
+    void doesNotExposePlaybackUrlWhenRecordingIsNotReady() {
+        UUID userId = UUID.randomUUID();
+        UUID violationId = UUID.randomUUID();
+        UUID cameraId = UUID.randomUUID();
+        UUID departmentId = UUID.randomUUID();
+
+        ViolationDetailProjection projection =
+                mock(ViolationDetailProjection.class);
+
+        when(projection.getViolationId())
+                .thenReturn(violationId);
+
+        when(projection.getCameraId())
+                .thenReturn(cameraId);
+
+        when(projection.getDepartmentId())
+                .thenReturn(departmentId);
+
+        when(projection.getCameraName())
+                .thenReturn("Kaynak Kamera");
+
+        when(projection.getCameraCode())
+                .thenReturn("CAM-01");
+
+        when(projection.getDepartmentName())
+                .thenReturn("Kaynak");
+
+        when(projection.getType())
+                .thenReturn(
+                        ViolationType.MISSING_WELDING_MASK.name()
+                );
+
+        when(projection.getConfidence())
+                .thenReturn(
+                        new BigDecimal("0.9500")
+                );
+
+        when(projection.getModelVersion())
+                .thenReturn("model-v1");
+
+        when(projection.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.PREPARING.name()
+                );
+
+        when(projection.getReviewStatus())
+                .thenReturn(
+                        ViolationReviewStatus.UNREVIEWED.name()
+                );
+
+        when(violationRepository.findDetailProjectionById(
+                violationId
+        )).thenReturn(
+                Optional.of(projection)
+        );
+
+        when(authorizationService.canAccessDepartment(
+                userId,
+                departmentId
+        )).thenReturn(true);
+
+        RecordingQueryPort recordingQueryPort =
+                mock(RecordingQueryPort.class);
+
+        when(recordingQueryPortProvider.getIfAvailable())
+                .thenReturn(recordingQueryPort);
+
+        when(recordingQueryPort.findByViolationId(
+                violationId
+        )).thenReturn(
+                Optional.of(
+                        RecordingQueryResult.notReady(
+                                "PROCESSING"
+                        )
+                )
+        );
+
+        ViolationDetailResponse result =
+                queryService.findDetail(
+                        userId,
+                        violationId
+                );
+
+        assertThat(result.recordingStatus())
+                .isEqualTo("PROCESSING");
+
+        assertThat(result.clipReady())
+                .isFalse();
+
+        assertThat(result.playbackUrl())
+                .isNull();
+
+        verify(recordingQueryPort)
+                .findByViolationId(
+                        violationId
                 );
     }
 
