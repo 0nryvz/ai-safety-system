@@ -1,5 +1,6 @@
 package com.isg.backend.violation.application.notification;
 
+import com.isg.backend.violation.application.event.ViolationRecordingUpdatedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
 import com.isg.backend.violation.application.port.DepartmentNameResolver;
 import com.isg.backend.violation.application.port.NotificationRecipientResolver;
@@ -31,6 +32,17 @@ public class ViolationNotificationEventListener {
             ViolationStartedEvent event
     ) {
         notificationService.sendViolationStarted(
+                event
+        );
+    }
+
+    @TransactionalEventListener(
+            phase = TransactionPhase.AFTER_COMMIT
+    )
+    public void onViolationRecordingUpdated(
+            ViolationRecordingUpdatedEvent event
+    ) {
+        notificationService.sendViolationUpdate(
                 event
         );
     }

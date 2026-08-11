@@ -2,6 +2,7 @@ package com.isg.backend.violation.application.notification;
 
 import com.isg.backend.modules.camera.api.dto.CameraResponse;
 import com.isg.backend.modules.camera.application.CameraService;
+import com.isg.backend.violation.application.event.ViolationRecordingUpdatedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
 import com.isg.backend.violation.application.port.DepartmentNameResolver;
 import com.isg.backend.violation.application.port.NotificationRecipientResolver;
@@ -21,6 +22,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -65,7 +69,7 @@ class ViolationNotificationServiceTest {
     }
 
     @Test
-    void sendsAlertToEveryResolvedRecipient() {
+    void sendsInitialAlertToEveryResolvedRecipient() {
         UUID violationId =
                 UUID.randomUUID();
 
@@ -124,17 +128,14 @@ class ViolationNotificationServiceTest {
                 )
         );
 
-        CameraResponse camera =
+        when(cameraService.getCameraById(
+                cameraId
+        )).thenReturn(
                 CameraResponse.builder()
                         .id(cameraId)
                         .name("Kaynak Kamera 1")
                         .departmentId(departmentId)
-                        .build();
-
-        when(cameraService.getCameraById(
-                cameraId
-        )).thenReturn(
-                camera
+                        .build()
         );
 
         when(departmentNameResolver.resolveDepartmentName(
@@ -175,10 +176,8 @@ class ViolationNotificationServiceTest {
                 messagingTemplate,
                 times(2)
         ).convertAndSendToUser(
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.eq(
-                        "/queue/alerts"
-                ),
+                anyString(),
+                eq("/queue/alerts"),
                 messageCaptor.capture()
         );
 
@@ -205,6 +204,11 @@ class ViolationNotificationServiceTest {
                         "Kaynak Bölümü"
                 );
 
+        assertThat(message.startedAt())
+                .isEqualTo(
+                        startedAt
+                );
+
         assertThat(message.confidence())
                 .isEqualTo(
                         0.92
@@ -215,60 +219,35 @@ class ViolationNotificationServiceTest {
                         "ACTIVE"
                 );
 
+        assertThat(message.recordingStatus())
+                .isEqualTo(
+                        "REQUESTED"
+                );
+
+        assertThat(message.clipReady())
+                .isFalse();
+
         assertThat(message.coverImageReady())
                 .isFalse();
     }
 
     @Test
-    void doesNotSendWhenNoRecipientsAreResolved() {
+    void sendsReadyUpdateWithSameViolationId() {
         UUID violationId =
-                UUID.randomUUID();
-
-        UUID cameraId =
-                UUID.randomUUID();
-
-        UUID sessionId =
                 UUID.randomUUID();
 
         UUID departmentId =
                 UUID.randomUUID();
 
-        Instant startedAt =
+        Instant updatedAt =
                 Instant.now();
 
         ViolationJpaEntity violation =
                 mock(ViolationJpaEntity.class);
 
-        when(violation.getId())
-                .thenReturn(
-                        violationId
-                );
-
         when(violation.getDepartmentId())
                 .thenReturn(
                         departmentId
-                );
-
-        when(violation.getViolationType())
-                .thenReturn(
-                        ViolationType.MISSING_WELDING_MASK
-                );
-
-        when(violation.getStartedAt())
-                .thenReturn(
-                        startedAt
-                );
-
-        when(violation.getConfidence())
-                .thenReturn(
-                        new BigDecimal(
-                                "0.9000"
-                        )
-                );
-
-        when(violation.getLifecycleStatus())
-                .thenReturn(
-                        ViolationLifecycleStatus.ACTIVE
                 );
 
         when(violationRepository.findById(
@@ -279,20 +258,177 @@ class ViolationNotificationServiceTest {
                 )
         );
 
-        when(cameraService.getCameraById(
-                cameraId
-        )).thenReturn(
-                CameraResponse.builder()
-                        .id(cameraId)
-                        .name("Kaynak Kamera 1")
-                        .departmentId(departmentId)
-                        .build()
-        );
-
-        when(departmentNameResolver.resolveDepartmentName(
+        when(recipientResolver.resolveRecipients(
                 departmentId
         )).thenReturn(
-                "Kaynak Bölümü"
+                List.of(
+                        "expert@example.com"
+                )
+        );
+
+        ViolationRecordingUpdatedEvent event =
+                new ViolationRecordingUpdatedEvent(
+                        violationId,
+                        "COMPLETED",
+                        "READY",
+                        true,
+                        updatedAt,
+                        null
+                );
+
+        service.sendViolationUpdate(
+                event
+        );
+
+        ArgumentCaptor<ViolationUpdateMessage> messageCaptor =
+                ArgumentCaptor.forClass(
+                        ViolationUpdateMessage.class
+                );
+
+        verify(messagingTemplate)
+                .convertAndSendToUser(
+                        eq("expert@example.com"),
+                        eq("/queue/alerts"),
+                        messageCaptor.capture()
+                );
+
+        ViolationUpdateMessage message =
+                messageCaptor.getValue();
+
+        assertThat(message.violationId())
+                .isEqualTo(
+                        violationId
+                );
+
+        assertThat(message.lifecycleStatus())
+                .isEqualTo(
+                        "COMPLETED"
+                );
+
+        assertThat(message.recordingStatus())
+                .isEqualTo(
+                        "READY"
+                );
+
+        assertThat(message.clipReady())
+                .isTrue();
+
+        assertThat(message.updatedAt())
+                .isEqualTo(
+                        updatedAt
+                );
+
+        assertThat(message.errorCode())
+                .isNull();
+    }
+
+    @Test
+    void sendsErrorUpdateWithErrorCode() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        Instant updatedAt =
+                Instant.now();
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getDepartmentId())
+                .thenReturn(
+                        departmentId
+                );
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(
+                        violation
+                )
+        );
+
+        when(recipientResolver.resolveRecipients(
+                departmentId
+        )).thenReturn(
+                List.of(
+                        "expert@example.com"
+                )
+        );
+
+        service.sendViolationUpdate(
+                new ViolationRecordingUpdatedEvent(
+                        violationId,
+                        "ERROR",
+                        "ERROR",
+                        false,
+                        updatedAt,
+                        "ENCODER_FAILED"
+                )
+        );
+
+        ArgumentCaptor<ViolationUpdateMessage> messageCaptor =
+                ArgumentCaptor.forClass(
+                        ViolationUpdateMessage.class
+                );
+
+        verify(messagingTemplate)
+                .convertAndSendToUser(
+                        eq("expert@example.com"),
+                        eq("/queue/alerts"),
+                        messageCaptor.capture()
+                );
+
+        ViolationUpdateMessage message =
+                messageCaptor.getValue();
+
+        assertThat(message.violationId())
+                .isEqualTo(
+                        violationId
+                );
+
+        assertThat(message.lifecycleStatus())
+                .isEqualTo(
+                        "ERROR"
+                );
+
+        assertThat(message.recordingStatus())
+                .isEqualTo(
+                        "ERROR"
+                );
+
+        assertThat(message.clipReady())
+                .isFalse();
+
+        assertThat(message.errorCode())
+                .isEqualTo(
+                        "ENCODER_FAILED"
+                );
+    }
+
+    @Test
+    void doesNotSendWhenNoRecipientsAreResolved() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getDepartmentId())
+                .thenReturn(
+                        departmentId
+                );
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(
+                        violation
+                )
         );
 
         when(recipientResolver.resolveRecipients(
@@ -301,14 +437,14 @@ class ViolationNotificationServiceTest {
                 List.of()
         );
 
-        service.sendViolationStarted(
-                new ViolationStartedEvent(
-                        UUID.randomUUID(),
+        service.sendViolationUpdate(
+                new ViolationRecordingUpdatedEvent(
                         violationId,
-                        cameraId,
-                        sessionId,
-                        ViolationType.MISSING_WELDING_MASK,
-                        startedAt
+                        "COMPLETED",
+                        "READY",
+                        true,
+                        Instant.now(),
+                        null
                 )
         );
 
@@ -316,9 +452,9 @@ class ViolationNotificationServiceTest {
                 messagingTemplate,
                 never()
         ).convertAndSendToUser(
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.any()
+                anyString(),
+                anyString(),
+                any()
         );
     }
 }

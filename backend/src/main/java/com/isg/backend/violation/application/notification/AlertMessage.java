@@ -14,6 +14,8 @@ public record AlertMessage(
         Instant startedAt,
         double confidence,
         String lifecycleStatus,
+        String recordingStatus,
+        boolean clipReady,
         boolean coverImageReady
 ) {
 
@@ -54,6 +56,12 @@ public record AlertMessage(
         if (lifecycleStatus == null || lifecycleStatus.isBlank()) {
             throw new IllegalArgumentException(
                     "lifecycleStatus must not be blank"
+            );
+        }
+
+        if (recordingStatus == null || recordingStatus.isBlank()) {
+            throw new IllegalArgumentException(
+                    "recordingStatus must not be blank"
             );
         }
     }

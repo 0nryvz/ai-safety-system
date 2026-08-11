@@ -2,6 +2,7 @@ package com.isg.backend.violation.application.notification;
 
 import com.isg.backend.modules.camera.api.dto.CameraResponse;
 import com.isg.backend.modules.camera.application.CameraService;
+import com.isg.backend.violation.application.event.ViolationRecordingUpdatedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
 import com.isg.backend.violation.application.port.DepartmentNameResolver;
 import com.isg.backend.violation.application.port.NotificationRecipientResolver;
@@ -97,12 +98,66 @@ public class ViolationNotificationService {
                                 .doubleValue(),
                         violation.getLifecycleStatus()
                                 .name(),
+                        "REQUESTED",
+                        false,
                         false
                 );
 
+        sendToRecipients(
+                recipients,
+                message
+        );
+    }
+
+    public void sendViolationUpdate(
+            ViolationRecordingUpdatedEvent event
+    ) {
+        Objects.requireNonNull(
+                event,
+                "event must not be null"
+        );
+
+        ViolationJpaEntity violation =
+                violationRepository.findById(
+                        event.violationId()
+                ).orElseThrow(
+                        () -> new IllegalStateException(
+                                "Violation not found: "
+                                        + event.violationId()
+                        )
+                );
+
+        List<String> recipients =
+                recipientResolver.resolveRecipients(
+                        violation.getDepartmentId()
+                );
+
+        ViolationUpdateMessage message =
+                new ViolationUpdateMessage(
+                        event.violationId(),
+                        event.lifecycleStatus(),
+                        event.recordingStatus(),
+                        event.clipReady(),
+                        event.updatedAt(),
+                        event.errorCode()
+                );
+
+        sendToRecipients(
+                recipients,
+                message
+        );
+    }
+
+    private void sendToRecipients(
+            List<String> recipients,
+            Object message
+    ) {
+        if (recipients == null || recipients.isEmpty()) {
+            return;
+        }
+
         for (String recipient : recipients) {
-            if (recipient == null
-                    || recipient.isBlank()) {
+            if (recipient == null || recipient.isBlank()) {
                 continue;
             }
 
