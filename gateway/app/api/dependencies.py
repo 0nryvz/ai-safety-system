@@ -28,6 +28,9 @@ from app.services.session_ai_frame_sampler import SessionAIFrameSampler
 from app.services.session_frame_ring_buffer_manager import (
     SessionFrameRingBufferManager,
 )
+from app.services.recording_command_coordinator import (
+    RecordingCommandCoordinator,
+)
 
 @lru_cache
 def get_session_manager() -> SessionManager:
@@ -100,3 +103,8 @@ def get_session_frame_ingestion_worker_coordinator(
             ai_dispatch_worker_coordinator
         ),
     )
+
+
+@lru_cache
+def get_recording_command_coordinator() -> RecordingCommandCoordinator:
+    return RecordingCommandCoordinator()
