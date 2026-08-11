@@ -12,12 +12,11 @@ public enum DetectionLabel {
     WELDING_APRON("welding_apron"),
     WELDING_JACKET("welding_jacket"),
     GLOVES("gloves"),
+    WELDING("welding"),
 
     NON_GLOVES("non_gloves"),
     NON_MASK("non_mask"),
-    NON_JACKET("non_jacket"),
-
-    WELDING("welding");
+    NON_JACKET("non_jacket");
 
     private final String[] rawValues;
 
