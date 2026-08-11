@@ -1,75 +1,122 @@
-# React + TypeScript + Vite
+# AI Safety System — Web Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React, TypeScript ve Vite ile geliştirilen gerçek zamanlı güvenlik izleme panelidir.
 
-Currently, two official plugins are available:
+## Gereksinimler
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js
+- npm
 
-## React Compiler
+## Kurulum
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Environment Yapılandırması
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Projede kullanılabilen environment değişkenleri `.env.example` dosyasında belgelenmiştir.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Yerel geliştirme ayarları için örnek dosyayı `.env.local` adıyla kopyalayabilirsiniz:
 
+```bash
+cp .env.example .env.local
+```
+
+Kullanılabilen değişkenler:
+
+| Değişken                    | Varsayılan değer | Açıklama                            |
+| --------------------------- | ---------------- | ----------------------------------- |
+| `VITE_API_BASE_URL`         | `/api/v1`        | Backend API adresi                  |
+| `VITE_WEBSOCKET_URL`        | Boş              | WebSocket bağlantı adresi           |
+| `VITE_ENABLE_MOCK_DATA`     | `false`          | Mock veri kullanımını etkinleştirir |
+| `VITE_ENABLE_DEBUG_LOGGING` | `false`          | Geliştirme loglarını etkinleştirir  |
+
+Gerçek parola, erişim anahtarı veya token gibi gizli bilgiler `.env.example` dosyasına eklenmemelidir.
+
+Environment değişkenlerine uygulama içinde doğrudan erişmek yerine `src/config/env.ts` kullanılmalıdır.
+
+## Geliştirme
+
+```bash
+npm run dev
+```
+
+## Route Sözleşmesi
+
+Route adresleri ve sahiplik bilgileri `src/app/routeConfig.ts` dosyasında merkezi olarak tutulur.
+
+| Route        | Erişim        | Sahip | Açıklama                                                |
+| ------------ | ------------- | ----- | ------------------------------------------------------- |
+| `/`          | Yönlendirme   | FE1   | Oturum durumuna göre login veya dashboard’a yönlendirir |
+| `/login`     | Public        | FE2   | Kullanıcı giriş sayfası                                 |
+| `/dashboard` | Authenticated | FE1   | Korumalı dashboard sayfası                              |
+| `*`          | Public        | FE1   | Bilinmeyen adresler için 404 sayfası                    |
+
+Yeni bir route eklenirken adres, sahiplik ve erişim türü `appRouteConfig` sözleşmesine eklenmelidir.
+
+## Kimlik Doğrulama Entegrasyonu
+
+`src/app/RequireAuth.tsx`, korumalı route’lar için ortak entegrasyon noktasıdır.
+
+- `sessionStorage` içinde `accessToken` yoksa kullanıcı `/login` adresine yönlendirilir.
+- Kullanıcının ulaşmak istediği adres yönlendirme sırasında korunur.
+- Token varsa korumalı alt route görüntülenir.
+- FE2 tarafından geliştirilecek yeni korumalı sayfalar aynı guard altında tanımlanabilir.
+
+## Feature Flag Yapısı
+
+Feature flag’ler `src/config/featureFlags.ts` dosyasında merkezi olarak yönetilir.
+
+Uygulama içinde flag kontrolü şu şekilde yapılabilir:
+
+```ts
+import { isFeatureEnabled } from './config/featureFlags'
+
+if (isFeatureEnabled('mockData')) {
+  // Mock veri davranışı
+}
+```
+
+Şu anda desteklenen flag’ler:
+
+- `mockData`
+- `debugLogging`
+
+## Kaynak Yapısı
+
+```text
+src/
+├── app/             # AppShell, route sözleşmesi ve route guard
+├── components/      # Tekrar kullanılabilir arayüz bileşenleri
+├── config/          # Environment ve feature flag yapılandırması
+├── pages/           # Login, dashboard ve 404 sayfaları
+├── services/        # API ve kimlik doğrulama servisleri
+├── App.tsx          # Uygulama route tanımları
+└── main.tsx         # React uygulamasının başlangıç noktası
+```
+
+## Mevcut Uygulama Altyapısı
+
+- Responsive `AppShell`
+- Header, sidebar ve ana içerik alanı
+- React Router tabanlı yönlendirme
+- Public ve authenticated route ayrımı
+- FE2 route guard entegrasyon noktası
+- Bilinmeyen adresler için 404 sayfası
+- Merkezi environment yapılandırması
+- Feature flag altyapısı
+- Uygulama seviyesinde `ErrorBoundary`
+- Beklenmeyen render hataları için kullanıcı geri bildirimi
+- Canlı video veya stream bileşeni içermez
+
+## Kod Doğrulama
+
+Değişiklik göndermeden önce aşağıdaki kontroller çalıştırılmalıdır:
+
+```bash
+npm run build
+npm run lint
+npm run format:check
+npm run test
 ```

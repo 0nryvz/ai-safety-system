@@ -57,10 +57,15 @@ public class User implements UserDetails {
     @Builder.Default
     private Long version = 0L;
 
-    // YENİ EKLENEN İLİŞKİ: Departman Bağlantısı
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "department_id")
-    private Department department;
+    // V1 şemasındaki user_departments ara tablosu ile çoka-çok departman ilişkisi
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "user_departments",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "department_id")
+    )
+    @Builder.Default
+    private Set<Department> departments = new HashSet<>();
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
@@ -70,6 +75,18 @@ public class User implements UserDetails {
     )
     @Builder.Default
     private Set<Role> roles = new HashSet<>();
+
+    // Geriye dönük servis uyumluluğu için yardımcı metotlar (Tekil departman gerektiren yerler için)
+    public Department getDepartment() {
+        return departments != null && !departments.isEmpty() ? departments.iterator().next() : null;
+    }
+
+    public void setDepartment(Department department) {
+        this.departments.clear();
+        if (department != null) {
+            this.departments.add(department);
+        }
+    }
 
     // --- UserDetails Sözleşmesi Metotları ---
 

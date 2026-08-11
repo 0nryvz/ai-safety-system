@@ -28,7 +28,7 @@ public class AuthorizationService {
      * Kullanıcının belirli bir departman verisine erişip erişemeyeceğini doğrular.
      * Görev kuralı: Admin tüm bölümlere erişir.
      */
-    public boolean canAccessDepartment(UUID userId, Long departmentId) {
+    public boolean canAccessDepartment(UUID userId, UUID departmentId) { // Long yerine UUID yapıldı
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
 
@@ -55,7 +55,7 @@ public class AuthorizationService {
      * Kullanıcının veri okuyabileceği departman ID'lerinin listesini döner.
      * Veritabanı sorgularında "WHERE department_id IN (...)" için kullanılır.
      */
-    public List<Long> accessibleDepartmentIds(UUID userId) {
+    public List<UUID> accessibleDepartmentIds(UUID userId) { // List<Long> yerine List<UUID> yapıldı
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
 

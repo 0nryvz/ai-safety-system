@@ -3,6 +3,7 @@ package com.isg.backend.modules.camera.api.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+import java.util.UUID;
 
 // java.util.UUID importunu sildik çünkü artık kullanmıyoruz
 
@@ -15,5 +16,5 @@ public class CameraCreateRequest {
     private String code;
 
     @NotNull(message = "Kameranın atanacağı departman ID zorunludur")
-    private Long departmentId; // UUID yerine Long olarak değiştirdik
+    private UUID departmentId;
 }

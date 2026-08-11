@@ -121,11 +121,7 @@ function LoginPage({ onLoginSuccess }: LoginPageProps) {
             </p>
           )}
 
-          <button
-            className="login-button"
-            type="submit"
-            disabled={isLoading}
-          >
+          <button className="login-button" type="submit" disabled={isLoading}>
             {isLoading ? 'Giriş yapılıyor...' : 'Giriş yap'}
           </button>
         </form>

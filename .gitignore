@@ -36,3 +36,7 @@ mobile/build/
 # Operating system
 .DS_Store
 Thumbs.db
+
+.pdf
+pdf
+*.pdf
