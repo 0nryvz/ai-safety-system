@@ -46,6 +46,12 @@ public class RecordingJpaEntity {
     @Column(name = "recording_started_at")
     private Instant recordingStartedAt;
 
+    @Column(name = "start_command_id")
+    private UUID startCommandId;
+
+    @Column(name = "stop_command_id")
+    private UUID stopCommandId;
+
     @Column(name = "ready_at")
     private Instant readyAt;
 

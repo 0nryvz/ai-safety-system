@@ -10,12 +10,16 @@ public class Recording {
     private final UUID violationId;
     private RecordingStatus status;
     private Instant recordingStartedAt;
+    private UUID startCommandId;
+    private UUID stopCommandId;
 
     private Recording(
             UUID id,
             UUID violationId,
             RecordingStatus status,
-            Instant recordingStartedAt
+            Instant recordingStartedAt,
+            UUID startCommandId,
+            UUID stopCommandId
     ) {
         this.id = id;
         this.violationId = Objects.requireNonNull(
@@ -27,15 +31,20 @@ public class Recording {
                 "status cannot be null"
         );
         this.recordingStartedAt = recordingStartedAt;
+        this.startCommandId = startCommandId;
+        this.stopCommandId = stopCommandId;
     }
 
     public static Recording createRequested(
-            UUID violationId
+            UUID violationId,
+            UUID startCommandId
     ) {
         return new Recording(
                 null,
                 violationId,
                 RecordingStatus.REQUESTED,
+                null,
+                Objects.requireNonNull(startCommandId, "startCommandId cannot be null"),
                 null
         );
     }
@@ -44,22 +53,31 @@ public class Recording {
             UUID id,
             UUID violationId,
             RecordingStatus status,
-            Instant recordingStartedAt
+            Instant recordingStartedAt,
+            UUID startCommandId,
+            UUID stopCommandId
     ) {
         return new Recording(
                 id,
                 violationId,
                 status,
-                recordingStartedAt
+                recordingStartedAt,
+                startCommandId,
+                stopCommandId
         );
     }
 
     public void markRecordingStarted(
-            Instant startedAt
+            Instant startedAt,
+            UUID startCommandId
     ) {
         this.recordingStartedAt = Objects.requireNonNull(
                 startedAt,
                 "startedAt cannot be null"
+        );
+        this.startCommandId = Objects.requireNonNull(
+                startCommandId,
+                "startCommandId cannot be null"
         );
 
         if (status == RecordingStatus.REQUESTED) {
@@ -67,7 +85,14 @@ public class Recording {
         }
     }
 
-    public void markProcessing() {
+    public void markProcessing(
+            UUID stopCommandId
+    ) {
+        this.stopCommandId = Objects.requireNonNull(
+                stopCommandId,
+                "stopCommandId cannot be null"
+        );
+
         if (status == RecordingStatus.RECORDING || status == RecordingStatus.REQUESTED) {
             this.status = RecordingStatus.PROCESSING;
         }
@@ -93,5 +118,13 @@ public class Recording {
 
     public Instant recordingStartedAt() {
         return recordingStartedAt;
+    }
+
+    public UUID startCommandId() {
+        return startCommandId;
+    }
+
+    public UUID stopCommandId() {
+        return stopCommandId;
     }
 }

@@ -1,5 +1,6 @@
 package com.isg.backend.recording.application;
 
+import com.isg.backend.recording.application.port.GatewayRecordingCommandPort;
 import com.isg.backend.recording.application.port.RecordingRepository;
 import com.isg.backend.recording.domain.Recording;
 import com.isg.backend.recording.domain.RecordingStatus;
@@ -15,24 +16,29 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class RecordingApplicationServiceTest {
 
     private InMemoryRecordingRepository repository;
+    private CapturingGatewayRecordingCommandPort gatewayCommandPort;
     private RecordingApplicationService service;
 
     @BeforeEach
     void setUp() {
         repository = new InMemoryRecordingRepository();
-        service = new RecordingApplicationService(repository);
+        gatewayCommandPort = new CapturingGatewayRecordingCommandPort();
+        service = new RecordingApplicationService(repository, gatewayCommandPort);
     }
 
     @Test
     void firstStartCreatesRecording() {
         UUID violationId = UUID.randomUUID();
+        StartRecordingCommand command = startCommand(violationId);
 
-        Recording created = service.start(startCommand(violationId));
+        Recording created = service.start(command);
 
         assertThat(created.id()).isNotNull();
         assertThat(created.violationId()).isEqualTo(violationId);
-        assertThat(created.status()).isEqualTo(RecordingStatus.REQUESTED);
+        assertThat(created.status()).isEqualTo(RecordingStatus.RECORDING);
+        assertThat(created.startCommandId()).isEqualTo(command.commandId());
         assertThat(repository.size()).isEqualTo(1);
+        assertThat(gatewayCommandPort.startCommandCount()).isEqualTo(1);
     }
 
     @Test
@@ -45,6 +51,7 @@ class RecordingApplicationServiceTest {
         assertThat(repository.size()).isEqualTo(1);
         assertThat(second.id()).isEqualTo(first.id());
         assertThat(second.violationId()).isEqualTo(first.violationId());
+        assertThat(gatewayCommandPort.startCommandCount()).isEqualTo(1);
     }
 
     @Test
@@ -54,17 +61,19 @@ class RecordingApplicationServiceTest {
 
         assertThat(first.id()).isNotEqualTo(second.id());
         assertThat(repository.size()).isEqualTo(2);
+        assertThat(gatewayCommandPort.startCommandCount()).isEqualTo(2);
     }
 
     @Test
-    void stopKeepsExistingRecordingRequestedUntilGatewayAckFlowExists() {
+    void stopUpdatesExistingRecordingToProcessingAfterGatewayAck() {
         UUID violationId = UUID.randomUUID();
         service.start(startCommand(violationId));
 
         Recording stopped = service.stop(stopCommand(violationId));
 
-        assertThat(stopped.status()).isEqualTo(RecordingStatus.REQUESTED);
+        assertThat(stopped.status()).isEqualTo(RecordingStatus.PROCESSING);
         assertThat(repository.findByViolationId(violationId)).hasValue(stopped);
+        assertThat(gatewayCommandPort.stopCommandCount()).isEqualTo(1);
     }
 
     @Test
@@ -81,13 +90,49 @@ class RecordingApplicationServiceTest {
         UUID violationId = UUID.randomUUID();
         service.start(startCommand(violationId));
 
-        Recording firstStop = service.stop(stopCommand(violationId));
-        Recording secondStop = service.stop(stopCommand(violationId));
+        StopRecordingCommand command = stopCommand(violationId);
+        Recording firstStop = service.stop(command);
+        Recording secondStop = service.stop(command);
 
-        assertThat(firstStop.status()).isEqualTo(RecordingStatus.REQUESTED);
-        assertThat(secondStop.status()).isEqualTo(RecordingStatus.REQUESTED);
+        assertThat(firstStop.status()).isEqualTo(RecordingStatus.PROCESSING);
+        assertThat(secondStop.status()).isEqualTo(RecordingStatus.PROCESSING);
         assertThat(secondStop.id()).isEqualTo(firstStop.id());
         assertThat(repository.size()).isEqualTo(1);
+        assertThat(gatewayCommandPort.stopCommandCount()).isEqualTo(1);
+    }
+
+    @Test
+    void startFailureDoesNotAdvanceRecordingToRecordingStatus() {
+        UUID violationId = UUID.randomUUID();
+        gatewayCommandPort.failStart = true;
+        StartRecordingCommand command = startCommand(violationId);
+
+        assertThatThrownBy(() -> service.start(command))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("start failed");
+
+        assertThat(repository.findByViolationId(violationId))
+                .hasValueSatisfying(recording -> {
+                    assertThat(recording.status()).isEqualTo(RecordingStatus.REQUESTED);
+                    assertThat(recording.startCommandId()).isEqualTo(command.commandId());
+                });
+    }
+
+    @Test
+    void stopFailureDoesNotAdvanceRecordingToProcessingStatus() {
+        UUID violationId = UUID.randomUUID();
+        service.start(startCommand(violationId));
+        gatewayCommandPort.failStop = true;
+
+        assertThatThrownBy(() -> service.stop(stopCommand(violationId)))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("stop failed");
+
+        assertThat(repository.findByViolationId(violationId))
+                .hasValueSatisfying(recording -> {
+                    assertThat(recording.status()).isEqualTo(RecordingStatus.RECORDING);
+                    assertThat(recording.stopCommandId()).isNull();
+                });
     }
 
     private StartRecordingCommand startCommand(
@@ -135,7 +180,9 @@ class RecordingApplicationServiceTest {
                     UUID.randomUUID(),
                     recording.violationId(),
                     recording.status(),
-                    recording.recordingStartedAt()
+                    recording.recordingStartedAt(),
+                    recording.startCommandId(),
+                    recording.stopCommandId()
             )
                     : recording;
 
@@ -145,6 +192,44 @@ class RecordingApplicationServiceTest {
 
         int size() {
             return byViolationId.size();
+        }
+    }
+
+    private static class CapturingGatewayRecordingCommandPort implements GatewayRecordingCommandPort {
+
+        private final List<StartRecordingCommand> sentStartCommands = new ArrayList<>();
+        private final List<StopRecordingCommand> sentStopCommands = new ArrayList<>();
+        private boolean failStart;
+        private boolean failStop;
+
+        @Override
+        public void sendStart(
+                StartRecordingCommand command
+        ) {
+            if (failStart) {
+                throw new RuntimeException("start failed");
+            }
+
+            sentStartCommands.add(command);
+        }
+
+        @Override
+        public void sendStop(
+                StopRecordingCommand command
+        ) {
+            if (failStop) {
+                throw new RuntimeException("stop failed");
+            }
+
+            sentStopCommands.add(command);
+        }
+
+        int startCommandCount() {
+            return sentStartCommands.size();
+        }
+
+        int stopCommandCount() {
+            return sentStopCommands.size();
         }
     }
 }

@@ -29,21 +29,26 @@ class RecordingPersistenceAdapterTest {
     @Test
     void savesRequestedStatusAsPendingInDatabaseRepresentation() {
         UUID violationId = UUID.randomUUID();
+        UUID startCommandId = UUID.randomUUID();
         RecordingJpaEntity persistedEntity = RecordingJpaEntity.builder()
                 .id(UUID.randomUUID())
                 .violationId(violationId)
                 .status("PENDING")
+                .startCommandId(startCommandId)
                 .build();
 
         when(springDataRepository.save(any(RecordingJpaEntity.class)))
                 .thenReturn(persistedEntity);
 
-        Recording saved = adapter.save(Recording.createRequested(violationId));
+        Recording saved = adapter.save(Recording.createRequested(violationId, startCommandId));
 
         verify(springDataRepository).save(org.mockito.ArgumentMatchers.argThat(entity ->
-                entity.getStatus().equals("PENDING") && entity.getViolationId().equals(violationId)
+                entity.getStatus().equals("PENDING")
+                        && entity.getViolationId().equals(violationId)
+                        && entity.getStartCommandId().equals(startCommandId)
         ));
         assertThat(saved.status()).isEqualTo(RecordingStatus.REQUESTED);
+        assertThat(saved.startCommandId()).isEqualTo(startCommandId);
     }
 
     @Test
@@ -62,6 +67,8 @@ class RecordingPersistenceAdapterTest {
                 .checksum("sha256:abc")
                 .errorCode("ERR_TIMEOUT")
                 .recordingStartedAt(Instant.parse("2026-01-01T09:59:00Z"))
+                .startCommandId(UUID.randomUUID())
+                .stopCommandId(UUID.randomUUID())
                 .readyAt(Instant.parse("2026-01-01T10:00:00Z"))
                 .build();
 
@@ -75,7 +82,9 @@ class RecordingPersistenceAdapterTest {
                 id,
                 violationId,
                 RecordingStatus.RECORDING,
-                Instant.parse("2026-01-01T10:01:00Z")
+                Instant.parse("2026-01-01T10:01:00Z"),
+                existingEntity.getStartCommandId(),
+                existingEntity.getStopCommandId()
         );
 
         Recording saved = adapter.save(domainRecording);
@@ -91,6 +100,8 @@ class RecordingPersistenceAdapterTest {
                         && entity.getRetryCount() == 2
                         && entity.getChecksum().equals("sha256:abc")
                         && entity.getErrorCode().equals("ERR_TIMEOUT")
+                        && entity.getStartCommandId().equals(existingEntity.getStartCommandId())
+                        && entity.getStopCommandId().equals(existingEntity.getStopCommandId())
                         && entity.getReadyAt().equals(Instant.parse("2026-01-01T10:00:00Z"))
         ));
 
@@ -108,6 +119,7 @@ class RecordingPersistenceAdapterTest {
                 .violationId(violationId)
                 .status("PENDING")
                 .recordingStartedAt(Instant.parse("2026-01-01T10:00:00Z"))
+                .startCommandId(UUID.randomUUID())
                 .build();
 
         when(springDataRepository.findByViolationId(violationId))
@@ -117,5 +129,6 @@ class RecordingPersistenceAdapterTest {
 
         assertThat(loaded.status()).isEqualTo(RecordingStatus.REQUESTED);
         assertThat(loaded.recordingStartedAt()).isEqualTo(Instant.parse("2026-01-01T10:00:00Z"));
+        assertThat(loaded.startCommandId()).isEqualTo(entity.getStartCommandId());
     }
 }

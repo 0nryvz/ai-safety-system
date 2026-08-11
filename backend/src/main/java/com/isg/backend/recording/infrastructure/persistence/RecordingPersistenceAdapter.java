@@ -46,6 +46,8 @@ public class RecordingPersistenceAdapter implements RecordingRepository {
 
             existingEntity.setStatus(recording.status().databaseValue());
             existingEntity.setRecordingStartedAt(recording.recordingStartedAt());
+            existingEntity.setStartCommandId(recording.startCommandId());
+            existingEntity.setStopCommandId(recording.stopCommandId());
             return existingEntity;
         }
 
@@ -54,6 +56,8 @@ public class RecordingPersistenceAdapter implements RecordingRepository {
                 .violationId(recording.violationId())
                 .status(recording.status().databaseValue())
                 .recordingStartedAt(recording.recordingStartedAt())
+                .startCommandId(recording.startCommandId())
+                .stopCommandId(recording.stopCommandId())
                 .build();
     }
 
@@ -64,7 +68,9 @@ public class RecordingPersistenceAdapter implements RecordingRepository {
                 entity.getId(),
                 entity.getViolationId(),
                 RecordingStatus.fromDatabaseValue(entity.getStatus()),
-                entity.getRecordingStartedAt()
+                entity.getRecordingStartedAt(),
+                entity.getStartCommandId(),
+                entity.getStopCommandId()
         );
     }
 }
