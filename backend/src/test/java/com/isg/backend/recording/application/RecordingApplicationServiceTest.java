@@ -6,6 +6,7 @@ import com.isg.backend.recording.domain.Recording;
 import com.isg.backend.recording.domain.RecordingStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Instant;
 import java.util.*;
@@ -23,7 +24,11 @@ class RecordingApplicationServiceTest {
     void setUp() {
         repository = new InMemoryRecordingRepository();
         gatewayCommandPort = new CapturingGatewayRecordingCommandPort();
-        service = new RecordingApplicationService(repository, gatewayCommandPort);
+        service = new RecordingApplicationService(
+                repository,
+                new RecordingCreationService(repository),
+                gatewayCommandPort
+        );
     }
 
     @Test
@@ -90,13 +95,14 @@ class RecordingApplicationServiceTest {
         UUID violationId = UUID.randomUUID();
         service.start(startCommand(violationId));
 
-        StopRecordingCommand command = stopCommand(violationId);
-        Recording firstStop = service.stop(command);
-        Recording secondStop = service.stop(command);
+        StopRecordingCommand firstCommand = stopCommand(violationId);
+        Recording firstStop = service.stop(firstCommand);
+        Recording secondStop = service.stop(stopCommand(violationId));
 
         assertThat(firstStop.status()).isEqualTo(RecordingStatus.PROCESSING);
         assertThat(secondStop.status()).isEqualTo(RecordingStatus.PROCESSING);
         assertThat(secondStop.id()).isEqualTo(firstStop.id());
+        assertThat(secondStop.stopCommandId()).isEqualTo(firstCommand.commandId());
         assertThat(repository.size()).isEqualTo(1);
         assertThat(gatewayCommandPort.stopCommandCount()).isEqualTo(1);
     }
@@ -119,6 +125,26 @@ class RecordingApplicationServiceTest {
     }
 
     @Test
+    void failedStartDeliveryRetryUsesPersistedStartCommandId() {
+        UUID violationId = UUID.randomUUID();
+        StartRecordingCommand firstCommand = startCommand(violationId);
+
+        gatewayCommandPort.failStart = true;
+        assertThatThrownBy(() -> service.start(firstCommand))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("start failed");
+
+        gatewayCommandPort.failStart = false;
+        StartRecordingCommand retryEventCommand = startCommand(violationId);
+        Recording result = service.start(retryEventCommand);
+
+        assertThat(result.status()).isEqualTo(RecordingStatus.RECORDING);
+        assertThat(result.startCommandId()).isEqualTo(firstCommand.commandId());
+        assertThat(gatewayCommandPort.startCommandCount()).isEqualTo(1);
+        assertThat(gatewayCommandPort.lastStartCommand().commandId()).isEqualTo(firstCommand.commandId());
+    }
+
+    @Test
     void stopFailureDoesNotAdvanceRecordingToProcessingStatus() {
         UUID violationId = UUID.randomUUID();
         service.start(startCommand(violationId));
@@ -131,8 +157,54 @@ class RecordingApplicationServiceTest {
         assertThat(repository.findByViolationId(violationId))
                 .hasValueSatisfying(recording -> {
                     assertThat(recording.status()).isEqualTo(RecordingStatus.RECORDING);
-                    assertThat(recording.stopCommandId()).isNull();
+                    assertThat(recording.stopCommandId()).isNotNull();
                 });
+    }
+
+    @Test
+    void failedStopDeliveryRetryUsesPersistedStopCommandId() {
+        UUID violationId = UUID.randomUUID();
+        service.start(startCommand(violationId));
+
+        StopRecordingCommand firstCommand = stopCommand(violationId);
+        gatewayCommandPort.failStop = true;
+        assertThatThrownBy(() -> service.stop(firstCommand))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("stop failed");
+
+        gatewayCommandPort.failStop = false;
+        StopRecordingCommand retryEventCommand = stopCommand(violationId);
+        Recording stopped = service.stop(retryEventCommand);
+
+        assertThat(stopped.status()).isEqualTo(RecordingStatus.PROCESSING);
+        assertThat(stopped.stopCommandId()).isEqualTo(firstCommand.commandId());
+        assertThat(gatewayCommandPort.stopCommandCount()).isEqualTo(1);
+        assertThat(gatewayCommandPort.lastStopCommand().commandId()).isEqualTo(firstCommand.commandId());
+    }
+
+    @Test
+    void concurrentDuplicateStartDataIntegrityViolationIsHandledIdempotently() {
+        UUID violationId = UUID.randomUUID();
+        UUID persistedCommandId = UUID.randomUUID();
+        ConcurrentDuplicateStartRepository concurrentRepository =
+                new ConcurrentDuplicateStartRepository(
+                        violationId,
+                        persistedCommandId
+                );
+        RecordingApplicationService concurrentService = new RecordingApplicationService(
+                concurrentRepository,
+                new RecordingCreationService(concurrentRepository),
+                gatewayCommandPort
+        );
+
+        Recording created = concurrentService.start(startCommand(violationId));
+
+        assertThat(created.violationId()).isEqualTo(violationId);
+        assertThat(created.status()).isEqualTo(RecordingStatus.RECORDING);
+        assertThat(created.startCommandId()).isEqualTo(persistedCommandId);
+        assertThat(gatewayCommandPort.startCommandCount()).isEqualTo(1);
+        assertThat(gatewayCommandPort.lastStartCommand().commandId()).isEqualTo(persistedCommandId);
+        assertThat(concurrentRepository.size()).isEqualTo(1);
     }
 
     private StartRecordingCommand startCommand(
@@ -228,8 +300,76 @@ class RecordingApplicationServiceTest {
             return sentStartCommands.size();
         }
 
+        StartRecordingCommand lastStartCommand() {
+            return sentStartCommands.get(sentStartCommands.size() - 1);
+        }
+
         int stopCommandCount() {
             return sentStopCommands.size();
+        }
+
+        StopRecordingCommand lastStopCommand() {
+            return sentStopCommands.get(sentStopCommands.size() - 1);
+        }
+    }
+
+    private static class ConcurrentDuplicateStartRepository implements RecordingRepository {
+
+        private final UUID violationId;
+        private final UUID existingStartCommandId;
+        private final Map<UUID, Recording> byViolationId = new HashMap<>();
+        private boolean firstCreate = true;
+
+        private ConcurrentDuplicateStartRepository(
+                UUID violationId,
+                UUID existingStartCommandId
+        ) {
+            this.violationId = violationId;
+            this.existingStartCommandId = existingStartCommandId;
+        }
+
+        @Override
+        public Optional<Recording> findByViolationId(
+                UUID lookupViolationId
+        ) {
+            return Optional.ofNullable(byViolationId.get(lookupViolationId));
+        }
+
+        @Override
+        public Recording save(
+                Recording recording
+        ) {
+            if (recording.id() == null && firstCreate) {
+                firstCreate = false;
+                Recording concurrentInserted = Recording.rehydrate(
+                        UUID.randomUUID(),
+                        violationId,
+                        RecordingStatus.REQUESTED,
+                        null,
+                        existingStartCommandId,
+                        null
+                );
+                byViolationId.put(violationId, concurrentInserted);
+                throw new DataIntegrityViolationException("duplicate violation_id");
+            }
+
+            Recording persisted = recording.id() == null
+                    ? Recording.rehydrate(
+                    UUID.randomUUID(),
+                    recording.violationId(),
+                    recording.status(),
+                    recording.recordingStartedAt(),
+                    recording.startCommandId(),
+                    recording.stopCommandId()
+            )
+                    : recording;
+
+            byViolationId.put(persisted.violationId(), persisted);
+            return persisted;
+        }
+
+        int size() {
+            return byViolationId.size();
         }
     }
 }

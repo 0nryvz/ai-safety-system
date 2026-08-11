@@ -71,6 +71,12 @@ public class Recording {
             Instant startedAt,
             UUID startCommandId
     ) {
+        if (status != RecordingStatus.REQUESTED) {
+            throw new IllegalStateException(
+                    "Cannot transition to RECORDING from " + status
+            );
+        }
+
         this.recordingStartedAt = Objects.requireNonNull(
                 startedAt,
                 "startedAt cannot be null"
@@ -80,21 +86,34 @@ public class Recording {
                 "startCommandId cannot be null"
         );
 
-        if (status == RecordingStatus.REQUESTED) {
-            this.status = RecordingStatus.RECORDING;
-        }
+        this.status = RecordingStatus.RECORDING;
     }
 
     public void markProcessing(
             UUID stopCommandId
     ) {
+        if (status != RecordingStatus.RECORDING) {
+            throw new IllegalStateException(
+                    "Cannot transition to PROCESSING from " + status
+            );
+        }
+
         this.stopCommandId = Objects.requireNonNull(
                 stopCommandId,
                 "stopCommandId cannot be null"
         );
 
-        if (status == RecordingStatus.RECORDING || status == RecordingStatus.REQUESTED) {
-            this.status = RecordingStatus.PROCESSING;
+        this.status = RecordingStatus.PROCESSING;
+    }
+
+    public void assignStopCommandId(
+            UUID stopCommandId
+    ) {
+        if (this.stopCommandId == null) {
+            this.stopCommandId = Objects.requireNonNull(
+                    stopCommandId,
+                    "stopCommandId cannot be null"
+            );
         }
     }
 
