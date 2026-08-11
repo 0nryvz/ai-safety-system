@@ -3,7 +3,9 @@ package com.isg.backend.violation.infrastructure.persistence;
 import com.isg.backend.violation.query.ViolationQueryFilter;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.util.Collection;
 import java.util.Objects;
+import java.util.UUID;
 
 public final class ViolationSpecifications {
 
@@ -11,14 +13,23 @@ public final class ViolationSpecifications {
     }
 
     public static Specification<ViolationJpaEntity> fromFilter(
-            ViolationQueryFilter filter
+            ViolationQueryFilter filter,
+            Collection<UUID> accessibleDepartmentIds
     ) {
         Objects.requireNonNull(
                 filter,
                 "filter must not be null"
         );
 
+        Objects.requireNonNull(
+                accessibleDepartmentIds,
+                "accessibleDepartmentIds must not be null"
+        );
+
         return Specification.allOf(
+                departmentAccess(
+                        accessibleDepartmentIds
+                ),
                 startedAtGreaterThanOrEqual(
                         filter
                 ),
@@ -40,6 +51,28 @@ public final class ViolationSpecifications {
                 hasReviewStatus(
                         filter
                 )
+        );
+    }
+
+    private static Specification<ViolationJpaEntity> departmentAccess(
+            Collection<UUID> accessibleDepartmentIds
+    ) {
+        if (accessibleDepartmentIds.isEmpty()) {
+            return (
+                    root,
+                    query,
+                    criteriaBuilder
+            ) -> criteriaBuilder.disjunction();
+        }
+
+        return (
+                root,
+                query,
+                criteriaBuilder
+        ) -> root.get(
+                "departmentId"
+        ).in(
+                accessibleDepartmentIds
         );
     }
 
