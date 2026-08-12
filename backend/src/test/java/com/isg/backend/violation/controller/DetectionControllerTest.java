@@ -37,29 +37,6 @@ class DetectionControllerTest {
 
     @Test
     void validRequestReturns202() throws Exception {
-        String requestBody = """
-                {
-                  "eventId": "11111111-1111-1111-1111-111111111111",
-                  "cameraId": "22222222-2222-2222-2222-222222222222",
-                  "sessionId": "33333333-3333-3333-3333-333333333333",
-                  "frameTimestamp": "2026-08-06T20:00:00Z",
-                  "modelVersion": "welding-ppe-v1",
-                  "inferenceMs": 40,
-                  "detections": [
-                    {
-                      "label": "welding_mask",
-                      "confidence": 0.90,
-                      "bbox": {
-                        "x": 0.10,
-                        "y": 0.10,
-                        "width": 0.20,
-                        "height": 0.20
-                      }
-                    }
-                  ]
-                }
-                """;
-
         mockMvc.perform(
                         post("/internal/v1/detections")
                                 .header(
@@ -70,7 +47,7 @@ class DetectionControllerTest {
                                         MediaType.APPLICATION_JSON
                                 )
                                 .content(
-                                        requestBody
+                                        validRequestBody()
                                 )
                 )
                 .andExpect(
@@ -170,5 +147,80 @@ class DetectionControllerTest {
         ).process(
                 any()
         );
+    }
+
+    @Test
+    void missingInternalApiKeyReturns401() throws Exception {
+        mockMvc.perform(
+                        post("/internal/v1/detections")
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        validRequestBody()
+                                )
+                )
+                .andExpect(
+                        status().isUnauthorized()
+                );
+
+        verify(
+                detectionService,
+                never()
+        ).process(
+                any()
+        );
+    }
+
+    @Test
+    void invalidInternalApiKeyReturns401() throws Exception {
+        mockMvc.perform(
+                        post("/internal/v1/detections")
+                                .header(
+                                        INTERNAL_API_KEY_HEADER,
+                                        "wrong-api-key"
+                                )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        validRequestBody()
+                                )
+                )
+                .andExpect(
+                        status().isUnauthorized()
+                );
+
+        verify(
+                detectionService,
+                never()
+        ).process(
+                any()
+        );
+    }
+
+    private String validRequestBody() {
+        return """
+                {
+                  "eventId": "11111111-1111-1111-1111-111111111111",
+                  "cameraId": "22222222-2222-2222-2222-222222222222",
+                  "sessionId": "33333333-3333-3333-3333-333333333333",
+                  "frameTimestamp": "2026-08-06T20:00:00Z",
+                  "modelVersion": "welding-ppe-v1",
+                  "inferenceMs": 40,
+                  "detections": [
+                    {
+                      "label": "welding_mask",
+                      "confidence": 0.90,
+                      "bbox": {
+                        "x": 0.10,
+                        "y": 0.10,
+                        "width": 0.20,
+                        "height": 0.20
+                      }
+                    }
+                  ]
+                }
+                """;
     }
 }
