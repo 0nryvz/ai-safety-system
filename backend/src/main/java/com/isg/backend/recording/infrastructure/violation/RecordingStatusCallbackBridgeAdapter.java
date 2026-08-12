@@ -2,6 +2,7 @@ package com.isg.backend.recording.infrastructure.violation;
 
 import com.isg.backend.recording.application.callback.RecordingStatusCallback;
 import com.isg.backend.recording.domain.RecordingStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -14,6 +15,7 @@ public class RecordingStatusCallbackBridgeAdapter
     private final com.isg.backend.violation.application.port.RecordingStatusCallbackPort callbackPort;
     private final Clock clock;
 
+    @Autowired
     public RecordingStatusCallbackBridgeAdapter(
             com.isg.backend.violation.application.port.RecordingStatusCallbackPort callbackPort
     ) {
