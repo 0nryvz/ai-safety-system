@@ -3,6 +3,8 @@ package com.isg.backend.recording.infrastructure.gateway;
 import com.isg.backend.recording.application.StartRecordingCommand;
 import com.isg.backend.recording.application.StopRecordingCommand;
 import com.isg.backend.recording.application.port.GatewayRecordingCommandPort;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -17,6 +19,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 @Component
+@Profile("!test")
 public class GatewayRecordingHttpAdapter implements GatewayRecordingCommandPort {
 
     private static final String START_PATH = "/internal/v1/recordings/commands/start";
@@ -25,6 +28,7 @@ public class GatewayRecordingHttpAdapter implements GatewayRecordingCommandPort 
     private final GatewayRecordingCommandProperties properties;
     private final RestOperations restOperations;
 
+    @Autowired
     public GatewayRecordingHttpAdapter(
             GatewayRecordingCommandProperties properties
     ) {
