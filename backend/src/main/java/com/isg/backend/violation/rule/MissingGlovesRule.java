@@ -20,7 +20,7 @@ public class MissingGlovesRule implements ViolationRule {
             PersonContext person,
             DetectionFrame frame
     ) {
-        if (!person.hasDetection(DetectionLabel.NON_GLOVES)) {
+        if (person.hasDetection(DetectionLabel.GLOVES)) {
             return Optional.empty();
         }
 

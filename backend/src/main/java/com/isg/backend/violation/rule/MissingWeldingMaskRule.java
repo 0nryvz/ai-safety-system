@@ -20,7 +20,7 @@ public class MissingWeldingMaskRule implements ViolationRule {
             PersonContext person,
             DetectionFrame frame
     ) {
-        if (!person.hasDetection(DetectionLabel.NON_MASK)) {
+        if (person.hasDetection(DetectionLabel.WELDING_MASK)) {
             return Optional.empty();
         }
 

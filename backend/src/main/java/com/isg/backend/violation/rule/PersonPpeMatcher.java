@@ -40,9 +40,6 @@ public class PersonPpeMatcher {
                     DetectionLabel.WELDING_APRON,
                     DetectionLabel.WELDING_JACKET,
                     DetectionLabel.GLOVES,
-                    DetectionLabel.NON_GLOVES,
-                    DetectionLabel.NON_MASK,
-                    DetectionLabel.NON_JACKET,
                     DetectionLabel.WELDING
             );
 

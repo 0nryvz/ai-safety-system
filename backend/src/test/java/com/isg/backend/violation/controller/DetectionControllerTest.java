@@ -3,11 +3,11 @@ package com.isg.backend.violation.controller;
 import com.isg.backend.violation.service.DetectionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -15,10 +15,19 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-
-@WebMvcTest(DetectionController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@SpringBootTest(
+        properties = {
+                "application.security.internal.api-key=test-internal-api-key"
+        }
+)
+@AutoConfigureMockMvc
 class DetectionControllerTest {
+
+    private static final String INTERNAL_API_KEY_HEADER =
+            "X-Internal-Api-Key";
+
+    private static final String INTERNAL_API_KEY =
+            "test-internal-api-key";
 
     @Autowired
     private MockMvc mockMvc;
@@ -38,7 +47,7 @@ class DetectionControllerTest {
                   "inferenceMs": 40,
                   "detections": [
                     {
-                      "label": "non_mask",
+                      "label": "welding_mask",
                       "confidence": 0.90,
                       "bbox": {
                         "x": 0.10,
@@ -53,12 +62,26 @@ class DetectionControllerTest {
 
         mockMvc.perform(
                         post("/internal/v1/detections")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(requestBody)
+                                .header(
+                                        INTERNAL_API_KEY_HEADER,
+                                        INTERNAL_API_KEY
+                                )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        requestBody
+                                )
                 )
-                .andExpect(status().isAccepted());
+                .andExpect(
+                        status().isAccepted()
+                );
 
-        verify(detectionService).process(any());
+        verify(
+                detectionService
+        ).process(
+                any()
+        );
     }
 
     @Test
@@ -76,12 +99,27 @@ class DetectionControllerTest {
 
         mockMvc.perform(
                         post("/internal/v1/detections")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(requestBody)
+                                .header(
+                                        INTERNAL_API_KEY_HEADER,
+                                        INTERNAL_API_KEY
+                                )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        requestBody
+                                )
                 )
-                .andExpect(status().isBadRequest());
+                .andExpect(
+                        status().isBadRequest()
+                );
 
-        verify(detectionService, never()).process(any());
+        verify(
+                detectionService,
+                never()
+        ).process(
+                any()
+        );
     }
 
     @Test
@@ -96,7 +134,7 @@ class DetectionControllerTest {
                   "inferenceMs": 40,
                   "detections": [
                     {
-                      "label": "non_mask",
+                      "label": "welding_mask",
                       "confidence": 1.50,
                       "bbox": {
                         "x": 0.10,
@@ -111,11 +149,26 @@ class DetectionControllerTest {
 
         mockMvc.perform(
                         post("/internal/v1/detections")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(requestBody)
+                                .header(
+                                        INTERNAL_API_KEY_HEADER,
+                                        INTERNAL_API_KEY
+                                )
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+                                .content(
+                                        requestBody
+                                )
                 )
-                .andExpect(status().isBadRequest());
+                .andExpect(
+                        status().isBadRequest()
+                );
 
-        verify(detectionService, never()).process(any());
+        verify(
+                detectionService,
+                never()
+        ).process(
+                any()
+        );
     }
 }
