@@ -40,19 +40,20 @@ class MissingGlovesRuleTest {
     void supportsMissingGlovesViolationType() {
         assertThat(
                 rule.supportedType()
-        )
-                .isEqualTo(
-                        ViolationType.MISSING_GLOVES
-                );
+        ).isEqualTo(
+                ViolationType.MISSING_GLOVES
+        );
     }
 
     @Test
-    void producesCandidateWhenGlovesDetectionIsAbsent() {
+    void producesCandidateWhenWeldingPersonHasNoGloves() {
         PersonContext person =
                 new PersonContext(
                         "track-worker-1",
                         person(),
-                        List.of()
+                        List.of(
+                                welding()
+                        )
                 );
 
         Optional<CandidateViolation> result =
@@ -105,14 +106,34 @@ class MissingGlovesRuleTest {
     }
 
     @Test
-    void doesNotProduceCandidateWhenGlovesDetectionIsPresent() {
+    void doesNotProduceCandidateWhenWeldingPersonHasGloves() {
         PersonContext person =
                 new PersonContext(
                         "track-worker-1",
                         person(),
                         List.of(
+                                welding(),
                                 gloves()
                         )
+                );
+
+        Optional<CandidateViolation> result =
+                rule.evaluate(
+                        person,
+                        frame()
+                );
+
+        assertThat(result)
+                .isEmpty();
+    }
+
+    @Test
+    void doesNotProduceCandidateWhenPersonIsNotWelding() {
+        PersonContext person =
+                new PersonContext(
+                        "track-worker-1",
+                        person(),
+                        List.of()
                 );
 
         Optional<CandidateViolation> result =
@@ -137,6 +158,21 @@ class MissingGlovesRuleTest {
                         0.8
                 ),
                 "worker-1"
+        );
+    }
+
+    private static DetectedObject welding() {
+        return new DetectedObject(
+                DetectionLabel.WELDING,
+                "welding",
+                0.92,
+                new BoundingBox(
+                        0.2,
+                        0.4,
+                        0.1,
+                        0.1
+                ),
+                null
         );
     }
 
