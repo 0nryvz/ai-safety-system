@@ -1,6 +1,7 @@
 package com.isg.backend.violation.service;
 
 import com.isg.backend.modules.camera.application.CameraService;
+import com.isg.backend.camera.service.CameraQueryService;
 import com.isg.backend.violation.application.event.ViolationRecordingUpdatedEvent;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
@@ -27,6 +28,7 @@ class ViolationRecordingNotificationTransitionTest {
     private SpringDataViolationStatusHistoryRepository statusHistoryRepository;
     private CameraService cameraService;
     private ApplicationEventPublisher eventPublisher;
+    private CameraQueryService cameraQueryService;
 
     private ViolationLifecycleService lifecycleService;
 
@@ -41,6 +43,9 @@ class ViolationRecordingNotificationTransitionTest {
         cameraService =
                 mock(CameraService.class);
 
+        cameraQueryService =
+                mock(CameraQueryService.class);
+
         eventPublisher =
                 mock(ApplicationEventPublisher.class);
 
@@ -49,6 +54,7 @@ class ViolationRecordingNotificationTransitionTest {
                         violationRepository,
                         statusHistoryRepository,
                         cameraService,
+                        cameraQueryService,
                         eventPublisher
                 );
     }
