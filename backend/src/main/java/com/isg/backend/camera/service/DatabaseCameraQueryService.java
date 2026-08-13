@@ -5,6 +5,7 @@ import com.isg.backend.modules.camera.infrastructure.repository.CameraSessionRep
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -26,8 +27,32 @@ public class DatabaseCameraQueryService
             UUID cameraId,
             UUID sessionId
     ) {
+        return findActiveSession(
+                cameraId,
+                sessionId
+        ).isPresent();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> findSessionRecordId(
+            UUID cameraId,
+            UUID sessionId
+    ) {
+        return findActiveSession(
+                cameraId,
+                sessionId
+        ).map(
+                CameraSession::getId
+        );
+    }
+
+    private Optional<CameraSession> findActiveSession(
+            UUID cameraId,
+            UUID sessionId
+    ) {
         if (cameraId == null || sessionId == null) {
-            return false;
+            return Optional.empty();
         }
 
         return cameraSessionRepository
@@ -43,7 +68,6 @@ public class DatabaseCameraQueryService
                                 && cameraId.equals(
                                 session.getCamera().getId()
                         )
-                )
-                .isPresent();
+                );
     }
 }
