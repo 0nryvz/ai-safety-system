@@ -31,6 +31,166 @@ class DatabaseCameraQueryServiceTest {
     }
 
     @Test
+    void resolvesInternalSessionRecordIdForActiveMatchingSession() {
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID externalSessionId =
+                UUID.randomUUID();
+
+        UUID internalSessionRecordId =
+                UUID.randomUUID();
+
+        Camera camera =
+                mock(Camera.class);
+
+        when(camera.getId())
+                .thenReturn(
+                        cameraId
+                );
+
+        CameraSession session =
+                mock(CameraSession.class);
+
+        when(session.getId())
+                .thenReturn(
+                        internalSessionRecordId
+                );
+
+        when(session.getCamera())
+                .thenReturn(
+                        camera
+                );
+
+        when(session.getStatus())
+                .thenReturn(
+                        CameraSession.SessionStatus.ACTIVE
+                );
+
+        when(
+                cameraSessionRepository.findBySessionId(
+                        externalSessionId.toString()
+                )
+        ).thenReturn(
+                Optional.of(
+                        session
+                )
+        );
+
+        assertTrue(
+                service.findSessionRecordId(
+                        cameraId,
+                        externalSessionId
+                ).isPresent()
+        );
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                internalSessionRecordId,
+                service.findSessionRecordId(
+                        cameraId,
+                        externalSessionId
+                ).orElseThrow()
+        );
+    }
+
+    @Test
+    void doesNotResolveSessionRecordIdForDifferentCamera() {
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID differentCameraId =
+                UUID.randomUUID();
+
+        UUID externalSessionId =
+                UUID.randomUUID();
+
+        Camera camera =
+                mock(Camera.class);
+
+        when(camera.getId())
+                .thenReturn(
+                        differentCameraId
+                );
+
+        CameraSession session =
+                mock(CameraSession.class);
+
+        when(session.getCamera())
+                .thenReturn(
+                        camera
+                );
+
+        when(session.getStatus())
+                .thenReturn(
+                        CameraSession.SessionStatus.ACTIVE
+                );
+
+        when(
+                cameraSessionRepository.findBySessionId(
+                        externalSessionId.toString()
+                )
+        ).thenReturn(
+                Optional.of(
+                        session
+                )
+        );
+
+        assertTrue(
+                service.findSessionRecordId(
+                        cameraId,
+                        externalSessionId
+                ).isEmpty()
+        );
+    }
+
+    @Test
+    void doesNotResolveSessionRecordIdForInactiveSession() {
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID externalSessionId =
+                UUID.randomUUID();
+
+        Camera camera =
+                mock(Camera.class);
+
+        when(camera.getId())
+                .thenReturn(
+                        cameraId
+                );
+
+        CameraSession session =
+                mock(CameraSession.class);
+
+        when(session.getCamera())
+                .thenReturn(
+                        camera
+                );
+
+        when(session.getStatus())
+                .thenReturn(
+                        CameraSession.SessionStatus.CLOSED
+                );
+
+        when(
+                cameraSessionRepository.findBySessionId(
+                        externalSessionId.toString()
+                )
+        ).thenReturn(
+                Optional.of(
+                        session
+                )
+        );
+
+        assertTrue(
+                service.findSessionRecordId(
+                        cameraId,
+                        externalSessionId
+                ).isEmpty()
+        );
+    }
+
+    @Test
     void acceptsActiveSessionBelongingToCamera() {
         UUID cameraId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
