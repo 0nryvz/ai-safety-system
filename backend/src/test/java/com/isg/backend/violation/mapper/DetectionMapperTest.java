@@ -24,58 +24,82 @@ class DetectionMapperTest {
 
     @Test
     void mapsDtoToDomainCorrectly() {
-        DetectionItem item = new DetectionItem(
-                "welding_mask",
-                new BigDecimal("0.874"),
-                new BoundingBox(
-                        new BigDecimal("0.10"),
-                        new BigDecimal("0.20"),
-                        new BigDecimal("0.25"),
-                        new BigDecimal("0.30")
-                )
-        );
+        DetectionItem item =
+                new DetectionItem(
+                        "welding_mask",
+                        new BigDecimal("0.874"),
+                        new BoundingBox(
+                                new BigDecimal("0.10"),
+                                new BigDecimal("0.20"),
+                                new BigDecimal("0.25"),
+                                new BigDecimal("0.30")
+                        )
+                );
 
-        DetectionRequest request = new DetectionRequest(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                Instant.now(),
-                "welding-ppe-v1",
-                40L,
-                List.of(item)
-        );
+        DetectionRequest request =
+                new DetectionRequest(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        Instant.now(),
+                        "welding-ppe-v1",
+                        40L,
+                        List.of(
+                                item
+                        )
+                );
 
-        DetectionFrame result = mapper.toDomain(request);
+        DetectionFrame result =
+                mapper.toDomain(
+                        request
+                );
 
         assertThat(result.eventId())
-                .isEqualTo(request.eventId());
+                .isEqualTo(
+                        request.eventId()
+                );
 
         assertThat(result.cameraId())
-                .isEqualTo(request.cameraId());
+                .isEqualTo(
+                        request.cameraId()
+                );
 
         assertThat(result.sessionId())
-                .isEqualTo(request.sessionId());
+                .isEqualTo(
+                        request.sessionId()
+                );
 
         assertThat(result.detections())
                 .hasSize(1);
 
         DetectedObject object =
-                result.detections().getFirst();
+                result.detections()
+                        .getFirst();
 
         assertThat(object.label())
-                .isEqualTo(DetectionLabel.WELDING_MASK);
+                .isEqualTo(
+                        DetectionLabel.WELDING_MASK
+                );
 
         assertThat(object.rawLabel())
-                .isEqualTo("welding_mask");
+                .isEqualTo(
+                        "welding_mask"
+                );
 
         assertThat(object.confidence())
-                .isEqualTo(0.874);
+                .isEqualTo(
+                        0.874
+                );
 
         assertThat(object.boundingBox().x())
-                .isEqualTo(0.10);
+                .isEqualTo(
+                        0.10
+                );
 
         assertThat(object.boundingBox().y())
-                .isEqualTo(0.20);
+                .isEqualTo(
+                        0.20
+                );
 
         assertThat(object.trackId())
                 .isNull();
@@ -83,29 +107,35 @@ class DetectionMapperTest {
 
     @Test
     void rejectsUnsupportedLabel() {
-        DetectionItem item = new DetectionItem(
-                "visor_open",
-                new BigDecimal("0.90"),
-                new BoundingBox(
-                        new BigDecimal("0.10"),
-                        new BigDecimal("0.10"),
-                        new BigDecimal("0.20"),
-                        new BigDecimal("0.20")
-                )
-        );
+        DetectionItem item =
+                new DetectionItem(
+                        "visor_open",
+                        new BigDecimal("0.90"),
+                        new BoundingBox(
+                                new BigDecimal("0.10"),
+                                new BigDecimal("0.10"),
+                                new BigDecimal("0.20"),
+                                new BigDecimal("0.20")
+                        )
+                );
 
-        DetectionRequest request = new DetectionRequest(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                Instant.now(),
-                "welding-ppe-v1",
-                40L,
-                List.of(item)
-        );
+        DetectionRequest request =
+                new DetectionRequest(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        Instant.now(),
+                        "welding-ppe-v1",
+                        40L,
+                        List.of(
+                                item
+                        )
+                );
 
         assertThatThrownBy(
-                () -> mapper.toDomain(request)
+                () -> mapper.toDomain(
+                        request
+                )
         )
                 .isInstanceOf(
                         UnsupportedDetectionLabelException.class
@@ -116,33 +146,74 @@ class DetectionMapperTest {
     }
 
     @Test
-    void mapsAllDetectionsInFrame() {
-        DetectionRequest request = new DetectionRequest(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                Instant.now(),
-                "welding-ppe-v1",
-                40L,
-                List.of(
-                        item("non_mask"),
-                        item("non_gloves"),
-                        item("welding_jacket")
-                )
-        );
+    void rejectsRemovedNegativeLabel() {
+        DetectionRequest request =
+                new DetectionRequest(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        Instant.now(),
+                        "welding-ppe-v1",
+                        40L,
+                        List.of(
+                                item(
+                                        "non_mask"
+                                )
+                        )
+                );
 
-        DetectionFrame result = mapper.toDomain(request);
+        assertThatThrownBy(
+                () -> mapper.toDomain(
+                        request
+                )
+        )
+                .isInstanceOf(
+                        UnsupportedDetectionLabelException.class
+                );
+    }
+
+    @Test
+    void mapsAllSupportedDetectionsInFrame() {
+        DetectionRequest request =
+                new DetectionRequest(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        Instant.now(),
+                        "welding-ppe-v1",
+                        40L,
+                        List.of(
+                                item("person"),
+                                item("welding"),
+                                item("welding_mask"),
+                                item("welding_apron"),
+                                item("gloves"),
+                                item("welding_jacket")
+                        )
+                );
+
+        DetectionFrame result =
+                mapper.toDomain(
+                        request
+                );
 
         assertThat(result.detections())
-                .extracting(DetectedObject::label)
+                .extracting(
+                        DetectedObject::label
+                )
                 .containsExactly(
-                        DetectionLabel.NON_MASK,
-                        DetectionLabel.NON_GLOVES,
+                        DetectionLabel.PERSON,
+                        DetectionLabel.WELDING,
+                        DetectionLabel.WELDING_MASK,
+                        DetectionLabel.WELDING_APRON,
+                        DetectionLabel.GLOVES,
                         DetectionLabel.WELDING_JACKET
                 );
     }
 
-    private DetectionItem item(String label) {
+    private DetectionItem item(
+            String label
+    ) {
         return new DetectionItem(
                 label,
                 new BigDecimal("0.85"),

@@ -166,27 +166,6 @@ class PersonPpeMatcherTest {
     }
 
     @Test
-    void assignsExplicitNegativeDetectionToPerson() {
-        DetectedObject person = person(
-                new BoundingBox(0.1, 0.1, 0.4, 0.8),
-                "person-1"
-        );
-
-        DetectedObject nonMask = detection(
-                DetectionLabel.NON_MASK,
-                new BoundingBox(0.2, 0.15, 0.1, 0.1)
-        );
-
-        List<PersonContext> contexts =
-                matcher.buildPersonContexts(frame(person, nonMask), 0.50);
-
-        assertThat(contexts).hasSize(1);
-        assertThat(contexts.get(0)
-                .hasDetection(DetectionLabel.NON_MASK))
-                .isTrue();
-    }
-
-    @Test
     void assignsWeldingDetectionToPerson() {
         DetectedObject person = person(
                 new BoundingBox(0.1, 0.1, 0.4, 0.8),
@@ -208,23 +187,92 @@ class PersonPpeMatcherTest {
     }
 
     @Test
-    void assignsNonJacketDetectionToPerson() {
-        DetectedObject person = person(
-                new BoundingBox(0.1, 0.1, 0.4, 0.8),
-                "person-1"
-        );
+    void assignsWeldingJacketDetectionToPerson() {
+        DetectedObject person =
+                person(
+                        new BoundingBox(
+                                0.1,
+                                0.1,
+                                0.4,
+                                0.8
+                        ),
+                        "person-1"
+                );
 
-        DetectedObject nonJacket = detection(
-                DetectionLabel.NON_JACKET,
-                new BoundingBox(0.2, 0.3, 0.15, 0.3)
-        );
+        DetectedObject jacket =
+                detection(
+                        DetectionLabel.WELDING_JACKET,
+                        new BoundingBox(
+                                0.2,
+                                0.3,
+                                0.15,
+                                0.3
+                        )
+                );
 
         List<PersonContext> contexts =
-                matcher.buildPersonContexts(frame(person, nonJacket), 0.50);
+                matcher.buildPersonContexts(
+                        frame(
+                                person,
+                                jacket
+                        ),
+                        0.50
+                );
 
-        assertThat(contexts).hasSize(1);
-        assertThat(contexts.get(0)
-                .hasDetection(DetectionLabel.NON_JACKET))
+        assertThat(contexts)
+                .hasSize(1);
+
+        assertThat(
+                contexts.get(0)
+                        .hasDetection(
+                                DetectionLabel.WELDING_JACKET
+                        )
+        )
+                .isTrue();
+    }
+
+    @Test
+    void assignsGlovesDetectionToPerson() {
+        DetectedObject person =
+                person(
+                        new BoundingBox(
+                                0.1,
+                                0.1,
+                                0.4,
+                                0.8
+                        ),
+                        "person-1"
+                );
+
+        DetectedObject gloves =
+                detection(
+                        DetectionLabel.GLOVES,
+                        new BoundingBox(
+                                0.2,
+                                0.45,
+                                0.1,
+                                0.1
+                        )
+                );
+
+        List<PersonContext> contexts =
+                matcher.buildPersonContexts(
+                        frame(
+                                person,
+                                gloves
+                        ),
+                        0.50
+                );
+
+        assertThat(contexts)
+                .hasSize(1);
+
+        assertThat(
+                contexts.get(0)
+                        .hasDetection(
+                                DetectionLabel.GLOVES
+                        )
+        )
                 .isTrue();
     }
 

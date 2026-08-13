@@ -802,7 +802,7 @@ class DetectionServiceTest {
                 40L,
                 List.of(
                         new DetectionItem(
-                                "non_mask",
+                                "welding_mask",
                                 new BigDecimal(
                                         "0.90"
                                 ),

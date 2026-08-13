@@ -2,7 +2,6 @@ package com.isg.backend.violation.service;
 
 import com.isg.backend.violation.config.ViolationTemporalProperties;
 import com.isg.backend.violation.domain.CandidateViolation;
-import com.isg.backend.violation.domain.ViolationType;
 import com.isg.backend.violation.domain.temporal.CandidateViolationState;
 import com.isg.backend.violation.domain.temporal.ConfirmedViolation;
 import com.isg.backend.violation.domain.temporal.EndedViolation;
@@ -13,12 +12,10 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -29,8 +26,8 @@ public class TemporalConfirmationService {
     private final Map<ViolationStateKey, CandidateViolationState> states =
             new ConcurrentHashMap<>();
 
-    private final Map<CooldownKey, Instant> cooldownUntil =
-            new HashMap<>();
+    private final Map<ViolationStateKey, Instant> cooldownUntil =
+            new ConcurrentHashMap<>();
 
     public TemporalConfirmationService(
             ViolationTemporalProperties properties
@@ -67,19 +64,30 @@ public class TemporalConfirmationService {
         List<ConfirmedViolation> confirmations =
                 new ArrayList<>();
 
+        List<EndedViolation> endedViolations =
+                new ArrayList<>();
+
         for (CandidateViolation candidate : safeCandidates) {
             ViolationStateKey key =
-                    ViolationStateKey.from(candidate);
+                    ViolationStateKey.from(
+                            candidate
+                    );
 
-            observedKeys.add(key);
+            observedKeys.add(
+                    key
+            );
 
             CandidateViolationState state =
-                    states.get(key);
+                    states.get(
+                            key
+                    );
 
             if (state == null) {
                 states.put(
                         key,
-                        new CandidateViolationState(candidate)
+                        new CandidateViolationState(
+                                candidate
+                        )
                 );
 
                 continue;
@@ -94,17 +102,36 @@ public class TemporalConfirmationService {
             if (gap.compareTo(
                     properties.getFrameGapTolerance()
             ) > 0) {
-                if (!state.confirmed()) {
-                    states.put(
+                if (state.confirmed()) {
+                    endedViolations.add(
+                            new EndedViolation(
+                                    key,
+                                    key.cameraId(),
+                                    key.sessionId(),
+                                    key.violationType(),
+                                    state.lastSeenAt()
+                            )
+                    );
+
+                    startCooldown(
                             key,
-                            new CandidateViolationState(candidate)
+                            candidate.frameTimestamp()
                     );
                 }
+
+                states.put(
+                        key,
+                        new CandidateViolationState(
+                                candidate
+                        )
+                );
 
                 continue;
             }
 
-            state.observe(candidate);
+            state.observe(
+                    candidate
+            );
 
             if (state.confirmed()) {
                 continue;
@@ -120,8 +147,7 @@ public class TemporalConfirmationService {
                     properties.getConfirmationDuration()
             ) >= 0) {
                 if (isCooldownActive(
-                        candidate.cameraId(),
-                        candidate.violationType(),
+                        key,
                         candidate.frameTimestamp()
                 )) {
                     continue;
@@ -143,11 +169,12 @@ public class TemporalConfirmationService {
             }
         }
 
-        List<EndedViolation> endedViolations =
+        endedViolations.addAll(
                 clearExpiredStatesAndCollectEnds(
                         frameTimestamp,
                         observedKeys
-                );
+                )
+        );
 
         return new TemporalViolationTransitions(
                 confirmations,
@@ -163,7 +190,9 @@ public class TemporalConfirmationService {
                 new ArrayList<>();
 
         states.entrySet().removeIf(entry -> {
-            if (observedKeys.contains(entry.getKey())) {
+            if (observedKeys.contains(
+                    entry.getKey()
+            )) {
                 return false;
             }
 
@@ -197,8 +226,7 @@ public class TemporalConfirmationService {
                 );
 
                 startCooldown(
-                        key.cameraId(),
-                        key.violationType(),
+                        key,
                         frameTimestamp
                 );
             }
@@ -212,32 +240,26 @@ public class TemporalConfirmationService {
     }
 
     private boolean isCooldownActive(
-            UUID cameraId,
-            ViolationType violationType,
+            ViolationStateKey key,
             Instant timestamp
     ) {
         Instant until =
                 cooldownUntil.get(
-                        new CooldownKey(
-                                cameraId,
-                                violationType
-                        )
+                        key
                 );
 
         return until != null
-                && timestamp.isBefore(until);
+                && timestamp.isBefore(
+                until
+        );
     }
 
     private void startCooldown(
-            UUID cameraId,
-            ViolationType violationType,
+            ViolationStateKey key,
             Instant startedAt
     ) {
         cooldownUntil.put(
-                new CooldownKey(
-                        cameraId,
-                        violationType
-                ),
+                key,
                 startedAt.plus(
                         properties.getCooldownDuration()
                 )
@@ -254,11 +276,5 @@ public class TemporalConfirmationService {
                                         entry.getValue()
                                 )
                 );
-    }
-
-    private record CooldownKey(
-            UUID cameraId,
-            ViolationType violationType
-    ) {
     }
 }
