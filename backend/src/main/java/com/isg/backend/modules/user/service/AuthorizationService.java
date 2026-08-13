@@ -26,26 +26,27 @@ public class AuthorizationService {
 
     /**
      * Kullanıcının belirli bir departman verisine erişip erişemeyeceğini doğrular.
-     * Görev kuralı: Admin tüm bölümlere erişir.
+     * Görev kuralı: Admin ve İSG Uzmanı tüm bölümlere erişir; vardiya sorumlusu sadece kendi departmanına erişir[cite: 1, 2].
      */
-    public boolean canAccessDepartment(UUID userId, UUID departmentId) { // Long yerine UUID yapıldı
+    public boolean canAccessDepartment(UUID userId, UUID departmentId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
 
-        // Pasif kullanıcılar (active=false) kritik işlemlerde reddedilir.
+        // Pasif kullanıcılar (active=false) kritik işlemlerde reddedilir[cite: 2].
         if (!user.isActive()) {
             return false;
         }
 
-        boolean isAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName().equals("ADMIN"));
+        // ADMIN veya OHS_SPECIALIST (İSG Uzmanı) tüm bölümlere tam erişim sağlar[cite: 1, 2]
+        boolean hasFullAccess = user.getRoles().stream()
+                .anyMatch(role -> role.getName().equals("ADMIN") || role.getName().equals("OHS_SPECIALIST"));
 
-        if (isAdmin) {
+        if (hasFullAccess) {
             return true;
         }
 
         if (user.getDepartment() == null) {
-            return false; // Departmanı olmayan normal/vardiya kullanıcısı erişemez
+            return false; // Departmanı olmayan kullanıcı erişemez
         }
 
         return user.getDepartment().getId().equals(departmentId);
@@ -53,9 +54,9 @@ public class AuthorizationService {
 
     /**
      * Kullanıcının veri okuyabileceği departman ID'lerinin listesini döner.
-     * Veritabanı sorgularında "WHERE department_id IN (...)" için kullanılır.
+     * Veritabanı sorgularında "WHERE department_id IN (...)" için kullanılır[cite: 2].
      */
-    public List<UUID> accessibleDepartmentIds(UUID userId) { // List<Long> yerine List<UUID> yapıldı
+    public List<UUID> accessibleDepartmentIds(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
 
@@ -63,18 +64,18 @@ public class AuthorizationService {
             return List.of();
         }
 
-        boolean isAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName().equals("ADMIN"));
+        // ADMIN veya OHS_SPECIALIST (İSG Uzmanı) tüm departman ID'lerini görür[cite: 1, 2]
+        boolean hasFullAccess = user.getRoles().stream()
+                .anyMatch(role -> role.getName().equals("ADMIN") || role.getName().equals("OHS_SPECIALIST"));
 
-        if (isAdmin) {
-            // Admin için tüm departman ID'lerini dön
+        if (hasFullAccess) {
             return departmentRepository.findAll().stream()
                     .map(Department::getId)
                     .collect(Collectors.toList());
         }
 
         if (user.getDepartment() != null) {
-            // Vardiya Sorumlusu veya İSG Uzmanı sadece atandığı departmanı görebilir
+            // Vardiya Sorumlusu yalnızca atandığı departmanı görebilir[cite: 1, 2]
             return List.of(user.getDepartment().getId());
         }
 

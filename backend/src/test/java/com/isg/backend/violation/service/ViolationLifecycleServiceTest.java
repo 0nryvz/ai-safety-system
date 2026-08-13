@@ -1,5 +1,6 @@
 package com.isg.backend.violation.service;
 
+import com.isg.backend.camera.service.CameraQueryService;
 import com.isg.backend.modules.camera.api.dto.CameraResponse;
 import com.isg.backend.modules.camera.application.CameraService;
 import com.isg.backend.violation.application.event.ViolationEndedEvent;
@@ -33,6 +34,7 @@ import static org.mockito.Mockito.when;
 
 class ViolationLifecycleServiceTest {
 
+    private CameraQueryService cameraQueryService;
     private SpringDataViolationRepository violationRepository;
     private SpringDataViolationStatusHistoryRepository statusHistoryRepository;
     private CameraService cameraService;
@@ -41,6 +43,9 @@ class ViolationLifecycleServiceTest {
 
     @BeforeEach
     void setUp() {
+        cameraQueryService =
+                mock(CameraQueryService.class);
+
         violationRepository =
                 mock(SpringDataViolationRepository.class);
 
@@ -58,6 +63,7 @@ class ViolationLifecycleServiceTest {
                         violationRepository,
                         statusHistoryRepository,
                         cameraService,
+                        cameraQueryService,
                         eventPublisher
                 );
     }
@@ -71,6 +77,9 @@ class ViolationLifecycleServiceTest {
                 UUID.randomUUID();
 
         UUID departmentId =
+                UUID.randomUUID();
+
+        UUID cameraSessionRecordId =
                 UUID.randomUUID();
 
         Instant candidateStartedAt =
@@ -106,9 +115,31 @@ class ViolationLifecycleServiceTest {
                         invocation.getArgument(0)
         );
 
+        when(
+                cameraQueryService.findSessionRecordId(
+                        cameraId,
+                        sessionId
+                )
+        ).thenReturn(
+                Optional.of(
+                        cameraSessionRecordId
+                )
+        );
+
         lifecycleService.startViolation(
                 confirmedViolation,
                 "welding-ppe-v1"
+        );
+
+        when(
+                cameraQueryService.findSessionRecordId(
+                        cameraId,
+                        sessionId
+                )
+        ).thenReturn(
+                Optional.of(
+                        cameraSessionRecordId
+                )
         );
 
         ArgumentCaptor<ViolationJpaEntity> violationCaptor =
@@ -130,6 +161,11 @@ class ViolationLifecycleServiceTest {
         assertThat(savedViolation.getDepartmentId())
                 .isEqualTo(departmentId);
 
+        assertThat(savedViolation.getCameraSessionId())
+                .isEqualTo(
+                        cameraSessionRecordId
+                );
+
         assertThat(savedViolation.getLifecycleStatus())
                 .isEqualTo(
                         ViolationLifecycleStatus.ACTIVE
@@ -139,6 +175,12 @@ class ViolationLifecycleServiceTest {
                 .isEqualTo(
                         ViolationReviewStatus.UNREVIEWED
                 );
+
+        assertThat(
+                savedViolation.getCameraSessionId()
+        ).isEqualTo(
+                cameraSessionRecordId
+        );
 
         ArgumentCaptor<ViolationStatusHistoryJpaEntity> historyCaptor =
                 ArgumentCaptor.forClass(
@@ -202,6 +244,132 @@ class ViolationLifecycleServiceTest {
                 .isEqualTo(
                         candidateStartedAt
                 );
+    }
+
+    @Test
+    void rejectsStartWhenActiveCameraSessionRecordCannotBeResolved() {
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID sessionId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        Instant startedAt =
+                Instant.parse(
+                        "2026-08-10T20:00:00Z"
+                );
+
+        ConfirmedViolation confirmedViolation =
+                confirmedViolation(
+                        cameraId,
+                        sessionId,
+                        startedAt,
+                        startedAt.plusSeconds(2)
+                );
+
+        when(cameraService.getCameraById(cameraId))
+                .thenReturn(
+                        CameraResponse.builder()
+                                .id(cameraId)
+                                .departmentId(departmentId)
+                                .active(true)
+                                .build()
+                );
+
+        when(
+                cameraQueryService.findSessionRecordId(
+                        cameraId,
+                        sessionId
+                )
+        ).thenReturn(
+                Optional.empty()
+        );
+
+        assertThatThrownBy(
+                () -> lifecycleService.startViolation(
+                        confirmedViolation,
+                        "welding-ppe-v1"
+                )
+        )
+                .isInstanceOf(
+                        IllegalStateException.class
+                )
+                .hasMessageContaining(
+                        "Active camera session record not found"
+                );
+
+        verify(
+                violationRepository,
+                never()
+        ).save(
+                any()
+        );
+
+        verify(
+                eventPublisher,
+                never()
+        ).publishEvent(
+                any()
+        );
+    }
+
+    @Test
+    void recordingErrorIsIdempotentWhenAlreadyError() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getEndedAt())
+                .thenReturn(
+                        Instant.parse(
+                                "2026-08-10T20:00:05Z"
+                        )
+                );
+
+        when(violation.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.ERROR
+                );
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(violation)
+        );
+
+        lifecycleService.recordingError(
+                violationId,
+                Instant.parse(
+                        "2026-08-10T20:00:07Z"
+                ),
+                "UPLOAD_FAILED"
+        );
+
+        verify(
+                violation,
+                never()
+        ).changeLifecycleStatus(
+                any()
+        );
+
+        verify(
+                violationRepository,
+                never()
+        ).save(
+                violation
+        );
+
+        verify(
+                statusHistoryRepository,
+                never()
+        ).save(
+                any()
+        );
     }
 
     @Test

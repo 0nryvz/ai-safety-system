@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.stream.Collectors;
@@ -55,6 +56,28 @@ public class GlobalExceptionHandler {
 
         return build(
                 HttpStatus.BAD_REQUEST,
+                message,
+                req
+        );
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> responseStatus(
+            ResponseStatusException ex,
+            HttpServletRequest req
+    ) {
+        HttpStatus status =
+                HttpStatus.valueOf(
+                        ex.getStatusCode().value()
+                );
+
+        String message =
+                ex.getReason() == null
+                        ? status.getReasonPhrase()
+                        : ex.getReason();
+
+        return build(
+                status,
                 message,
                 req
         );

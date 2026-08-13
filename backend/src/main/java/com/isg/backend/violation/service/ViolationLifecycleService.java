@@ -1,5 +1,6 @@
 package com.isg.backend.violation.service;
 
+import com.isg.backend.camera.service.CameraQueryService;
 import com.isg.backend.modules.camera.api.dto.CameraResponse;
 import com.isg.backend.modules.camera.application.CameraService;
 import com.isg.backend.violation.application.event.ViolationEndedEvent;
@@ -27,6 +28,7 @@ import java.util.UUID;
 public class ViolationLifecycleService
         implements RecordingStatusCallbackPort {
 
+    private final CameraQueryService cameraQueryService;
     private final SpringDataViolationRepository violationRepository;
     private final SpringDataViolationStatusHistoryRepository statusHistoryRepository;
     private final CameraService cameraService;
@@ -36,6 +38,7 @@ public class ViolationLifecycleService
             SpringDataViolationRepository violationRepository,
             SpringDataViolationStatusHistoryRepository statusHistoryRepository,
             CameraService cameraService,
+            CameraQueryService cameraQueryService,
             ApplicationEventPublisher eventPublisher
     ) {
         this.violationRepository =
@@ -46,6 +49,9 @@ public class ViolationLifecycleService
 
         this.cameraService =
                 cameraService;
+
+        this.cameraQueryService =
+                cameraQueryService;
 
         this.eventPublisher =
                 eventPublisher;
@@ -77,6 +83,19 @@ public class ViolationLifecycleService
             );
         }
 
+        UUID cameraSessionRecordId =
+                cameraQueryService.findSessionRecordId(
+                        confirmedViolation.cameraId(),
+                        confirmedViolation.sessionId()
+                ).orElseThrow(
+                        () -> new IllegalStateException(
+                                "Active camera session record not found. cameraId="
+                                        + confirmedViolation.cameraId()
+                                        + ", sessionId="
+                                        + confirmedViolation.sessionId()
+                        )
+                );
+
         UUID violationId =
                 UUID.randomUUID();
 
@@ -91,7 +110,7 @@ public class ViolationLifecycleService
                         violationId,
                         confirmedViolation.cameraId(),
                         camera.getDepartmentId(),
-                        confirmedViolation.sessionId(),
+                        cameraSessionRecordId,
                         null,
                         confirmedViolation.violationType(),
                         confirmedViolation.candidateStartedAt(),
