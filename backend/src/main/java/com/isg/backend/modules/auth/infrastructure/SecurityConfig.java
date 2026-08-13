@@ -60,7 +60,10 @@ public class SecurityConfig {
                         // 3. Admin-Only Uç Noktalar
                         .requestMatchers("/api/v1/users/**").hasRole("ADMIN")
 
-                        // 4. Kalan tüm istekler JWT token gerektirir
+                        // 4. Dashboard Endpointleri (Görev planındaki yetkili roller)
+                        .requestMatchers("/api/v1/dashboard/**").hasAnyRole("ADMIN", "OHS_SPECIALIST", "SHIFT_SUPERVISOR")
+
+                        // 5. Kalan tüm istekler JWT token gerektirir
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider)
