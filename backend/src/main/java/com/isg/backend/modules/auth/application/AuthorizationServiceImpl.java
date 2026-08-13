@@ -44,4 +44,11 @@ public class AuthorizationServiceImpl implements AuthorizationService {
                 .map(dept -> dept.getId())
                 .toList();
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> getAuthorizedEmailsForDepartment(UUID departmentId) {
+        return userRepository.findAuthorizedEmailsForDepartment(departmentId);
+    }
+
 }
