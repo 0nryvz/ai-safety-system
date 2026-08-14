@@ -12,7 +12,8 @@ public record ViolationStartedEvent(
         UUID cameraId,
         UUID sessionId,
         ViolationType violationType,
-        Instant startedAt
+        Instant startedAt,
+        Instant confirmedAt
 ) {
 
     public ViolationStartedEvent {
@@ -44,6 +45,41 @@ public record ViolationStartedEvent(
         Objects.requireNonNull(
                 startedAt,
                 "startedAt must not be null"
+        );
+
+        Objects.requireNonNull(
+                confirmedAt,
+                "confirmedAt must not be null"
+        );
+
+        if (confirmedAt.isBefore(startedAt)) {
+            throw new IllegalArgumentException(
+                    "confirmedAt must not be before startedAt"
+            );
+        }
+    }
+
+    /*
+     * Geriye dönük uyumluluk:
+     * Adım 4 recording testleri ve mevcut kullanıcılar
+     * eski constructor ile çalışmaya devam edebilir.
+     */
+    public ViolationStartedEvent(
+            UUID commandId,
+            UUID violationId,
+            UUID cameraId,
+            UUID sessionId,
+            ViolationType violationType,
+            Instant startedAt
+    ) {
+        this(
+                commandId,
+                violationId,
+                cameraId,
+                sessionId,
+                violationType,
+                startedAt,
+                startedAt
         );
     }
 }

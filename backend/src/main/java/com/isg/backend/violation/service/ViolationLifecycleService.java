@@ -4,6 +4,7 @@ import com.isg.backend.camera.service.CameraQueryService;
 import com.isg.backend.modules.camera.api.dto.CameraResponse;
 import com.isg.backend.modules.camera.application.CameraService;
 import com.isg.backend.violation.application.event.ViolationEndedEvent;
+import com.isg.backend.violation.application.event.ViolationRecordingUpdatedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
 import com.isg.backend.violation.application.port.RecordingStatusCallbackPort;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
@@ -142,7 +143,8 @@ public class ViolationLifecycleService
                         confirmedViolation.cameraId(),
                         confirmedViolation.sessionId(),
                         confirmedViolation.violationType(),
-                        confirmedViolation.candidateStartedAt()
+                        confirmedViolation.candidateStartedAt(),
+                        confirmedViolation.confirmedAt()
                 )
         );
 
@@ -243,6 +245,17 @@ public class ViolationLifecycleService
                 changedAt,
                 "Recording ready"
         );
+
+        eventPublisher.publishEvent(
+                new ViolationRecordingUpdatedEvent(
+                        violationId,
+                        ViolationLifecycleStatus.COMPLETED.name(),
+                        "READY",
+                        true,
+                        changedAt,
+                        null
+                )
+        );
     }
 
     @Override
@@ -304,6 +317,17 @@ public class ViolationLifecycleService
                 ViolationLifecycleStatus.ERROR,
                 changedAt,
                 "Recording error: " + errorCode
+        );
+
+        eventPublisher.publishEvent(
+                new ViolationRecordingUpdatedEvent(
+                        violationId,
+                        ViolationLifecycleStatus.ERROR.name(),
+                        "ERROR",
+                        false,
+                        changedAt,
+                        errorCode
+                )
         );
     }
 
