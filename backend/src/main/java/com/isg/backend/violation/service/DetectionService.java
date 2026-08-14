@@ -42,6 +42,7 @@ public class DetectionService {
     private final TemporalConfirmationService temporalConfirmationService;
     private final ViolationLifecycleService violationLifecycleService;
     private final ActiveViolationRegistry activeViolationRegistry;
+    private final ViolationMetrics violationMetrics;
 
     public DetectionService(
             CameraQueryService cameraQueryService,
@@ -50,7 +51,8 @@ public class DetectionService {
             CandidateViolationEvaluator candidateViolationEvaluator,
             TemporalConfirmationService temporalConfirmationService,
             ViolationLifecycleService violationLifecycleService,
-            ActiveViolationRegistry activeViolationRegistry
+            ActiveViolationRegistry activeViolationRegistry,
+            ViolationMetrics violationMetrics
     ) {
         this.cameraQueryService =
                 cameraQueryService;
@@ -72,101 +74,125 @@ public class DetectionService {
 
         this.activeViolationRegistry =
                 activeViolationRegistry;
+
+        this.violationMetrics =
+                violationMetrics;
     }
 
     public void process(
             DetectionRequest request
     ) {
-        validateTimestamp(
-                request.frameTimestamp()
-        );
+        long validationStartedAt =
+                System.nanoTime();
 
-        if (!cameraQueryService.isValid(
-                request.cameraId(),
-                request.sessionId()
-        )) {
-            throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Camera or session not found."
+        try {
+            validateTimestamp(
+                    request.frameTimestamp()
             );
-        }
 
-        DetectionFrame frame =
-                detectionMapper.toDomain(
-                        request
+            if (!cameraQueryService.isValid(
+                    request.cameraId(),
+                    request.sessionId()
+            )) {
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Camera or session not found."
+                );
+            }
+
+            DetectionFrame frame =
+                    detectionMapper.toDomain(
+                            request
+                    );
+
+            if (!duplicateEventGuard.isFirstOccurrence(
+                    request.eventId()
+            )) {
+                violationMetrics.incrementDuplicateCount();
+
+                logger.info(
+                        "Duplicate detection rejected. eventId={}, cameraId={}",
+                        request.eventId(),
+                        request.cameraId()
                 );
 
-        if (!duplicateEventGuard.isFirstOccurrence(
-                request.eventId()
-        )) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Duplicate detection event."
-            );
-        }
-
-        List<CandidateViolation> candidates =
-                candidateViolationEvaluator.evaluate(
-                        frame
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Duplicate detection event."
                 );
+            }
 
-        TemporalViolationTransitions transitions =
-                temporalConfirmationService.processFrameTransitions(
-                        frame.frameTimestamp(),
-                        candidates
+            List<CandidateViolation> candidates =
+                    candidateViolationEvaluator.evaluate(
+                            frame
+                    );
+
+            TemporalViolationTransitions transitions =
+                    temporalConfirmationService.processFrameTransitions(
+                            frame.frameTimestamp(),
+                            candidates
+                    );
+
+            for (ConfirmedViolation confirmation
+                    : transitions.started()) {
+
+                activeViolationRegistry.getOrCreate(
+                        confirmation.stateKey(),
+                        () ->
+                                violationLifecycleService
+                                        .startViolation(
+                                                confirmation,
+                                                frame.modelVersion()
+                                        )
+                                        .getId()
                 );
+            }
 
-        for (ConfirmedViolation confirmation
-                : transitions.started()) {
+            for (EndedViolation endedViolation
+                    : transitions.ended()) {
 
-            activeViolationRegistry.getOrCreate(
-                    confirmation.stateKey(),
-                    () ->
-                            violationLifecycleService
-                                    .startViolation(
-                                            confirmation,
-                                            frame.modelVersion()
-                                    )
-                                    .getId()
-            );
-        }
+                Optional<UUID> violationId =
+                        activeViolationRegistry.find(
+                                endedViolation.stateKey()
+                        );
 
-        for (EndedViolation endedViolation
-                : transitions.ended()) {
-
-            Optional<UUID> violationId =
-                    activeViolationRegistry.find(
+                if (violationId.isEmpty()) {
+                    logger.warn(
+                            "Ended temporal violation has no active DB mapping. stateKey={}",
                             endedViolation.stateKey()
                     );
 
-            if (violationId.isEmpty()) {
-                logger.warn(
-                        "Ended temporal violation has no active DB mapping. stateKey={}",
-                        endedViolation.stateKey()
+                    continue;
+                }
+
+                violationLifecycleService.endViolation(
+                        violationId.get(),
+                        endedViolation.endedAt()
                 );
 
-                continue;
+                activeViolationRegistry.removeIfMappedTo(
+                        endedViolation.stateKey(),
+                        violationId.get()
+                );
             }
 
-            violationLifecycleService.endViolation(
-                    violationId.get(),
-                    endedViolation.endedAt()
+            logger.info(
+                    "Detection accepted. eventId={}, cameraId={}, detectionCount={}, candidateCount={}, confirmationCount={}, endedCount={}, activeViolationCount={}",
+                    request.eventId(),
+                    request.cameraId(),
+                    frame.detections().size(),
+                    candidates.size(),
+                    transitions.started().size(),
+                    transitions.ended().size(),
+                    activeViolationRegistry.size()
             );
 
-            activeViolationRegistry.remove(
-                    endedViolation.stateKey()
+        } finally {
+            violationMetrics.recordValidationDurationNanos(
+                    System.nanoTime()
+                            - validationStartedAt
             );
         }
-
-        logger.info(
-                "Detection accepted. eventId={}, cameraId={}, detectionCount={}, candidateCount={}, confirmationCount={}, endedCount={}",
-                request.eventId(),
-                request.cameraId(),
-                frame.detections().size(),
-                candidates.size(),
-                transitions.started().size(),
-                transitions.ended().size()
-        );
     }
 
     private void validateTimestamp(
