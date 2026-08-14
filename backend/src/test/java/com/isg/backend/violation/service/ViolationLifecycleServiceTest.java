@@ -131,17 +131,6 @@ class ViolationLifecycleServiceTest {
                 "welding-ppe-v1"
         );
 
-        when(
-                cameraQueryService.findSessionRecordId(
-                        cameraId,
-                        sessionId
-                )
-        ).thenReturn(
-                Optional.of(
-                        cameraSessionRecordId
-                )
-        );
-
         ArgumentCaptor<ViolationJpaEntity> violationCaptor =
                 ArgumentCaptor.forClass(
                         ViolationJpaEntity.class
@@ -175,12 +164,6 @@ class ViolationLifecycleServiceTest {
                 .isEqualTo(
                         ViolationReviewStatus.UNREVIEWED
                 );
-
-        assertThat(
-                savedViolation.getCameraSessionId()
-        ).isEqualTo(
-                cameraSessionRecordId
-        );
 
         ArgumentCaptor<ViolationStatusHistoryJpaEntity> historyCaptor =
                 ArgumentCaptor.forClass(
@@ -434,7 +417,7 @@ class ViolationLifecycleServiceTest {
     }
 
     @Test
-    void endsViolationAndPublishesSingleStopEvent() {
+    void endsViolationAndTransitionsToPreparing() {
         UUID violationId =
                 UUID.randomUUID();
 
@@ -448,6 +431,11 @@ class ViolationLifecycleServiceTest {
 
         when(violation.getEndedAt())
                 .thenReturn(null);
+
+        when(violation.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.ACTIVE
+                );
 
         when(violationRepository.findById(
                 violationId
@@ -465,9 +453,52 @@ class ViolationLifecycleServiceTest {
                         endedAt
                 );
 
+        verify(violation)
+                .changeLifecycleStatus(
+                        ViolationLifecycleStatus.PREPARING
+                );
+
         verify(violationRepository)
                 .save(
                         violation
+                );
+
+        ArgumentCaptor<ViolationStatusHistoryJpaEntity> historyCaptor =
+                ArgumentCaptor.forClass(
+                        ViolationStatusHistoryJpaEntity.class
+                );
+
+        verify(statusHistoryRepository)
+                .save(
+                        historyCaptor.capture()
+                );
+
+        ViolationStatusHistoryJpaEntity history =
+                historyCaptor.getValue();
+
+        assertThat(history.getViolationId())
+                .isEqualTo(
+                        violationId
+                );
+
+        assertThat(history.getStatusKind())
+                .isEqualTo(
+                        ViolationStatusKind.LIFECYCLE
+                );
+
+        assertThat(history.getFromStatus())
+                .isEqualTo(
+                        ViolationLifecycleStatus.ACTIVE.name()
+                );
+
+        assertThat(history.getToStatus())
+                .isEqualTo(
+                        ViolationLifecycleStatus.PREPARING.name()
+                );
+
+        assertThat(history.getChangedAt())
+                .isEqualTo(
+                        endedAt
                 );
 
         ArgumentCaptor<ViolationEndedEvent> eventCaptor =
@@ -534,10 +565,24 @@ class ViolationLifecycleServiceTest {
         );
 
         verify(
+                violation,
+                never()
+        ).changeLifecycleStatus(
+                any()
+        );
+
+        verify(
                 violationRepository,
                 never()
         ).save(
                 violation
+        );
+
+        verify(
+                statusHistoryRepository,
+                never()
+        ).save(
+                any()
         );
 
         verify(
@@ -549,12 +594,14 @@ class ViolationLifecycleServiceTest {
     }
 
     @Test
-    void recordingReadyTransitionsEndedViolationToCompletedWithHistory() {
+    void recordingReadyTransitionsPreparingViolationToCompletedWithHistory() {
         UUID violationId =
                 UUID.randomUUID();
 
         Instant endedAt =
-                Instant.parse("2026-08-10T20:00:05Z");
+                Instant.parse(
+                        "2026-08-10T20:00:05Z"
+                );
 
         Instant readyAt =
                 endedAt.plusSeconds(2);
@@ -563,11 +610,13 @@ class ViolationLifecycleServiceTest {
                 mock(ViolationJpaEntity.class);
 
         when(violation.getEndedAt())
-                .thenReturn(endedAt);
+                .thenReturn(
+                        endedAt
+                );
 
         when(violation.getLifecycleStatus())
                 .thenReturn(
-                        ViolationLifecycleStatus.ACTIVE
+                        ViolationLifecycleStatus.PREPARING
                 );
 
         when(violationRepository.findById(
@@ -605,11 +654,13 @@ class ViolationLifecycleServiceTest {
                 historyCaptor.getValue();
 
         assertThat(history.getViolationId())
-                .isEqualTo(violationId);
+                .isEqualTo(
+                        violationId
+                );
 
         assertThat(history.getFromStatus())
                 .isEqualTo(
-                        ViolationLifecycleStatus.ACTIVE.name()
+                        ViolationLifecycleStatus.PREPARING.name()
                 );
 
         assertThat(history.getToStatus())
@@ -618,16 +669,20 @@ class ViolationLifecycleServiceTest {
                 );
 
         assertThat(history.getChangedAt())
-                .isEqualTo(readyAt);
+                .isEqualTo(
+                        readyAt
+                );
     }
 
     @Test
-    void recordingErrorTransitionsEndedViolationToErrorWithHistory() {
+    void recordingErrorTransitionsPreparingViolationToErrorWithHistory() {
         UUID violationId =
                 UUID.randomUUID();
 
         Instant endedAt =
-                Instant.parse("2026-08-10T20:00:05Z");
+                Instant.parse(
+                        "2026-08-10T20:00:05Z"
+                );
 
         Instant errorAt =
                 endedAt.plusSeconds(1);
@@ -636,11 +691,13 @@ class ViolationLifecycleServiceTest {
                 mock(ViolationJpaEntity.class);
 
         when(violation.getEndedAt())
-                .thenReturn(endedAt);
+                .thenReturn(
+                        endedAt
+                );
 
         when(violation.getLifecycleStatus())
                 .thenReturn(
-                        ViolationLifecycleStatus.ACTIVE
+                        ViolationLifecycleStatus.PREPARING
                 );
 
         when(violationRepository.findById(
@@ -680,7 +737,7 @@ class ViolationLifecycleServiceTest {
 
         assertThat(history.getFromStatus())
                 .isEqualTo(
-                        ViolationLifecycleStatus.ACTIVE.name()
+                        ViolationLifecycleStatus.PREPARING.name()
                 );
 
         assertThat(history.getToStatus())

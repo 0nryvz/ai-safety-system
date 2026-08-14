@@ -175,12 +175,34 @@ public class ViolationLifecycleService
             return;
         }
 
+        ViolationLifecycleStatus currentStatus =
+                violation.getLifecycleStatus();
+
+        if (currentStatus != ViolationLifecycleStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "Only ACTIVE violation can be ended. Current status="
+                            + currentStatus
+            );
+        }
+
         violation.markEnded(
                 endedAt
         );
 
+        violation.changeLifecycleStatus(
+                ViolationLifecycleStatus.PREPARING
+        );
+
         violationRepository.save(
                 violation
+        );
+
+        saveLifecycleHistory(
+                violationId,
+                ViolationLifecycleStatus.ACTIVE,
+                ViolationLifecycleStatus.PREPARING,
+                endedAt,
+                "Violation ended; recording finalization pending"
         );
 
         eventPublisher.publishEvent(
