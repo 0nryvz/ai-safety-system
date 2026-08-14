@@ -13,6 +13,8 @@ import com.isg.backend.violation.query.ViolationReviewCommand;
 import com.isg.backend.violation.query.ViolationReviewResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
@@ -424,4 +426,114 @@ class ViolationReviewServiceTest {
                         "REVIEWED"
                 );
     }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ViolationReviewStatus.class,
+            names = {
+                    "REVIEWED",
+                    "CONFIRMED",
+                    "FALSE_ALARM"
+            }
+    )
+    void supportsAllReviewResultStatuses(
+            ViolationReviewStatus reviewStatus
+    ) {
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID reviewerId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getId())
+                .thenReturn(
+                        violationId
+                );
+
+        when(violation.getDepartmentId())
+                .thenReturn(
+                        departmentId
+                );
+
+        when(violation.getReviewStatus())
+                .thenReturn(
+                        ViolationReviewStatus.UNREVIEWED,
+                        reviewStatus
+                );
+
+        when(violation.getReviewedBy())
+                .thenReturn(
+                        reviewerId
+                );
+
+        when(violation.getReviewedAt())
+                .thenReturn(
+                        Instant.now()
+                );
+
+        when(
+                violationRepository.findById(
+                        violationId
+                )
+        ).thenReturn(
+                Optional.of(
+                        violation
+                )
+        );
+
+        when(
+                authorizationService.canAccessDepartment(
+                        reviewerId,
+                        departmentId
+                )
+        ).thenReturn(
+                true
+        );
+
+        when(
+                violationRepository.save(
+                        violation
+                )
+        ).thenReturn(
+                violation
+        );
+
+        ViolationReviewResponse response =
+                reviewService.review(
+                        new ViolationReviewCommand(
+                                violationId,
+                                reviewStatus,
+                                reviewerId
+                        )
+                );
+
+        assertThat(
+                response.reviewStatus()
+        ).isEqualTo(
+                reviewStatus
+        );
+
+        verify(
+                violation
+        ).review(
+                eq(reviewStatus),
+                eq(reviewerId),
+                any(Instant.class)
+        );
+
+        verify(
+                statusHistoryRepository
+        ).save(
+                any(
+                        ViolationStatusHistoryJpaEntity.class
+                )
+        );
+    }
 }
+
