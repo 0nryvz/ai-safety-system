@@ -7,6 +7,7 @@ import com.isg.backend.reporting.dto.RecentViolationResponse;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 public interface DashboardService {
 
@@ -21,5 +22,5 @@ public interface DashboardService {
             String groupBy
     );
 
-    List<RecentViolationResponse> getRecentViolations();
+    List<RecentViolationResponse> getRecentViolations(UUID userId);
 }

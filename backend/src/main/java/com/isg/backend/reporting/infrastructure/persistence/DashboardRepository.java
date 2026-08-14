@@ -20,7 +20,6 @@ public class DashboardRepository {
     @PersistenceContext
     private EntityManager entityManager;
 
-
     private Instant toInstant(Object value) {
 
         if (value == null) {
@@ -41,7 +40,6 @@ public class DashboardRepository {
 
         return Instant.parse(value.toString());
     }
-
 
     public DashboardSummaryResponse getSummary() {
 
@@ -83,7 +81,6 @@ public class DashboardRepository {
                 """)
                 .getSingleResult();
 
-
         return new DashboardSummaryResponse(
                 ((Number) result[0]).longValue(),
                 ((Number) result[1]).longValue(),
@@ -93,7 +90,6 @@ public class DashboardRepository {
                 ((Number) result[5]).longValue()
         );
     }
-
 
     public List<DashboardTrendResponse> getTrend(
             LocalDate from,
@@ -135,7 +131,6 @@ public class DashboardRepository {
                 .toList();
     }
 
-
     public List<DashboardDistributionResponse> getDistribution(
             String groupBy
     ) {
@@ -150,7 +145,6 @@ public class DashboardRepository {
                     "Unsupported groupBy: " + groupBy
             );
         }
-
 
         return entityManager.createNativeQuery(
                         """
@@ -177,8 +171,7 @@ public class DashboardRepository {
                 .toList();
     }
 
-
-    public List<RecentViolationResponse> getRecentViolations() {
+    public List<RecentViolationResponse> getRecentViolations(UUID userId) {
 
         return entityManager.createNativeQuery("""
                 SELECT
@@ -199,6 +192,9 @@ public class DashboardRepository {
                     v.confidence,
                     v.model_version
                 FROM violations v
+                JOIN user_departments ud
+                    ON ud.department_id = v.department_id
+                   AND ud.user_id = :userId
                 LEFT JOIN cameras c
                     ON c.id = v.camera_id
                 LEFT JOIN recordings r
@@ -206,6 +202,7 @@ public class DashboardRepository {
                 ORDER BY v.started_at DESC
                 LIMIT 20
                 """)
+                .setParameter("userId", userId)
                 .getResultList()
                 .stream()
                 .map(row -> {
@@ -213,62 +210,28 @@ public class DashboardRepository {
                     Object[] data = (Object[]) row;
 
                     return new RecentViolationResponse(
-
                             UUID.fromString(data[0].toString()),
-
                             toInstant(data[1]),
-
                             toInstant(data[2]),
-
-                            data[3] != null
-                                    ? data[3].toString()
-                                    : null,
-
+                            data[3] != null ? data[3].toString() : null,
                             data[4] != null
                                     ? UUID.fromString(data[4].toString())
                                     : null,
-
                             data[5] != null
                                     ? UUID.fromString(data[5].toString())
                                     : null,
-
-                            data[6] != null
-                                    ? data[6].toString()
-                                    : null,
-
-                            data[7] != null
-                                    ? data[7].toString()
-                                    : null,
-
-                            data[8] != null
-                                    ? data[8].toString()
-                                    : null,
-
-                            data[9] != null
-                                    ? data[9].toString()
-                                    : null,
-
-                            data[10] != null
-                                    ? data[10].toString()
-                                    : null,
-
+                            data[6] != null ? data[6].toString() : null,
+                            data[7] != null ? data[7].toString() : null,
+                            data[8] != null ? data[8].toString() : null,
+                            data[9] != null ? data[9].toString() : null,
+                            data[10] != null ? data[10].toString() : null,
                             toInstant(data[11]),
-
-                            data[12] != null
-                                    ? data[12].toString()
-                                    : null,
-
-                            data[13] != null
-                                    ? data[13].toString()
-                                    : null,
-
+                            data[12] != null ? data[12].toString() : null,
+                            data[13] != null ? data[13].toString() : null,
                             data[14] != null
                                     ? ((Number) data[14]).doubleValue()
                                     : null,
-
-                            data[15] != null
-                                    ? data[15].toString()
-                                    : null
+                            data[15] != null ? data[15].toString() : null
                     );
                 })
                 .toList();
