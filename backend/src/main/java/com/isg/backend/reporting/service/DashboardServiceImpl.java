@@ -7,6 +7,7 @@ import com.isg.backend.reporting.dto.RecentViolationResponse;
 import com.isg.backend.reporting.infrastructure.persistence.DashboardRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import java.util.UUID;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -25,9 +26,10 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public List<DashboardTrendResponse> getTrend(
             LocalDate from,
-            LocalDate to
+            LocalDate to,
+            String bucket
     ) {
-        return dashboardRepository.getTrend(from, to);
+        return dashboardRepository.getTrend(from, to, bucket);
     }
 
     @Override
@@ -38,7 +40,7 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
-    public List<RecentViolationResponse> getRecentViolations() {
-        return dashboardRepository.getRecentViolations();
+    public List<RecentViolationResponse> getRecentViolations(UUID userId) {
+        return dashboardRepository.getRecentViolations(userId);
     }
 }

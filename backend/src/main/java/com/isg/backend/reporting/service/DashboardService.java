@@ -4,6 +4,7 @@ import com.isg.backend.reporting.dto.DashboardDistributionResponse;
 import com.isg.backend.reporting.dto.DashboardSummaryResponse;
 import com.isg.backend.reporting.dto.DashboardTrendResponse;
 import com.isg.backend.reporting.dto.RecentViolationResponse;
+import java.util.UUID;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -14,12 +15,13 @@ public interface DashboardService {
 
     List<DashboardTrendResponse> getTrend(
             LocalDate from,
-            LocalDate to
+            LocalDate to,
+            String bucket
     );
 
     List<DashboardDistributionResponse> getDistribution(
             String groupBy
     );
 
-    List<RecentViolationResponse> getRecentViolations();
+    List<RecentViolationResponse> getRecentViolations(UUID userId);
 }
