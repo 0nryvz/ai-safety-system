@@ -23,6 +23,11 @@ class ViolationTemporalPropertiesTest {
                 Duration.ofMillis(750),
                 properties.getFrameGapTolerance()
         );
+
+        assertEquals(
+                Duration.ofSeconds(10),
+                properties.getCooldownDuration()
+        );
     }
 
     @Test
@@ -37,6 +42,36 @@ class ViolationTemporalPropertiesTest {
         assertEquals(
                 Duration.ofSeconds(2),
                 properties.getConfirmationDuration()
+        );
+    }
+
+    @Test
+    void shouldAllowPositiveFrameGapTolerance() {
+        ViolationTemporalProperties properties =
+                new ViolationTemporalProperties();
+
+        properties.setFrameGapTolerance(
+                Duration.ofSeconds(1)
+        );
+
+        assertEquals(
+                Duration.ofSeconds(1),
+                properties.getFrameGapTolerance()
+        );
+    }
+
+    @Test
+    void shouldAllowPositiveCooldownDuration() {
+        ViolationTemporalProperties properties =
+                new ViolationTemporalProperties();
+
+        properties.setCooldownDuration(
+                Duration.ofSeconds(5)
+        );
+
+        assertEquals(
+                Duration.ofSeconds(5),
+                properties.getCooldownDuration()
         );
     }
 
@@ -64,6 +99,34 @@ class ViolationTemporalPropertiesTest {
                 () ->
                         properties.setFrameGapTolerance(
                                 Duration.ofMillis(-1)
+                        )
+        );
+    }
+
+    @Test
+    void shouldRejectZeroCooldownDuration() {
+        ViolationTemporalProperties properties =
+                new ViolationTemporalProperties();
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                        properties.setCooldownDuration(
+                                Duration.ZERO
+                        )
+        );
+    }
+
+    @Test
+    void shouldRejectNegativeCooldownDuration() {
+        ViolationTemporalProperties properties =
+                new ViolationTemporalProperties();
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                        properties.setCooldownDuration(
+                                Duration.ofSeconds(-1)
                         )
         );
     }

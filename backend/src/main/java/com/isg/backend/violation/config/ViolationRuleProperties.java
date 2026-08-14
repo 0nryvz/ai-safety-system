@@ -15,6 +15,8 @@ public class ViolationRuleProperties {
 
     private double containmentThreshold = 0.50;
 
+    private int minimumMissingEquipmentForUnprotectedPerson = 2;
+
     private Map<ViolationType, Double> confidenceThresholds =
             defaultConfidenceThresholds();
 
@@ -25,13 +27,33 @@ public class ViolationRuleProperties {
         return containmentThreshold;
     }
 
-    public void setContainmentThreshold(double containmentThreshold) {
+    public void setContainmentThreshold(
+            double containmentThreshold
+    ) {
         validateThreshold(
                 containmentThreshold,
                 "containmentThreshold"
         );
 
-        this.containmentThreshold = containmentThreshold;
+        this.containmentThreshold =
+                containmentThreshold;
+    }
+
+    public int getMinimumMissingEquipmentForUnprotectedPerson() {
+        return minimumMissingEquipmentForUnprotectedPerson;
+    }
+
+    public void setMinimumMissingEquipmentForUnprotectedPerson(
+            int minimumMissingEquipmentForUnprotectedPerson
+    ) {
+        if (minimumMissingEquipmentForUnprotectedPerson < 1) {
+            throw new IllegalArgumentException(
+                    "minimumMissingEquipmentForUnprotectedPerson must be at least 1"
+            );
+        }
+
+        this.minimumMissingEquipmentForUnprotectedPerson =
+                minimumMissingEquipmentForUnprotectedPerson;
     }
 
     public Map<ViolationType, Double> getConfidenceThresholds() {
@@ -48,29 +70,40 @@ public class ViolationRuleProperties {
         }
 
         EnumMap<ViolationType, Double> validated =
-                new EnumMap<>(ViolationType.class);
+                new EnumMap<>(
+                        ViolationType.class
+                );
 
-        confidenceThresholds.forEach((type, threshold) -> {
-            validateThreshold(
-                    threshold,
-                    "confidenceThresholds." + type
-            );
+        confidenceThresholds.forEach(
+                (type, threshold) -> {
+                    validateThreshold(
+                            threshold,
+                            "confidenceThresholds." + type
+                    );
 
-            validated.put(type, threshold);
-        });
+                    validated.put(
+                            type,
+                            threshold
+                    );
+                }
+        );
 
-        this.confidenceThresholds = validated;
+        this.confidenceThresholds =
+                validated;
     }
 
     public double confidenceThresholdFor(
             ViolationType type
     ) {
         Double threshold =
-                confidenceThresholds.get(type);
+                confidenceThresholds.get(
+                        type
+                );
 
         if (threshold == null) {
             throw new IllegalArgumentException(
-                    "No confidence threshold configured for " + type
+                    "No confidence threshold configured for "
+                            + type
             );
         }
 
@@ -86,20 +119,25 @@ public class ViolationRuleProperties {
     ) {
         if (requiredEquipmentForWelding == null
                 || requiredEquipmentForWelding.isEmpty()) {
+
             throw new IllegalArgumentException(
                     "requiredEquipmentForWelding must not be empty"
             );
         }
 
         this.requiredEquipmentForWelding =
-                List.copyOf(requiredEquipmentForWelding);
+                List.copyOf(
+                        requiredEquipmentForWelding
+                );
     }
 
     private static Map<ViolationType, Double>
     defaultConfidenceThresholds() {
 
         EnumMap<ViolationType, Double> defaults =
-                new EnumMap<>(ViolationType.class);
+                new EnumMap<>(
+                        ViolationType.class
+                );
 
         defaults.put(
                 ViolationType.MISSING_WELDING_MASK,

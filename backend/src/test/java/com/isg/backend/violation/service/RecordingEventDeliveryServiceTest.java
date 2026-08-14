@@ -91,6 +91,36 @@ class RecordingEventDeliveryServiceTest {
     }
 
     @Test
+    void retriesStopWithSameEventUntilDeliverySucceeds() {
+        ViolationEndedEvent event =
+                endedEvent();
+
+        doThrow(
+                new RuntimeException(
+                        "temporary recording failure"
+                )
+        )
+                .doNothing()
+                .when(
+                        recordingCommandPort
+                )
+                .stopRecording(
+                        event
+                );
+
+        deliveryService.deliverStop(
+                event
+        );
+
+        verify(
+                recordingCommandPort,
+                times(2)
+        ).stopRecording(
+                event
+        );
+    }
+
+    @Test
     void stopsRetryingAfterConfiguredMaximumAttempts() {
         ViolationEndedEvent event =
                 endedEvent();
