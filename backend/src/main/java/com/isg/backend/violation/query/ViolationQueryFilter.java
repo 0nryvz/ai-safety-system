@@ -3,6 +3,7 @@ package com.isg.backend.violation.query;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
 import com.isg.backend.violation.domain.ViolationType;
+import com.isg.backend.violation.exception.InvalidViolationQueryException;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -21,7 +22,7 @@ public record ViolationQueryFilter(
         if (from != null
                 && to != null
                 && from.isAfter(to)) {
-            throw new IllegalArgumentException(
+            throw new InvalidViolationQueryException(
                     "from must not be after to"
             );
         }

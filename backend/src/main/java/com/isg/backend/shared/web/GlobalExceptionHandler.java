@@ -1,5 +1,6 @@
 package com.isg.backend.shared.web;
 
+import com.isg.backend.violation.exception.InvalidViolationQueryException;
 import com.isg.backend.violation.exception.UnsupportedDetectionLabelException;
 import com.isg.backend.violation.exception.ViolationNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -71,6 +72,18 @@ public class GlobalExceptionHandler {
         return build(
                 HttpStatus.BAD_REQUEST,
                 message,
+                req
+        );
+    }
+
+    @ExceptionHandler(InvalidViolationQueryException.class)
+    public ResponseEntity<ApiErrorResponse> invalidViolationQuery(
+            InvalidViolationQueryException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage(),
                 req
         );
     }

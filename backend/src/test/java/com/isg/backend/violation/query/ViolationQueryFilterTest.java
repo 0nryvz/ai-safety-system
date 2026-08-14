@@ -1,10 +1,11 @@
 package com.isg.backend.violation.query;
 
+import com.isg.backend.violation.exception.InvalidViolationQueryException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ViolationQueryFilterTest {
@@ -13,16 +14,16 @@ class ViolationQueryFilterTest {
     void acceptsValidDateRange() {
         Instant from =
                 Instant.parse(
-                        "2026-08-11T10:00:00Z"
+                        "2026-08-10T10:00:00Z"
                 );
 
         Instant to =
                 Instant.parse(
-                        "2026-08-11T11:00:00Z"
+                        "2026-08-10T12:00:00Z"
                 );
 
-        assertThatCode(
-                () -> new ViolationQueryFilter(
+        ViolationQueryFilter filter =
+                new ViolationQueryFilter(
                         from,
                         to,
                         null,
@@ -30,35 +31,56 @@ class ViolationQueryFilterTest {
                         null,
                         null,
                         null
-                )
-        ).doesNotThrowAnyException();
+                );
+
+        assertThat(filter.from())
+                .isEqualTo(
+                        from
+                );
+
+        assertThat(filter.to())
+                .isEqualTo(
+                        to
+                );
     }
 
     @Test
     void acceptsOpenEndedDateRange() {
-        assertThatCode(
-                () -> new ViolationQueryFilter(
-                        Instant.now(),
+        Instant from =
+                Instant.parse(
+                        "2026-08-10T10:00:00Z"
+                );
+
+        ViolationQueryFilter filter =
+                new ViolationQueryFilter(
+                        from,
                         null,
                         null,
                         null,
                         null,
                         null,
                         null
-                )
-        ).doesNotThrowAnyException();
+                );
+
+        assertThat(filter.from())
+                .isEqualTo(
+                        from
+                );
+
+        assertThat(filter.to())
+                .isNull();
     }
 
     @Test
     void rejectsReversedDateRange() {
         Instant from =
                 Instant.parse(
-                        "2026-08-11T12:00:00Z"
+                        "2026-08-10T12:00:00Z"
                 );
 
         Instant to =
                 Instant.parse(
-                        "2026-08-11T11:00:00Z"
+                        "2026-08-10T10:00:00Z"
                 );
 
         assertThatThrownBy(
@@ -73,10 +95,10 @@ class ViolationQueryFilterTest {
                 )
         )
                 .isInstanceOf(
-                        IllegalArgumentException.class
+                        InvalidViolationQueryException.class
                 )
-                .hasMessageContaining(
-                        "from"
+                .hasMessage(
+                        "from must not be after to"
                 );
     }
 }
