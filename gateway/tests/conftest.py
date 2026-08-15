@@ -8,6 +8,7 @@ from app.api.dependencies import (
     get_session_frame_queue_manager,
     get_session_frame_ring_buffer_manager,
     get_session_manager,
+    get_event_recorder_coordinator,
 )
 from app.core.config import get_settings
 from app.main import app
@@ -15,6 +16,7 @@ from app.main import app
 
 CACHED_DEPENDENCIES = (
     get_settings,
+    get_event_recorder_coordinator,
     get_recording_command_coordinator,
     get_session_manager,
     get_camera_session_validator,

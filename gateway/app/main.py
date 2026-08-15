@@ -8,6 +8,7 @@ from app.api.dependencies import (
     get_session_frame_queue_manager,
     get_session_frame_ring_buffer_manager,
     get_session_manager,
+    get_event_recorder_coordinator,
 )
 from app.api.routes.frames import router as frames_router
 from app.api.routes.health import router as health_router
@@ -27,6 +28,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
 
     await get_session_frame_ingestion_worker_coordinator().clear()
+    await (
+        get_event_recorder_coordinator()
+        .clear()
+    )
     await get_session_frame_queue_manager().clear()
     await get_session_frame_ring_buffer_manager().clear()
     await get_session_manager().clear()

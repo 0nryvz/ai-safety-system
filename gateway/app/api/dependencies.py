@@ -31,6 +31,12 @@ from app.services.session_frame_ring_buffer_manager import (
 from app.services.recording_command_coordinator import (
     RecordingCommandCoordinator,
 )
+from app.infrastructure.ffmpeg_video_encoder import (
+    FfmpegVideoEncoder,
+)
+from app.services.event_recorder import (
+    EventRecorderCoordinator,
+)
 
 @lru_cache
 def get_session_manager() -> SessionManager:
@@ -73,6 +79,27 @@ def get_session_frame_ring_buffer_manager(
 
 
 @lru_cache
+def get_event_recorder_coordinator(
+) -> EventRecorderCoordinator:
+    settings = get_settings()
+
+    video_encoder = FfmpegVideoEncoder(
+        output_dir=(
+            settings.recorder_output_dir
+        ),
+        ffmpeg_path=(
+            settings.recorder_ffmpeg_path
+        ),
+        ffprobe_path=(
+            settings.recorder_ffprobe_path
+        ),
+    )
+
+    return EventRecorderCoordinator(
+        video_encoder=video_encoder,
+    )
+
+@lru_cache
 def get_session_frame_ingestion_worker_coordinator(
 ) -> SessionFrameIngestionWorkerCoordinator:
     settings = get_settings()
@@ -97,14 +124,29 @@ def get_session_frame_ingestion_worker_coordinator(
         )
     )
 
-    return SessionFrameIngestionWorkerCoordinator(
-        ai_frame_sampler=ai_frame_sampler,
-        ai_frame_dispatch_worker_coordinator=(
-            ai_dispatch_worker_coordinator
-        ),
+    return (
+        SessionFrameIngestionWorkerCoordinator(
+            ai_frame_sampler=(
+                ai_frame_sampler
+            ),
+            ai_frame_dispatch_worker_coordinator=(
+                ai_dispatch_worker_coordinator
+            ),
+            event_recorder_coordinator=(
+                get_event_recorder_coordinator()
+            ),
+        )
     )
 
 
 @lru_cache
-def get_recording_command_coordinator() -> RecordingCommandCoordinator:
-    return RecordingCommandCoordinator()
+def get_recording_command_coordinator(
+) -> RecordingCommandCoordinator:
+    return RecordingCommandCoordinator(
+        event_recorder_coordinator=(
+            get_event_recorder_coordinator()
+        ),
+        ring_buffer_manager=(
+            get_session_frame_ring_buffer_manager()
+        ),
+    )
