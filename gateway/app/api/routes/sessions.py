@@ -7,6 +7,7 @@ from app.api.dependencies import (
     get_session_frame_queue_manager,
     get_session_frame_ring_buffer_manager,
     get_session_manager,
+    get_event_recorder_coordinator,
 )
 from app.api.schemas.session import (
     OpenSessionRequest,
@@ -38,6 +39,9 @@ from app.services.session_manager import (
     SessionNotFoundError,
 )
 from app.services.session_validator import CameraSessionValidator
+from app.services.event_recorder import (
+    EventRecorderCoordinator,
+)
 
 
 router = APIRouter(
@@ -267,6 +271,11 @@ async def close_session(
         ) = Depends(
             get_session_frame_ingestion_worker_coordinator,
         ),
+        event_recorder_coordinator: (
+                EventRecorderCoordinator
+        ) = Depends(
+            get_event_recorder_coordinator,
+        ),
 ) -> Response:
     try:
         session = await session_manager.get_session(session_id)
@@ -284,6 +293,11 @@ async def close_session(
 
     try:
         await ingestion_worker_coordinator.stop_worker(
+            camera_id=request.camera_id,
+            session_id=session_id,
+        )
+
+        await event_recorder_coordinator.finalize_session(
             camera_id=request.camera_id,
             session_id=session_id,
         )
