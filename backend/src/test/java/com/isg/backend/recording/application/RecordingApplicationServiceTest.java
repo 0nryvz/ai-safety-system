@@ -1,5 +1,7 @@
 package com.isg.backend.recording.application;
 
+import com.isg.backend.recording.application.callback.RecordingStatusCallback;
+import com.isg.backend.recording.application.callback.RecordingStatusCallbackPort;
 import com.isg.backend.recording.application.port.GatewayRecordingCommandPort;
 import com.isg.backend.recording.application.port.RecordingRepository;
 import com.isg.backend.recording.domain.Recording;
@@ -18,16 +20,19 @@ class RecordingApplicationServiceTest {
 
     private InMemoryRecordingRepository repository;
     private CapturingGatewayRecordingCommandPort gatewayCommandPort;
+    private CapturingRecordingStatusCallbackPort callbackPort;
     private RecordingApplicationService service;
 
     @BeforeEach
     void setUp() {
         repository = new InMemoryRecordingRepository();
         gatewayCommandPort = new CapturingGatewayRecordingCommandPort();
+        callbackPort = new CapturingRecordingStatusCallbackPort();
         service = new RecordingApplicationService(
                 repository,
                 new RecordingCreationService(repository),
-                gatewayCommandPort
+                gatewayCommandPort,
+                callbackPort
         );
     }
 
@@ -195,7 +200,8 @@ class RecordingApplicationServiceTest {
         RecordingApplicationService concurrentService = new RecordingApplicationService(
                 concurrentRepository,
                 new RecordingCreationService(concurrentRepository),
-                gatewayCommandPort
+                gatewayCommandPort,
+                callbackPort
         );
 
         Recording created = concurrentService.start(startCommand(violationId));
@@ -206,6 +212,222 @@ class RecordingApplicationServiceTest {
         assertThat(gatewayCommandPort.startCommandCount()).isEqualTo(1);
         assertThat(gatewayCommandPort.lastStartCommand().commandId()).isEqualTo(persistedCommandId);
         assertThat(concurrentRepository.size()).isEqualTo(1);
+    }
+
+    @Test
+    void validReadyCallbackTransitionsAndPublishes() {
+        UUID violationId = UUID.randomUUID();
+        Recording processing = moveToProcessing(violationId);
+
+        service.handleCallback(readyCallback(
+                processing.id(),
+                violationId,
+                "clips/ready.mp4",
+                2_500,
+                10_000L,
+                "sha256:ready",
+                1
+        ));
+
+        Recording saved = repository.findById(processing.id()).orElseThrow();
+        assertThat(saved.status()).isEqualTo(RecordingStatus.READY);
+        assertThat(saved.objectKey()).isEqualTo("clips/ready.mp4");
+        assertThat(saved.durationMs()).isEqualTo(2_500);
+        assertThat(saved.sizeBytes()).isEqualTo(10_000L);
+        assertThat(saved.checksum()).isEqualTo("sha256:ready");
+        assertThat(saved.retryCount()).isEqualTo(1);
+        assertThat(saved.readyAt()).isNotNull();
+        assertThat(callbackPort.publishCount()).isEqualTo(1);
+    }
+
+    @Test
+    void validErrorCallbackTransitionsAndPublishes() {
+        UUID violationId = UUID.randomUUID();
+        Recording processing = moveToProcessing(violationId);
+
+        service.handleCallback(errorCallback(
+                processing.id(),
+                violationId,
+                "UPLOAD_FAILED",
+                2
+        ));
+
+        Recording saved = repository.findById(processing.id()).orElseThrow();
+        assertThat(saved.status()).isEqualTo(RecordingStatus.ERROR);
+        assertThat(saved.errorCode()).isEqualTo("UPLOAD_FAILED");
+        assertThat(saved.retryCount()).isEqualTo(2);
+        assertThat(callbackPort.publishCount()).isEqualTo(1);
+    }
+
+    @Test
+    void duplicateIdenticalReadyIsNoopAndDoesNotRepublish() {
+        UUID violationId = UUID.randomUUID();
+        Recording processing = moveToProcessing(violationId);
+        RecordingCallbackCommand callback = readyCallback(
+                processing.id(),
+                violationId,
+                "clips/ready.mp4",
+                2_500,
+                10_000L,
+                "sha256:ready",
+                1
+        );
+
+        service.handleCallback(callback);
+        service.handleCallback(callback);
+
+        assertThat(callbackPort.publishCount()).isEqualTo(1);
+        assertThat(repository.findById(processing.id()).orElseThrow().status())
+                .isEqualTo(RecordingStatus.READY);
+    }
+
+    @Test
+    void conflictingDuplicateReadyThrowsConflict() {
+        UUID violationId = UUID.randomUUID();
+        Recording processing = moveToProcessing(violationId);
+
+        service.handleCallback(readyCallback(
+                processing.id(),
+                violationId,
+                "clips/ready.mp4",
+                2_500,
+                10_000L,
+                "sha256:ready",
+                1
+        ));
+
+        assertThatThrownBy(() -> service.handleCallback(readyCallback(
+                processing.id(),
+                violationId,
+                "clips/ready.mp4",
+                2_500,
+                10_001L,
+                "sha256:ready",
+                1
+        )))
+                .isInstanceOf(RecordingCallbackConflictException.class);
+    }
+
+    @Test
+    void unknownRecordingThrowsNotFound() {
+        assertThatThrownBy(() -> service.handleCallback(readyCallback(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "clips/ready.mp4",
+                2_500,
+                10_000L,
+                "sha256:ready",
+                0
+        )))
+                .isInstanceOf(RecordingNotFoundException.class);
+    }
+
+    @Test
+    void violationMismatchThrowsConflict() {
+        UUID violationId = UUID.randomUUID();
+        Recording processing = moveToProcessing(violationId);
+
+        assertThatThrownBy(() -> service.handleCallback(readyCallback(
+                processing.id(),
+                UUID.randomUUID(),
+                "clips/ready.mp4",
+                2_500,
+                10_000L,
+                "sha256:ready",
+                1
+        )))
+                .isInstanceOf(RecordingCallbackConflictException.class);
+    }
+
+    @Test
+    void duplicateIdenticalErrorIsNoopAndDoesNotRepublish() {
+        UUID violationId = UUID.randomUUID();
+        Recording processing = moveToProcessing(violationId);
+        RecordingCallbackCommand callback = errorCallback(
+                processing.id(),
+                violationId,
+                "UPLOAD_FAILED",
+                2
+        );
+
+        service.handleCallback(callback);
+        service.handleCallback(callback);
+
+        assertThat(callbackPort.publishCount()).isEqualTo(1);
+        assertThat(repository.findById(processing.id()).orElseThrow().status())
+                .isEqualTo(RecordingStatus.ERROR);
+    }
+
+    @Test
+    void readyThenErrorCallbackThrowsConflict() {
+        UUID violationId = UUID.randomUUID();
+        Recording processing = moveToProcessing(violationId);
+
+        service.handleCallback(readyCallback(
+                processing.id(),
+                violationId,
+                "clips/ready.mp4",
+                2_500,
+                10_000L,
+                "sha256:ready",
+                1
+        ));
+
+        assertThatThrownBy(() -> service.handleCallback(errorCallback(
+                processing.id(),
+                violationId,
+                "UPLOAD_FAILED",
+                2
+        )))
+                .isInstanceOf(RecordingCallbackConflictException.class);
+    }
+
+    private Recording moveToProcessing(
+            UUID violationId
+    ) {
+        service.start(startCommand(violationId));
+        return service.stop(stopCommand(violationId));
+    }
+
+    private RecordingCallbackCommand readyCallback(
+            UUID recordingId,
+            UUID violationId,
+            String objectKey,
+            Integer durationMs,
+            Long sizeBytes,
+            String checksum,
+            Integer retryCount
+    ) {
+        return new RecordingCallbackCommand(
+                recordingId,
+                violationId,
+                RecordingStatus.READY,
+                objectKey,
+                durationMs,
+                sizeBytes,
+                checksum,
+                retryCount,
+                null
+        );
+    }
+
+    private RecordingCallbackCommand errorCallback(
+            UUID recordingId,
+            UUID violationId,
+            String errorCode,
+            Integer retryCount
+    ) {
+        return new RecordingCallbackCommand(
+                recordingId,
+                violationId,
+                RecordingStatus.ERROR,
+                null,
+                null,
+                null,
+                null,
+                retryCount,
+                errorCode
+        );
     }
 
     private StartRecordingCommand startCommand(
@@ -238,6 +460,15 @@ class RecordingApplicationServiceTest {
         private final Map<UUID, Recording> byViolationId = new HashMap<>();
 
         @Override
+        public Optional<Recording> findById(
+                UUID recordingId
+        ) {
+            return byViolationId.values().stream()
+                    .filter(recording -> recording.id().equals(recordingId))
+                    .findFirst();
+        }
+
+        @Override
         public Optional<Recording> findByViolationId(
                 UUID violationId
         ) {
@@ -253,9 +484,16 @@ class RecordingApplicationServiceTest {
                     UUID.randomUUID(),
                     recording.violationId(),
                     recording.status(),
+                    recording.objectKey(),
+                    recording.durationMs(),
+                    recording.sizeBytes(),
+                    recording.retryCount(),
+                    recording.checksum(),
+                    recording.errorCode(),
                     recording.recordingStartedAt(),
                     recording.startCommandId(),
-                    recording.stopCommandId()
+                    recording.stopCommandId(),
+                    recording.readyAt()
             )
                     : recording;
 
@@ -337,6 +575,15 @@ class RecordingApplicationServiceTest {
         }
 
         @Override
+        public Optional<Recording> findById(
+                UUID recordingId
+        ) {
+            return byViolationId.values().stream()
+                    .filter(recording -> recording.id().equals(recordingId))
+                    .findFirst();
+        }
+
+        @Override
         public Optional<Recording> findByViolationId(
                 UUID lookupViolationId
         ) {
@@ -366,9 +613,16 @@ class RecordingApplicationServiceTest {
                     UUID.randomUUID(),
                     recording.violationId(),
                     recording.status(),
+                    recording.objectKey(),
+                    recording.durationMs(),
+                    recording.sizeBytes(),
+                    recording.retryCount(),
+                    recording.checksum(),
+                    recording.errorCode(),
                     recording.recordingStartedAt(),
                     recording.startCommandId(),
-                    recording.stopCommandId()
+                    recording.stopCommandId(),
+                    recording.readyAt()
             )
                     : recording;
 
@@ -378,6 +632,22 @@ class RecordingApplicationServiceTest {
 
         int size() {
             return byViolationId.size();
+        }
+    }
+
+    private static class CapturingRecordingStatusCallbackPort implements RecordingStatusCallbackPort {
+
+        private final List<RecordingStatusCallback> callbacks = new ArrayList<>();
+
+        @Override
+        public void publish(
+                RecordingStatusCallback callback
+        ) {
+            callbacks.add(callback);
+        }
+
+        int publishCount() {
+            return callbacks.size();
         }
     }
 }
