@@ -1,0 +1,30 @@
+.ui-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 180px;
+  padding: var(--space-6);
+  border: 1px solid var(--color-critical);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  background-color: #fef2f2;
+}
+
+.ui-error-state h3 {
+  margin: 0;
+  color: var(--color-critical);
+  font-size: 18px;
+}
+
+.ui-error-state p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.ui-error-state__action {
+  margin-top: var(--space-2);
+}
