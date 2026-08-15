@@ -129,6 +129,7 @@ async def test_recorder_uses_prebuffer_live_frames_and_post_roll(
     )
 
     snapshot = await recorder.start_recording(
+        recording_id="recording-1",
         violation_id="violation-1",
         camera_id="camera-1",
         session_id="session-1",
@@ -143,6 +144,7 @@ async def test_recorder_uses_prebuffer_live_frames_and_post_roll(
             snapshot.status
             == EventRecordingStatus.RECORDING
     )
+    assert snapshot.recording_id == "recording-1"
 
     # -5 saniyelik frame pre-buffer
     # penceresinin dışında kalmalı.
@@ -178,6 +180,7 @@ async def test_recorder_uses_prebuffer_live_frames_and_post_roll(
             finished.status
             == EventRecordingStatus.READY
     )
+    assert finished.recording_id == "recording-1"
 
     assert finished.frame_count == 4
 
@@ -227,6 +230,7 @@ async def test_recorder_enforces_max_clip_deadline(
     )
 
     await recorder.start_recording(
+        recording_id="recording-2",
         violation_id="violation-2",
         camera_id="camera-1",
         session_id="session-1",
@@ -263,6 +267,7 @@ async def test_recorder_enforces_max_clip_deadline(
             finished.status
             == EventRecordingStatus.READY
     )
+    assert finished.recording_id == "recording-2"
 
     assert len(
         encoder.calls
@@ -296,6 +301,7 @@ async def test_session_finalize_forces_active_clip_to_finish(
     )
 
     await recorder.start_recording(
+        recording_id="recording-3",
         violation_id="violation-3",
         camera_id="camera-1",
         session_id="session-1",
@@ -325,3 +331,4 @@ async def test_session_finalize_forces_active_clip_to_finish(
             finished.status
             == EventRecordingStatus.READY
     )
+    assert finished.recording_id == "recording-3"

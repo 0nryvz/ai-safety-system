@@ -43,7 +43,7 @@ public class RecordingApplicationService {
                 : recording.startCommandId();
 
         StartRecordingCommand startCommand = withStartCommandId(command, startCommandId);
-        gatewayRecordingCommandPort.sendStart(startCommand);
+        gatewayRecordingCommandPort.sendStart(recording.id(), startCommand);
         recording.markRecordingStarted(startCommand.startedAt(), startCommandId);
         return recordingRepository.save(recording);
     }

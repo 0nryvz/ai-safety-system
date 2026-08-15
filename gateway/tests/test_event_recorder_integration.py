@@ -96,6 +96,7 @@ async def test_real_recording_flow_creates_playable_mp4(
     )
 
     started = await recorder.start_recording(
+        recording_id="recording-real-1",
         violation_id="violation-real-1",
         camera_id="camera-1",
         session_id="session-1",
@@ -112,6 +113,7 @@ async def test_real_recording_flow_creates_playable_mp4(
             started.status
             == EventRecordingStatus.RECORDING
     )
+    assert started.recording_id == "recording-real-1"
 
     # base-2 ve base-1 recording'e girmeli.
     assert started.frame_count == 2
@@ -165,6 +167,7 @@ async def test_real_recording_flow_creates_playable_mp4(
             finished.status
             == EventRecordingStatus.READY
     )
+    assert finished.recording_id == "recording-real-1"
 
     assert finished.frame_count == 4
 

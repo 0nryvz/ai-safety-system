@@ -15,6 +15,7 @@ def _require_utc(value: datetime) -> datetime:
 
 class StartRecordingCommandRequest(BaseModel):
     command_id: str = Field(alias="commandId", min_length=1, max_length=128)
+    recording_id: str = Field(alias="recordingId", min_length=1, max_length=128)
     violation_id: str = Field(alias="violationId", min_length=1, max_length=128)
     camera_id: str = Field(alias="cameraId", min_length=1, max_length=128)
     session_id: str = Field(alias="sessionId", min_length=1, max_length=128)

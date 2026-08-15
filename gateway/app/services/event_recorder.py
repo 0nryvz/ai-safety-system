@@ -33,6 +33,7 @@ class EventRecordingStatus(StrEnum):
 @dataclass(frozen=True, slots=True)
 class EventRecordingSnapshot:
     violation_id: str
+    recording_id: str
     camera_id: str
     session_id: str
 
@@ -56,6 +57,7 @@ class EventRecordingSnapshot:
 @dataclass(slots=True)
 class _EventRecordingContext:
     violation_id: str
+    recording_id: str
     camera_id: str
     session_id: str
 
@@ -112,6 +114,7 @@ class EventRecorderCoordinator:
     async def start_recording(
             self,
             *,
+            recording_id: str,
             violation_id: str,
             camera_id: str,
             session_id: str,
@@ -148,6 +151,7 @@ class EventRecorderCoordinator:
 
             context = _EventRecordingContext(
                 violation_id=violation_id,
+                recording_id=recording_id,
                 camera_id=camera_id,
                 session_id=session_id,
                 started_at=started_at,
@@ -811,6 +815,7 @@ class EventRecorderCoordinator:
 
         return EventRecordingSnapshot(
             violation_id=context.violation_id,
+            recording_id=context.recording_id,
             camera_id=context.camera_id,
             session_id=context.session_id,
             status=context.status,

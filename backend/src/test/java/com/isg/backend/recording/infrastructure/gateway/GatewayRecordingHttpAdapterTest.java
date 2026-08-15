@@ -37,12 +37,13 @@ class GatewayRecordingHttpAdapterTest {
 
     @Test
     void sendStartMapsPayloadAndCallsExpectedEndpoint() {
+        UUID recordingId = UUID.randomUUID();
         StartRecordingCommand command = startCommand(UUID.randomUUID());
 
         when(restOperations.postForEntity(any(String.class), any(), eq(Void.class)))
                 .thenReturn(ResponseEntity.accepted().build());
 
-        adapter.sendStart(command);
+        adapter.sendStart(recordingId, command);
 
         org.mockito.ArgumentCaptor<String> urlCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<Object> bodyCaptor = org.mockito.ArgumentCaptor.forClass(Object.class);
@@ -54,6 +55,7 @@ class GatewayRecordingHttpAdapterTest {
 
         Object payload = bodyCaptor.getValue();
         assertThat(readPayloadField(payload, "commandId")).isEqualTo(command.commandId());
+        assertThat(readPayloadField(payload, "recordingId")).isEqualTo(recordingId);
         assertThat(readPayloadField(payload, "violationId")).isEqualTo(command.violationId());
         assertThat(readPayloadField(payload, "cameraId")).isEqualTo(command.cameraId());
         assertThat(readPayloadField(payload, "sessionId")).isEqualTo(command.sessionId());
@@ -86,6 +88,7 @@ class GatewayRecordingHttpAdapterTest {
 
     @Test
     void retriesOnTransientFailureAndUsesSameCommandId() {
+        UUID recordingId = UUID.randomUUID();
         StartRecordingCommand command = startCommand(UUID.randomUUID());
 
         when(restOperations.postForEntity(any(String.class), any(), eq(Void.class)))
@@ -93,7 +96,7 @@ class GatewayRecordingHttpAdapterTest {
                 .thenThrow(new ResourceAccessException("timeout-2"))
                 .thenReturn(ResponseEntity.accepted().build());
 
-        adapter.sendStart(command);
+        adapter.sendStart(recordingId, command);
 
         org.mockito.ArgumentCaptor<Object> payloadCaptor = org.mockito.ArgumentCaptor.forClass(Object.class);
         verify(restOperations, times(3)).postForEntity(any(String.class), payloadCaptor.capture(), eq(Void.class));
@@ -108,12 +111,13 @@ class GatewayRecordingHttpAdapterTest {
 
     @Test
     void doesNotRetryPermanentClientError() {
+        UUID recordingId = UUID.randomUUID();
         StartRecordingCommand command = startCommand(UUID.randomUUID());
 
         when(restOperations.postForEntity(any(String.class), any(), eq(Void.class)))
                 .thenThrow(new HttpClientErrorException(HttpStatus.BAD_REQUEST));
 
-        assertThatThrownBy(() -> adapter.sendStart(command))
+        assertThatThrownBy(() -> adapter.sendStart(recordingId, command))
                 .isInstanceOf(GatewayRecordingCommandException.class);
 
         verify(restOperations, times(1)).postForEntity(any(String.class), any(), eq(Void.class));
@@ -122,13 +126,14 @@ class GatewayRecordingHttpAdapterTest {
     @Test
     void doesNotExceedRetryLimit() {
         adapter = new GatewayRecordingHttpAdapter(properties(1), restOperations);
+        UUID recordingId = UUID.randomUUID();
         StartRecordingCommand command = startCommand(UUID.randomUUID());
 
         when(restOperations.postForEntity(any(String.class), any(), eq(Void.class)))
                 .thenThrow(new ResourceAccessException("timeout-1"))
                 .thenThrow(new ResourceAccessException("timeout-2"));
 
-        assertThatThrownBy(() -> adapter.sendStart(command))
+        assertThatThrownBy(() -> adapter.sendStart(recordingId, command))
                 .isInstanceOf(GatewayRecordingCommandException.class);
 
         verify(restOperations, times(2)).postForEntity(any(String.class), any(), eq(Void.class));

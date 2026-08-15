@@ -44,6 +44,7 @@ class RecordingApplicationServiceTest {
         assertThat(created.startCommandId()).isEqualTo(command.commandId());
         assertThat(repository.size()).isEqualTo(1);
         assertThat(gatewayCommandPort.startCommandCount()).isEqualTo(1);
+        assertThat(gatewayCommandPort.lastStartRecordingId()).isEqualTo(created.id());
     }
 
     @Test
@@ -269,6 +270,7 @@ class RecordingApplicationServiceTest {
 
     private static class CapturingGatewayRecordingCommandPort implements GatewayRecordingCommandPort {
 
+        private final List<UUID> sentStartRecordingIds = new ArrayList<>();
         private final List<StartRecordingCommand> sentStartCommands = new ArrayList<>();
         private final List<StopRecordingCommand> sentStopCommands = new ArrayList<>();
         private boolean failStart;
@@ -276,12 +278,14 @@ class RecordingApplicationServiceTest {
 
         @Override
         public void sendStart(
+                UUID recordingId,
                 StartRecordingCommand command
         ) {
             if (failStart) {
                 throw new RuntimeException("start failed");
             }
 
+            sentStartRecordingIds.add(recordingId);
             sentStartCommands.add(command);
         }
 
@@ -302,6 +306,10 @@ class RecordingApplicationServiceTest {
 
         StartRecordingCommand lastStartCommand() {
             return sentStartCommands.get(sentStartCommands.size() - 1);
+        }
+
+        UUID lastStartRecordingId() {
+            return sentStartRecordingIds.get(sentStartRecordingIds.size() - 1);
         }
 
         int stopCommandCount() {
