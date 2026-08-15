@@ -5,7 +5,6 @@ import com.isg.backend.violation.domain.detection.DetectionFrame;
 import com.isg.backend.violation.rule.CandidateViolationEvaluator;
 import com.isg.backend.violation.rule.PersonPpeMatcher;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.Instant;
 import java.util.List;
@@ -13,12 +12,11 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class ViolationEngineConfigurationTest {
 
     @Test
-    void createsEvaluatorWithoutRestrictedZonePort() {
+    void createsEvaluatorWithRequiredRestrictedZonePort() {
         ViolationEngineConfiguration configuration =
                 new ViolationEngineConfiguration();
 
@@ -28,18 +26,44 @@ class ViolationEngineConfigurationTest {
         PersonPpeMatcher matcher =
                 configuration.personPpeMatcher();
 
-        @SuppressWarnings("unchecked")
-        ObjectProvider<RestrictedZonePort> provider =
-                mock(ObjectProvider.class);
-
-        when(provider.getIfAvailable())
-                .thenReturn(null);
+        RestrictedZonePort restrictedZonePort =
+                mock(
+                        RestrictedZonePort.class
+                );
 
         CandidateViolationEvaluator evaluator =
                 configuration.candidateViolationEvaluator(
                         matcher,
                         properties,
-                        provider
+                        restrictedZonePort
+                );
+
+        assertThat(
+                evaluator
+        ).isNotNull();
+    }
+
+    @Test
+    void evaluatorSafelyHandlesEmptyFrame() {
+        ViolationEngineConfiguration configuration =
+                new ViolationEngineConfiguration();
+
+        ViolationRuleProperties properties =
+                new ViolationRuleProperties();
+
+        PersonPpeMatcher matcher =
+                configuration.personPpeMatcher();
+
+        RestrictedZonePort restrictedZonePort =
+                mock(
+                        RestrictedZonePort.class
+                );
+
+        CandidateViolationEvaluator evaluator =
+                configuration.candidateViolationEvaluator(
+                        matcher,
+                        properties,
+                        restrictedZonePort
                 );
 
         DetectionFrame emptyFrame =
@@ -58,39 +82,5 @@ class ViolationEngineConfigurationTest {
                         emptyFrame
                 )
         ).isEmpty();
-    }
-
-    @Test
-    void createsEvaluatorWhenRestrictedZonePortExists() {
-        ViolationEngineConfiguration configuration =
-                new ViolationEngineConfiguration();
-
-        ViolationRuleProperties properties =
-                new ViolationRuleProperties();
-
-        PersonPpeMatcher matcher =
-                configuration.personPpeMatcher();
-
-        RestrictedZonePort restrictedZonePort =
-                mock(RestrictedZonePort.class);
-
-        @SuppressWarnings("unchecked")
-        ObjectProvider<RestrictedZonePort> provider =
-                mock(ObjectProvider.class);
-
-        when(provider.getIfAvailable())
-                .thenReturn(
-                        restrictedZonePort
-                );
-
-        CandidateViolationEvaluator evaluator =
-                configuration.candidateViolationEvaluator(
-                        matcher,
-                        properties,
-                        provider
-                );
-
-        assertThat(evaluator)
-                .isNotNull();
     }
 }

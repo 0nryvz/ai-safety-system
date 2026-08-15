@@ -76,11 +76,13 @@ public class User implements UserDetails {
     @Builder.Default
     private Set<Role> roles = new HashSet<>();
 
-    // Geriye dönük servis uyumluluğu için yardımcı metotlar (Tekil departman gerektiren yerler için)
+    // Geriye dönük servis uyumluluğu için yardımcı metotlar (Kullanımdan kaldırıldı)
+    @Deprecated(since = "v1.1", forRemoval = true)
     public Department getDepartment() {
         return departments != null && !departments.isEmpty() ? departments.iterator().next() : null;
     }
 
+    @Deprecated(since = "v1.1", forRemoval = true)
     public void setDepartment(Department department) {
         this.departments.clear();
         if (department != null) {

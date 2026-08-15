@@ -25,7 +25,9 @@ import java.util.UUID;
 public class DetectionService {
 
     private static final Logger logger =
-            LoggerFactory.getLogger(DetectionService.class);
+            LoggerFactory.getLogger(
+                    DetectionService.class
+            );
 
     private static final Duration MAX_FUTURE_SKEW =
             Duration.ofSeconds(5);
@@ -114,17 +116,24 @@ public class DetectionService {
                         candidates
                 );
 
-        for (ConfirmedViolation confirmation : transitions.started()) {
+        for (ConfirmedViolation confirmation
+                : transitions.started()) {
+
             activeViolationRegistry.getOrCreate(
                     confirmation.stateKey(),
-                    () -> violationLifecycleService.startViolation(
-                            confirmation,
-                            frame.modelVersion()
-                    ).getId()
+                    () ->
+                            violationLifecycleService
+                                    .startViolation(
+                                            confirmation,
+                                            frame.modelVersion()
+                                    )
+                                    .getId()
             );
         }
 
-        for (EndedViolation endedViolation : transitions.ended()) {
+        for (EndedViolation endedViolation
+                : transitions.ended()) {
+
             Optional<UUID> violationId =
                     activeViolationRegistry.find(
                             endedViolation.stateKey()
@@ -167,8 +176,16 @@ public class DetectionService {
                 Instant.now();
 
         if (frameTimestamp.isAfter(
-                now.plus(MAX_FUTURE_SKEW)
+                now.plus(
+                        MAX_FUTURE_SKEW
+                )
         )) {
+            logger.warn(
+                    "Detection rejected because frameTimestamp is too far in the future. frameTimestamp={}, allowedFutureSkewSeconds={}",
+                    frameTimestamp,
+                    MAX_FUTURE_SKEW.toSeconds()
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.UNPROCESSABLE_CONTENT,
                     "frameTimestamp is in the future."
@@ -176,8 +193,16 @@ public class DetectionService {
         }
 
         if (frameTimestamp.isBefore(
-                now.minus(MAX_EVENT_AGE)
+                now.minus(
+                        MAX_EVENT_AGE
+                )
         )) {
+            logger.warn(
+                    "Detection rejected because frameTimestamp is too old. frameTimestamp={}, maxEventAgeSeconds={}",
+                    frameTimestamp,
+                    MAX_EVENT_AGE.toSeconds()
+            );
+
             throw new ResponseStatusException(
                     HttpStatus.UNPROCESSABLE_CONTENT,
                     "frameTimestamp is too old."

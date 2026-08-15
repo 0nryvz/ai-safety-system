@@ -8,9 +8,9 @@ import com.isg.backend.reporting.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.isg.backend.modules.user.entity.User;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import com.isg.backend.modules.user.entity.User;
 
 import java.time.LocalDate;
 import java.util.List;

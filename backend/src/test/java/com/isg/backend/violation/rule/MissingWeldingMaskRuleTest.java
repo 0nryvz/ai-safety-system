@@ -19,66 +19,131 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MissingWeldingMaskRuleTest {
 
     private static final UUID EVENT_ID =
-            UUID.fromString("11111111-1111-1111-1111-111111111111");
+            UUID.fromString(
+                    "11111111-1111-1111-1111-111111111111"
+            );
 
     private static final UUID CAMERA_ID =
-            UUID.fromString("22222222-2222-2222-2222-222222222222");
+            UUID.fromString(
+                    "22222222-2222-2222-2222-222222222222"
+            );
 
     private static final UUID SESSION_ID =
-            UUID.fromString("33333333-3333-3333-3333-333333333333");
+            UUID.fromString(
+                    "33333333-3333-3333-3333-333333333333"
+            );
 
     private final MissingWeldingMaskRule rule =
             new MissingWeldingMaskRule();
 
     @Test
     void supportsMissingWeldingMaskViolationType() {
-        assertThat(rule.supportedType())
-                .isEqualTo(ViolationType.MISSING_WELDING_MASK);
+        assertThat(
+                rule.supportedType()
+        ).isEqualTo(
+                ViolationType.MISSING_WELDING_MASK
+        );
     }
 
     @Test
-    void producesCandidateWhenNonMaskDetectionIsAssociatedWithPerson() {
-        PersonContext person = new PersonContext(
-                "track-worker-1",
-                person(),
-                List.of(nonMask())
-        );
+    void producesCandidateWhenWeldingPersonHasNoMask() {
+        PersonContext person =
+                new PersonContext(
+                        "track-worker-1",
+                        person(),
+                        List.of(
+                                welding()
+                        )
+                );
 
         Optional<CandidateViolation> result =
-                rule.evaluate(person, frame());
+                rule.evaluate(
+                        person,
+                        frame()
+                );
 
-        assertThat(result).isPresent();
+        assertThat(result)
+                .isPresent();
 
-        CandidateViolation candidate = result.orElseThrow();
+        CandidateViolation candidate =
+                result.orElseThrow();
 
         assertThat(candidate.violationType())
-                .isEqualTo(ViolationType.MISSING_WELDING_MASK);
+                .isEqualTo(
+                        ViolationType.MISSING_WELDING_MASK
+                );
+
         assertThat(candidate.personKey())
-                .isEqualTo("track-worker-1");
+                .isEqualTo(
+                        "track-worker-1"
+                );
+
         assertThat(candidate.eventId())
-                .isEqualTo(EVENT_ID);
+                .isEqualTo(
+                        EVENT_ID
+                );
+
         assertThat(candidate.cameraId())
-                .isEqualTo(CAMERA_ID);
+                .isEqualTo(
+                        CAMERA_ID
+                );
+
         assertThat(candidate.sessionId())
-                .isEqualTo(SESSION_ID);
+                .isEqualTo(
+                        SESSION_ID
+                );
+
         assertThat(candidate.personBox())
-                .isEqualTo(person.person().boundingBox());
+                .isEqualTo(
+                        person.person()
+                                .boundingBox()
+                );
+
         assertThat(candidate.frameTimestamp())
-                .isEqualTo(frame().frameTimestamp());
+                .isEqualTo(
+                        frame().frameTimestamp()
+                );
     }
 
     @Test
-    void doesNotProduceCandidateWhenNonMaskDetectionIsAbsent() {
-        PersonContext person = new PersonContext(
-                "track-worker-1",
-                person(),
-                List.of(weldingMask())
-        );
+    void doesNotProduceCandidateWhenWeldingPersonHasMask() {
+        PersonContext person =
+                new PersonContext(
+                        "track-worker-1",
+                        person(),
+                        List.of(
+                                welding(),
+                                weldingMask()
+                        )
+                );
 
         Optional<CandidateViolation> result =
-                rule.evaluate(person, frame());
+                rule.evaluate(
+                        person,
+                        frame()
+                );
 
-        assertThat(result).isEmpty();
+        assertThat(result)
+                .isEmpty();
+    }
+
+    @Test
+    void doesNotProduceCandidateWhenPersonIsNotWelding() {
+        PersonContext person =
+                new PersonContext(
+                        "track-worker-1",
+                        person(),
+                        List.of()
+                );
+
+        Optional<CandidateViolation> result =
+                rule.evaluate(
+                        person,
+                        frame()
+                );
+
+        assertThat(result)
+                .isEmpty();
     }
 
     private static DetectedObject person() {
@@ -86,17 +151,27 @@ class MissingWeldingMaskRuleTest {
                 DetectionLabel.PERSON,
                 "person",
                 0.95,
-                new BoundingBox(0.1, 0.1, 0.4, 0.8),
+                new BoundingBox(
+                        0.1,
+                        0.1,
+                        0.4,
+                        0.8
+                ),
                 "worker-1"
         );
     }
 
-    private static DetectedObject nonMask() {
+    private static DetectedObject welding() {
         return new DetectedObject(
-                DetectionLabel.NON_MASK,
-                "non_mask",
-                0.91,
-                new BoundingBox(0.2, 0.15, 0.1, 0.1),
+                DetectionLabel.WELDING,
+                "welding",
+                0.92,
+                new BoundingBox(
+                        0.2,
+                        0.4,
+                        0.1,
+                        0.1
+                ),
                 null
         );
     }
@@ -106,7 +181,12 @@ class MissingWeldingMaskRuleTest {
                 DetectionLabel.WELDING_MASK,
                 "welding_mask",
                 0.91,
-                new BoundingBox(0.2, 0.15, 0.1, 0.1),
+                new BoundingBox(
+                        0.2,
+                        0.15,
+                        0.1,
+                        0.1
+                ),
                 null
         );
     }
@@ -116,7 +196,9 @@ class MissingWeldingMaskRuleTest {
                 EVENT_ID,
                 CAMERA_ID,
                 SESSION_ID,
-                Instant.parse("2026-08-07T10:00:00Z"),
+                Instant.parse(
+                        "2026-08-07T10:00:00Z"
+                ),
                 "model-v1",
                 25L,
                 List.of()

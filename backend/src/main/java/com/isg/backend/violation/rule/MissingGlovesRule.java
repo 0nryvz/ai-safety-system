@@ -20,7 +20,17 @@ public class MissingGlovesRule implements ViolationRule {
             PersonContext person,
             DetectionFrame frame
     ) {
-        if (!person.hasDetection(DetectionLabel.NON_GLOVES)) {
+        boolean isWelding =
+                person.hasDetection(
+                        DetectionLabel.WELDING
+                );
+
+        boolean hasGloves =
+                person.hasDetection(
+                        DetectionLabel.GLOVES
+                );
+
+        if (!isWelding || hasGloves) {
             return Optional.empty();
         }
 

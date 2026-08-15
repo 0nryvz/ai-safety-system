@@ -60,6 +60,12 @@ class Settings(BaseSettings):
         ge=1,
     )
 
+    recorder_output_dir: str = "var/recordings"
+
+    recorder_ffmpeg_path: str = "ffmpeg"
+
+    recorder_ffprobe_path: str = "ffprobe"
+
     model_config = SettingsConfigDict(
         env_prefix="GATEWAY_",
         env_file=".env",

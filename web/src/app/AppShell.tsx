@@ -1,4 +1,7 @@
+import { LogOut } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { performLogout } from '../features/auth/authActions'
+import Button from '../shared/ui/Button/Button'
 import './AppShell.css'
 
 interface AppShellProps {
@@ -6,6 +9,14 @@ interface AppShellProps {
 }
 
 function AppShell({ children }: AppShellProps) {
+  async function handleLogout() {
+    try {
+      await performLogout()
+    } catch {
+      // performLogout local session'ı her durumda temizler.
+    }
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -13,6 +24,16 @@ function AppShell({ children }: AppShellProps) {
           <h1>AI Safety System</h1>
           <p>Gerçek Zamanlı Güvenlik İzleme Paneli</p>
         </div>
+
+        <Button
+          type="button"
+          variant="secondary"
+          className="app-header__logout"
+          onClick={handleLogout}
+        >
+          <LogOut size={18} aria-hidden="true" />
+          Çıkış yap
+        </Button>
       </header>
 
       <div className="app-layout">

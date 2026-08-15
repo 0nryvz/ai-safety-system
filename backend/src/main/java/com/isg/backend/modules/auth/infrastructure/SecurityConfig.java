@@ -54,13 +54,20 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
+                        // BE-3: WebSocket bağlantısına izin verilir; kimlik doğrulama STOMP CONNECT aşamasında JWT ile yapılır.
+                        .requestMatchers("/ws", "/ws/**").permitAll()
+
                         // 2. Internal Endpointler (Gateway / AI Worker için)
                         .requestMatchers("/internal/v1/**").permitAll()
 
-                        // 3. Admin-Only Uç Noktalar
+                        // 3. User Uç Noktaları (Önce özel kural, sonra genel kural)
+                        .requestMatchers("/api/v1/users/me").authenticated()
                         .requestMatchers("/api/v1/users/**").hasRole("ADMIN")
 
-                        // 4. Kalan tüm istekler JWT token gerektirir
+                        // 4. Dashboard Endpointleri (Görev planındaki yetkili roller)
+                        .requestMatchers("/api/v1/dashboard/**").hasAnyRole("ADMIN", "OHS_SPECIALIST", "SHIFT_SUPERVISOR")
+
+                        // 5. Kalan tüm istekler JWT token gerektirir
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider)

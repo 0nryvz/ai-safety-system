@@ -12,14 +12,13 @@ import java.util.Optional;
 
 public class UnprotectedPersonRule implements ViolationRule {
 
-    private static final int MIN_MISSING_EQUIPMENT_COUNT = 2;
-
     private final ViolationRuleProperties properties;
 
     public UnprotectedPersonRule(
             ViolationRuleProperties properties
     ) {
-        this.properties = properties;
+        this.properties =
+                properties;
     }
 
     @Override
@@ -32,7 +31,9 @@ public class UnprotectedPersonRule implements ViolationRule {
             PersonContext person,
             DetectionFrame frame
     ) {
-        if (!person.hasDetection(DetectionLabel.WELDING)) {
+        if (!person.hasDetection(
+                DetectionLabel.WELDING
+        )) {
             return Optional.empty();
         }
 
@@ -41,10 +42,19 @@ public class UnprotectedPersonRule implements ViolationRule {
 
         long missingEquipmentCount =
                 requiredEquipment.stream()
-                        .filter(label -> !person.hasDetection(label))
+                        .filter(
+                                label ->
+                                        !person.hasDetection(
+                                                label
+                                        )
+                        )
                         .count();
 
-        if (missingEquipmentCount < MIN_MISSING_EQUIPMENT_COUNT) {
+        int minimumMissingEquipment =
+                properties
+                        .getMinimumMissingEquipmentForUnprotectedPerson();
+
+        if (missingEquipmentCount < minimumMissingEquipment) {
             return Optional.empty();
         }
 

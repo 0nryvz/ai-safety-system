@@ -7,11 +7,11 @@ import com.isg.backend.reporting.dto.RecentViolationResponse;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Repository;
-import java.time.ZoneOffset;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -47,8 +47,7 @@ public class DashboardRepository {
     public DashboardSummaryResponse getSummary() {
 
         Object[] result = (Object[]) entityManager.createNativeQuery("""
-                
-                        SELECT
+                SELECT
                     COUNT(*) FILTER (
                         WHERE v.started_at >= CURRENT_DATE
                     ),
@@ -96,36 +95,37 @@ public class DashboardRepository {
         );
     }
 
+
     public List<DashboardTrendResponse> getTrend(
             LocalDate from,
             LocalDate to,
             String bucket
     ) {
+
         if (!"DAY".equalsIgnoreCase(bucket)) {
             throw new IllegalArgumentException(
                     "Only DAY bucket is supported"
             );
         }
 
-        Instant fromUtc = from.atStartOfDay(ZoneOffset.UTC).toInstant();
-        Instant toUtc = to.atStartOfDay(ZoneOffset.UTC).toInstant();
 
-        return entityManager.createNativeQuery
-                        (
-                        """
-            SELECT
-                (started_at AT
-                        TIME ZONE 'UTC')::date AS day,
-                                    COUNT(*) AS count
-            FROM
-                        violations
-                                    WHERE started_at >= :fromUtc
-              AND
-                        started_at < :
-                        toUtc
-            GROUP BY (started_at AT TIME ZONE 'UTC')::date
-            ORDER BY day
-            """)
+        Instant fromUtc =
+                from.atStartOfDay(ZoneOffset.UTC).toInstant();
+
+        Instant toUtc =
+                to.atStartOfDay(ZoneOffset.UTC).toInstant();
+
+
+        return entityManager.createNativeQuery("""
+                SELECT
+                    (started_at AT TIME ZONE 'UTC')::date AS day,
+                    COUNT(*) AS count
+                FROM violations
+                WHERE started_at >= :fromUtc
+                  AND started_at < :toUtc
+                GROUP BY (started_at AT TIME ZONE 'UTC')::date
+                ORDER BY day
+                """)
                 .setParameter("fromUtc", fromUtc)
                 .setParameter("toUtc", toUtc)
                 .getResultList()
@@ -142,18 +142,14 @@ public class DashboardRepository {
                         date = LocalDate.parse(data[0].toString());
                     }
 
+
                     return new DashboardTrendResponse(
                             date,
-                            ((
-
-
-    Number) data[1]).longValue()
+                            ((Number) data[1]).longValue()
                     );
                 })
                 .toList();
     }
-
-
 
 
     public List<DashboardDistributionResponse> getDistribution(
@@ -163,25 +159,31 @@ public class DashboardRepository {
         String column;
 
         switch (groupBy.toUpperCase()) {
-            case "TYPE" -> column = "violation_type";
-            case "CAMERA" -> column = "camera_id";
-            case "DEPARTMENT" -> column = "department_id";
-            default -> throw new IllegalArgumentException(
-                    "Unsupported groupBy: " + groupBy
-            );
+
+            case "TYPE" ->
+                    column = "violation_type";
+
+            case "CAMERA" ->
+                    column = "camera_id";
+
+            case "DEPARTMENT" ->
+                    column = "department_id";
+
+            default ->
+                    throw new IllegalArgumentException(
+                            "Unsupported groupBy: " + groupBy
+                    );
         }
-                                return entityManager.createNativeQuery(
-                        """
- 
-                                LECT
-          
-                                 AS TEXT) A
-                                                 CO
-                                               FROM violations
-                        GROUP BY %s
-                        ORDER BY count DESC
-                        """.formatted(column, column)
-                )
+
+
+        return entityManager.createNativeQuery("""
+                SELECT
+                    %s::text AS label,
+                    COUNT(*) AS count
+                FROM violations
+                GROUP BY %s
+                ORDER BY count DESC
+                """.formatted(column, column))
                 .getResultList()
                 .stream()
                 .map(row -> {
@@ -190,51 +192,45 @@ public class DashboardRepository {
 
                     return new DashboardDistributionResponse(
                             data[0].toString(),
-                            ((Number) data[1]).longValue()
+                            ((Number)data[1]).longValue()
                     );
-
                 })
                 .toList();
     }
-                        public List<
-                        RecentViolationResponse> getRecentViolations(UUID
-                        userId) {
-                        return entityManager.
-                        createNativeQuery(
-                        """
-            SE
-                                v.i
-                              v.det
-                                     v.started_
-                               v.violation_t
-                                v.cam
-                                   v.department_id,
-                c
-                                  c.code,
-                v
-                        .lifecycle_status
-                        ,
-                v
-                        .rev
-                                       r.status,
-                r.ready_at,
-                r.object_
-                                v.cover_image_key,
-                v.confidence,
-                v.model_version
-            FROM
-                        violations v
-                                    JOIN user_departme
-                                  ON ud.department_id = v.
-                        department_id
-               AND ud.user_id = :userId
-            LEFT JOIN cameras c
-                ON c.id = v.camera_id
-            LEFT JOIN recordings r
-                ON r.violation_id = v.id
-            ORDER BY v.started_at DESC
-            LIMIT 20
-            """)
+
+
+    public List<RecentViolationResponse> getRecentViolations(UUID userId) {
+
+
+        return entityManager.createNativeQuery("""
+                SELECT
+                    v.id,
+                    v.detected_at,
+                    v.started_at,
+                    v.violation_type,
+                    v.camera_id,
+                    v.department_id,
+                    c.name,
+                    c.code,
+                    v.lifecycle_status,
+                    v.review_status,
+                    r.status,
+                    r.ready_at,
+                    r.object_key,
+                    v.cover_image_key,
+                    v.confidence,
+                    v.model_version
+                FROM violations v
+                JOIN user_departments ud
+                    ON ud.department_id = v.department_id
+                   AND ud.user_id = :userId
+                LEFT JOIN cameras c
+                    ON c.id = v.camera_id
+                LEFT JOIN recordings r
+                    ON r.violation_id = v.id
+                ORDER BY v.started_at DESC
+                LIMIT 20
+                """)
                 .setParameter("userId", userId)
                 .getResultList()
                 .stream()
@@ -243,64 +239,24 @@ public class DashboardRepository {
                     Object[] data = (Object[]) row;
 
                     return new RecentViolationResponse(
-
                             UUID.fromString(data[0].toString()),
-
                             toInstant(data[1]),
-
                             toInstant(data[2]),
-
-                            data[3] != null
-                                    ? data[3].toString()
-                                    : null,
-
-                            data[4] != null
-                                    ? UUID.fromString(data[4].toString())
-                                    : null,
-
-                            data[5] != null
-                                    ? UUID.fromString(data[5].toString())
-                                    : null,
-
-                            data[6] != null
-                                    ? data[6].toString()
-                                    : null,
-
-                            data[7] != null
-                                    ? data[7].toString()
-                                    : null,
-
-                            data[8] != null
-                                    ? data[8].toString()
-                                    : null,
-
-                            data[9] != null
-                                    ? data[9].toString()
-                                    : null,
-
-                            data[10] != null
-                                    ? data[10].toString()
-                                    : null,
-
+                            data[3] != null ? data[3].toString() : null,
+                            data[4] != null ? UUID.fromString(data[4].toString()) : null,
+                            data[5] != null ? UUID.fromString(data[5].toString()) : null,
+                            data[6] != null ? data[6].toString() : null,
+                            data[7] != null ? data[7].toString() : null,
+                            data[8] != null ? data[8].toString() : null,
+                            data[9] != null ? data[9].toString() : null,
+                            data[10] != null ? data[10].toString() : null,
                             toInstant(data[11]),
-
-                            data[12] != null
-                                    ? data[12].toString()
-                                    : null,
-
-                            data[13] != null
-                                    ? data[13].toString()
-                                    : null,
-
-                            data[14] != null
-                                    ? ((Number) data[14]).doubleValue()
-                                    : null,
-
-                            data[15] != null
-                                    ? data[15].toString()
-                                    : null
+                            data[12] != null ? data[12].toString() : null,
+                            data[13] != null ? data[13].toString() : null,
+                            data[14] != null ? ((Number)data[14]).doubleValue() : null,
+                            data[15] != null ? data[15].toString() : null
                     );
                 })
                 .toList();
     }
-    }
+}

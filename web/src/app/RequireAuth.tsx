@@ -1,11 +1,12 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { useAuthSession } from '../features/auth/useAuthSession'
 import { ROUTE_PATHS } from './routeConfig'
 
 function RequireAuth() {
   const location = useLocation()
-  const isAuthenticated = Boolean(sessionStorage.getItem('accessToken'))
+  const { status } = useAuthSession()
 
-  if (!isAuthenticated) {
+  if (status !== 'authenticated') {
     return <Navigate to={ROUTE_PATHS.login} replace state={{ from: location }} />
   }
 
