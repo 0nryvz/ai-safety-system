@@ -1,7 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { Eye, EyeOff, ShieldCheck } from 'lucide-react'
-import { AuthError, login } from '../services/authService'
+import { ApiError } from '../core/api/apiError'
+import { getApiErrorKind } from '../core/api/apiErrorPolicy'
+import { login } from '../services/authService'
 import './LoginPage.css'
+import { setAuthenticatedSession } from '../features/auth/authTokenProvider'
 
 interface LoginPageProps {
   onLoginSuccess: () => void
@@ -36,23 +39,34 @@ function LoginPage({ onLoginSuccess }: LoginPageProps) {
         password,
       })
 
-      sessionStorage.setItem('accessToken', response.accessToken)
+      setAuthenticatedSession({
+        accessToken: response.accessToken,
+        refreshToken: response.refreshToken,
+        tokenType: response.tokenType,
+        user: null,
+      })
+
       onLoginSuccess()
     } catch (caughtError) {
-      if (caughtError instanceof AuthError) {
-        if (caughtError.status === 401) {
-          setError('E-posta adresi veya parola hatalı.')
-        } else if (caughtError.status === 403) {
-          setError('Hesabınız pasif veya erişime kapalı.')
-        } else if (caughtError.status >= 500) {
-          setError('Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.')
-        } else {
-          setError('Giriş işlemi başarısız oldu.')
-        }
-      } else {
+      if (!(caughtError instanceof ApiError)) {
+        setError('Giriş işlemi başarısız oldu.')
+        return
+      }
+
+      const errorKind = getApiErrorKind(caughtError)
+
+      if (errorKind === 'unauthorized') {
+        setError('E-posta adresi veya parola hatalı.')
+      } else if (errorKind === 'forbidden') {
+        setError('Hesabınız pasif veya erişime kapalı.')
+      } else if (errorKind === 'network') {
         setError(
           'Sunucuya bağlanılamadı. İnternet bağlantınızı veya backend servisini kontrol edin.',
         )
+      } else if (errorKind === 'server') {
+        setError('Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.')
+      } else {
+        setError('Giriş işlemi başarısız oldu.')
       }
     } finally {
       setIsLoading(false)

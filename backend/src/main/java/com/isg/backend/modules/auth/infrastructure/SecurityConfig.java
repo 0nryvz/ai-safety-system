@@ -60,10 +60,14 @@ public class SecurityConfig {
                         // 2. Internal Endpointler (Gateway / AI Worker için)
                         .requestMatchers("/internal/v1/**").permitAll()
 
-                        // 3. Admin-Only Uç Noktalar
+                        // 3. User Uç Noktaları (Önce özel kural, sonra genel kural)
+                        .requestMatchers("/api/v1/users/me").authenticated()
                         .requestMatchers("/api/v1/users/**").hasRole("ADMIN")
 
-                        // 4. Kalan tüm istekler JWT token gerektirir
+                        // 4. Dashboard Endpointleri (Görev planındaki yetkili roller)
+                        .requestMatchers("/api/v1/dashboard/**").hasAnyRole("ADMIN", "OHS_SPECIALIST", "SHIFT_SUPERVISOR")
+
+                        // 5. Kalan tüm istekler JWT token gerektirir
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider)

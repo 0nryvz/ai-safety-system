@@ -32,7 +32,7 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
             String providedKey = request.getHeader(API_KEY_HEADER);
 
             // application.yaml veya application.properties içindeki değeri güvenle oku
-            String expectedApiKey = environment.getProperty("application.security.internal.api-key");
+            String expectedApiKey = environment.getProperty("security.internal.api-key");
 
             // Eğer header boşsa veya şifreyle eşleşmiyorsa isteği 401 Unauthorized ile reddet
             if (providedKey == null || !providedKey.equals(expectedApiKey)) {

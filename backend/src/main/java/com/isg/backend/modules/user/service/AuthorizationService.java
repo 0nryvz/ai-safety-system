@@ -26,18 +26,18 @@ public class AuthorizationService {
 
     /**
      * Kullanıcının belirli bir departman verisine erişip erişemeyeceğini doğrular.
-     * Görev kuralı: Admin ve İSG Uzmanı tüm bölümlere erişir; vardiya sorumlusu sadece kendi departmanına erişir[cite: 1, 2].
+     * Görev kuralı: Admin ve İSG Uzmanı tüm bölümlere erişir; vardiya sorumlusu atandığı departmanlara erişir.
      */
     public boolean canAccessDepartment(UUID userId, UUID departmentId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
 
-        // Pasif kullanıcılar (active=false) kritik işlemlerde reddedilir[cite: 2].
+        // Pasif kullanıcılar (active=false) kritik işlemlerde reddedilir.
         if (!user.isActive()) {
             return false;
         }
 
-        // ADMIN veya OHS_SPECIALIST (İSG Uzmanı) tüm bölümlere tam erişim sağlar[cite: 1, 2]
+        // ADMIN veya OHS_SPECIALIST (İSG Uzmanı) tüm bölümlere tam erişim sağlar
         boolean hasFullAccess = user.getRoles().stream()
                 .anyMatch(role -> role.getName().equals("ADMIN") || role.getName().equals("OHS_SPECIALIST"));
 
@@ -45,16 +45,19 @@ public class AuthorizationService {
             return true;
         }
 
-        if (user.getDepartment() == null) {
-            return false; // Departmanı olmayan kullanıcı erişemez
+        // KULLANICI BİRDEN FAZLA DEPARTMANA ATANMIŞ OLABİLİR (DB Ekibi Uyumu)
+        if (user.getDepartments() == null || user.getDepartments().isEmpty()) {
+            return false; // Hiçbir departmanı olmayan kullanıcı erişemez
         }
 
-        return user.getDepartment().getId().equals(departmentId);
+        // Kullanıcının atandığı departmanlar listesinde istenen departman var mı kontrol et
+        return user.getDepartments().stream()
+                .anyMatch(dept -> dept.getId().equals(departmentId));
     }
 
     /**
      * Kullanıcının veri okuyabileceği departman ID'lerinin listesini döner.
-     * Veritabanı sorgularında "WHERE department_id IN (...)" için kullanılır[cite: 2].
+     * Veritabanı sorgularında "WHERE department_id IN (...)" için kullanılır.
      */
     public List<UUID> accessibleDepartmentIds(UUID userId) {
         User user = userRepository.findById(userId)
@@ -64,7 +67,7 @@ public class AuthorizationService {
             return List.of();
         }
 
-        // ADMIN veya OHS_SPECIALIST (İSG Uzmanı) tüm departman ID'lerini görür[cite: 1, 2]
+        // ADMIN veya OHS_SPECIALIST (İSG Uzmanı) tüm departman ID'lerini görür
         boolean hasFullAccess = user.getRoles().stream()
                 .anyMatch(role -> role.getName().equals("ADMIN") || role.getName().equals("OHS_SPECIALIST"));
 
@@ -74,9 +77,11 @@ public class AuthorizationService {
                     .collect(Collectors.toList());
         }
 
-        if (user.getDepartment() != null) {
-            // Vardiya Sorumlusu yalnızca atandığı departmanı görebilir[cite: 1, 2]
-            return List.of(user.getDepartment().getId());
+        // Vardiya Sorumlusu yalnızca atandığı departmanların (veya departmanın) ID'lerini görebilir
+        if (user.getDepartments() != null && !user.getDepartments().isEmpty()) {
+            return user.getDepartments().stream()
+                    .map(Department::getId)
+                    .collect(Collectors.toList());
         }
 
         return List.of();
