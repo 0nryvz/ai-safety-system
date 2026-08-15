@@ -25,7 +25,7 @@ export interface AuthTokenProvider {
   subscribe(listener: SessionChangeListener): () => void
 }
 
-export type SessionChangeReason = 'login' | 'token-refresh' | 'logout' | 'expiry'
+export type SessionChangeReason = 'login' | 'token-refresh' | 'profile-update' | 'logout' | 'expiry'
 
 export interface SessionSnapshot {
   status: SessionStatus
