@@ -4,6 +4,7 @@ import { ApiError } from '../core/api/apiError'
 import { getApiErrorKind } from '../core/api/apiErrorPolicy'
 import { login } from '../services/authService'
 import './LoginPage.css'
+import { setAuthenticatedSession } from '../features/auth/authTokenProvider'
 
 interface LoginPageProps {
   onLoginSuccess: () => void
@@ -38,7 +39,13 @@ function LoginPage({ onLoginSuccess }: LoginPageProps) {
         password,
       })
 
-      sessionStorage.setItem('accessToken', response.accessToken)
+      setAuthenticatedSession({
+        accessToken: response.accessToken,
+        refreshToken: response.refreshToken,
+        tokenType: response.tokenType,
+        user: null,
+      })
+
       onLoginSuccess()
     } catch (caughtError) {
       if (!(caughtError instanceof ApiError)) {

@@ -37,6 +37,8 @@ function ConfirmDialog({
         className="ui-confirm-dialog"
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
       >
         <div className="ui-confirm-dialog__content">
           <h2 id={titleId}>{title}</h2>

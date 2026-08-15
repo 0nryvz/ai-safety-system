@@ -1,3 +1,4 @@
+import { clearStoredSession, readStoredSession, writeStoredSession } from './sessionStorage'
 import type {
   AuthSession,
   AuthTokenProvider,
@@ -6,6 +7,7 @@ import type {
   SessionSnapshot,
   SessionStatus,
 } from './sessionTypes'
+
 
 let currentSession: AuthSession | null = null
 let currentStatus: SessionStatus = 'anonymous'
@@ -25,6 +27,13 @@ function notify(reason: SessionChangeReason) {
   listeners.forEach((listener) => {
     listener(snapshot, reason)
   })
+}
+
+export function initializeAuthSession() {
+  const storedSession = readStoredSession()
+
+  currentSession = storedSession
+  currentStatus = storedSession ? 'authenticated' : 'anonymous'
 }
 
 export const authTokenProvider: AuthTokenProvider = {
@@ -52,17 +61,37 @@ export const authTokenProvider: AuthTokenProvider = {
 export function setAuthenticatedSession(session: AuthSession) {
   currentSession = session
   currentStatus = 'authenticated'
+
+  writeStoredSession(session)
   notify('login')
 }
 
 export function updateSessionTokens(session: AuthSession) {
   currentSession = session
   currentStatus = 'authenticated'
+
+  writeStoredSession(session)
   notify('token-refresh')
+}
+
+export function updateSessionUser(user: AuthSession['user']) {
+  if (!currentSession) {
+    return
+  }
+
+  currentSession = {
+    ...currentSession,
+    user,
+  }
+
+  writeStoredSession(currentSession)
+  notify('profile-update')
 }
 
 export function clearSession(reason: 'logout' | 'expiry') {
   currentSession = null
   currentStatus = reason === 'expiry' ? 'expired' : 'anonymous'
+
+  clearStoredSession()
   notify(reason)
 }
