@@ -2,6 +2,8 @@ package com.isg.backend.shared.web;
 
 import com.isg.backend.violation.exception.UnsupportedDetectionLabelException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -16,6 +18,9 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger logger =
+            LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(UnsupportedDetectionLabelException.class)
     public ResponseEntity<ApiErrorResponse> unsupported(
@@ -100,6 +105,13 @@ public class GlobalExceptionHandler {
             Exception ex,
             HttpServletRequest req) {
 
+        logger.error(
+                "Unhandled exception. method={}, path={}",
+                req.getMethod(),
+                req.getRequestURI(),
+                ex
+        );
+
         return build(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "An unexpected error occurred.",
@@ -122,4 +134,4 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(status).body(body);
     }
-} 
+}
