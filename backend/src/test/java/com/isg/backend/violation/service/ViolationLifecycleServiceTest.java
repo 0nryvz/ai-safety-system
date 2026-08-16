@@ -1,8 +1,6 @@
 package com.isg.backend.violation.service;
 
 import com.isg.backend.camera.service.CameraQueryService;
-import com.isg.backend.modules.camera.api.dto.CameraResponse;
-import com.isg.backend.modules.camera.application.CameraService;
 import com.isg.backend.violation.application.event.ViolationEndedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
@@ -33,11 +31,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ViolationLifecycleServiceTest {
-
     private CameraQueryService cameraQueryService;
     private SpringDataViolationRepository violationRepository;
     private SpringDataViolationStatusHistoryRepository statusHistoryRepository;
-    private CameraService cameraService;
     private ApplicationEventPublisher eventPublisher;
     private ViolationLifecycleService lifecycleService;
 
@@ -52,9 +48,6 @@ class ViolationLifecycleServiceTest {
         statusHistoryRepository =
                 mock(SpringDataViolationStatusHistoryRepository.class);
 
-        cameraService =
-                mock(CameraService.class);
-
         eventPublisher =
                 mock(ApplicationEventPublisher.class);
 
@@ -62,7 +55,6 @@ class ViolationLifecycleServiceTest {
                 new ViolationLifecycleService(
                         violationRepository,
                         statusHistoryRepository,
-                        cameraService,
                         cameraQueryService,
                         eventPublisher
                 );
@@ -98,21 +90,15 @@ class ViolationLifecycleServiceTest {
                         confirmedAt
                 );
 
-        CameraResponse cameraResponse =
-                CameraResponse.builder()
-                        .id(cameraId)
-                        .departmentId(departmentId)
-                        .active(true)
-                        .build();
 
-        when(cameraService.getCameraById(cameraId))
-                .thenReturn(cameraResponse);
-
-        when(violationRepository.save(
-                any(ViolationJpaEntity.class)
-        )).thenAnswer(
-                invocation ->
-                        invocation.getArgument(0)
+        when(
+                cameraQueryService.findDepartmentId(
+                        cameraId
+                )
+        ).thenReturn(
+                Optional.of(
+                        departmentId
+                )
         );
 
         when(
@@ -124,22 +110,20 @@ class ViolationLifecycleServiceTest {
                 Optional.of(
                         cameraSessionRecordId
                 )
+        );
+
+        when(
+                violationRepository.save(
+                        any(ViolationJpaEntity.class)
+                )
+        ).thenAnswer(
+                invocation ->
+                        invocation.getArgument(0)
         );
 
         lifecycleService.startViolation(
                 confirmedViolation,
                 "welding-ppe-v1"
-        );
-
-        when(
-                cameraQueryService.findSessionRecordId(
-                        cameraId,
-                        sessionId
-                )
-        ).thenReturn(
-                Optional.of(
-                        cameraSessionRecordId
-                )
         );
 
         ArgumentCaptor<ViolationJpaEntity> violationCaptor =
@@ -270,14 +254,15 @@ class ViolationLifecycleServiceTest {
                         startedAt.plusSeconds(2)
                 );
 
-        when(cameraService.getCameraById(cameraId))
-                .thenReturn(
-                        CameraResponse.builder()
-                                .id(cameraId)
-                                .departmentId(departmentId)
-                                .active(true)
-                                .build()
-                );
+        when(
+                cameraQueryService.findDepartmentId(
+                        cameraId
+                )
+        ).thenReturn(
+                Optional.of(
+                        departmentId
+                )
+        );
 
         when(
                 cameraQueryService.findSessionRecordId(
@@ -393,13 +378,13 @@ class ViolationLifecycleServiceTest {
                         startedAt.plusSeconds(2)
                 );
 
-        when(cameraService.getCameraById(cameraId))
-                .thenReturn(
-                        CameraResponse.builder()
-                                .id(cameraId)
-                                .departmentId(null)
-                                .build()
-                );
+        when(
+                cameraQueryService.findDepartmentId(
+                        cameraId
+                )
+        ).thenReturn(
+                Optional.empty()
+        );
 
         assertThatThrownBy(
                 () -> lifecycleService.startViolation(

@@ -45,7 +45,7 @@ class RecordingCallbackControllerTest {
                 .setValidator(validator)
                 .addFilters(new InternalApiKeyFilter(
                         new MockEnvironment().withProperty(
-                                "security.internal.api-key",
+                                "application.security.internal.api-key",
                                 INTERNAL_API_KEY
                         )
                 ))

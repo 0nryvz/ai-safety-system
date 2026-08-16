@@ -1,6 +1,7 @@
 package com.isg.backend.camera.service;
 
 import com.isg.backend.modules.camera.domain.entity.CameraSession;
+import com.isg.backend.modules.camera.infrastructure.repository.CameraRepository;
 import com.isg.backend.modules.camera.infrastructure.repository.CameraSessionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,12 +14,17 @@ public class DatabaseCameraQueryService
         implements CameraQueryService {
 
     private final CameraSessionRepository cameraSessionRepository;
+    private final CameraRepository cameraRepository;
 
     public DatabaseCameraQueryService(
-            CameraSessionRepository cameraSessionRepository
+            CameraSessionRepository cameraSessionRepository,
+            CameraRepository cameraRepository
     ) {
         this.cameraSessionRepository =
                 cameraSessionRepository;
+
+        this.cameraRepository =
+                cameraRepository;
     }
 
     @Override
@@ -45,6 +51,25 @@ public class DatabaseCameraQueryService
         ).map(
                 CameraSession::getId
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> findDepartmentId(
+            UUID cameraId
+    ) {
+        if (cameraId == null) {
+            return Optional.empty();
+        }
+
+        return cameraRepository
+                .findById(cameraId)
+                .filter(camera ->
+                        camera.getDepartment() != null
+                )
+                .map(camera ->
+                        camera.getDepartment().getId()
+                );
     }
 
     private Optional<CameraSession> findActiveSession(
