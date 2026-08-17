@@ -152,4 +152,27 @@ class RecordingTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("errorCode");
     }
+
+    @Test
+    void markReadyAllowsTransitionDirectlyFromRecording() {
+        Recording recording = Recording.rehydrate(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                RecordingStatus.RECORDING,
+                Instant.parse("2026-01-01T10:00:00Z"),
+                UUID.randomUUID(),
+                null
+        );
+
+        recording.markReady(
+                "violations/test/recording.mp4",
+                30_000,
+                500_000,
+                Instant.parse("2026-01-01T10:00:30Z"),
+                "sha256:test"
+        );
+
+        assertThat(recording.status())
+                .isEqualTo(RecordingStatus.READY);
+    }
 }

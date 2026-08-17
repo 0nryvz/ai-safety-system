@@ -382,6 +382,52 @@ class RecordingApplicationServiceTest {
                 .isInstanceOf(RecordingCallbackConflictException.class);
     }
 
+    @Test
+    void stopAfterEarlyReadyRepublishesReadyStatusWithoutCallingGatewayStop() {
+        UUID violationId = UUID.randomUUID();
+
+        Recording recording =
+                service.start(
+                        startCommand(violationId)
+                );
+
+        service.handleCallback(
+                readyCallback(
+                        recording.id(),
+                        violationId,
+                        "clips/max-duration.mp4",
+                        30_000,
+                        500_000L,
+                        "sha256:max-duration",
+                        0
+                )
+        );
+
+        assertThat(
+                repository.findById(
+                        recording.id()
+                ).orElseThrow().status()
+        ).isEqualTo(
+                RecordingStatus.READY
+        );
+
+        assertThat(
+                callbackPort.publishCount()
+        ).isEqualTo(1);
+
+        service.stop(
+                stopCommand(violationId)
+        );
+
+        assertThat(
+                gatewayCommandPort.stopCommandCount()
+        ).isEqualTo(0);
+
+        assertThat(
+                callbackPort.publishCount()
+        ).isEqualTo(2);
+    }
+
     private Recording moveToProcessing(
             UUID violationId
     ) {

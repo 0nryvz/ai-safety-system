@@ -205,9 +205,9 @@ public class ViolationLifecycleService
                         violationId
                 );
 
-        requireEnded(
-                violation
-        );
+        if (violation.getEndedAt() == null) {
+            return;
+        }
 
         ViolationLifecycleStatus currentStatus =
                 violation.getLifecycleStatus();

@@ -728,9 +728,14 @@ class ViolationLifecycleServiceTest {
     }
 
     @Test
-    void rejectsTerminalRecordingStatusBeforeViolationEnds() {
+    void recordingReadyDoesNotCompleteActiveViolationBeforeItEnds() {
         UUID violationId =
                 UUID.randomUUID();
+
+        Instant readyAt =
+                Instant.parse(
+                        "2026-08-10T20:00:07Z"
+                );
 
         ViolationJpaEntity violation =
                 mock(ViolationJpaEntity.class);
@@ -738,32 +743,41 @@ class ViolationLifecycleServiceTest {
         when(violation.getEndedAt())
                 .thenReturn(null);
 
+        when(violation.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.ACTIVE
+                );
+
         when(violationRepository.findById(
                 violationId
         )).thenReturn(
                 Optional.of(violation)
         );
 
-        assertThatThrownBy(
-                () -> lifecycleService.recordingReady(
-                        violationId,
-                        Instant.parse(
-                                "2026-08-10T20:00:07Z"
-                        )
-                )
-        )
-                .isInstanceOf(
-                        IllegalStateException.class
-                )
-                .hasMessageContaining(
-                        "must be ended"
-                );
+        lifecycleService.recordingReady(
+                violationId,
+                readyAt
+        );
+
+        verify(
+                violation,
+                never()
+        ).changeLifecycleStatus(
+                any()
+        );
 
         verify(
                 violationRepository,
                 never()
         ).save(
                 violation
+        );
+
+        verify(
+                statusHistoryRepository,
+                never()
+        ).save(
+                any()
         );
     }
 

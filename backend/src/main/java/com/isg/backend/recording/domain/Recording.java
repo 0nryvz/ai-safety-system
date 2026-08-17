@@ -180,7 +180,8 @@ public class Recording {
             Instant readyAt,
             String checksum
     ) {
-        if (status != RecordingStatus.PROCESSING) {
+        if (status != RecordingStatus.PROCESSING
+                && status != RecordingStatus.RECORDING) {
             throw new IllegalStateException(
                     "Cannot transition to READY from " + status
             );
