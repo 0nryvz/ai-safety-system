@@ -815,6 +815,47 @@ class ViolationLifecycleServiceTest {
         );
     }
 
+    @Test
+    void recordingErrorCanTransitionActiveViolationToErrorBeforeViolationEnds() {
+        UUID violationId = UUID.randomUUID();
+
+        Instant errorAt =
+                Instant.parse("2026-08-17T04:00:30Z");
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getEndedAt())
+                .thenReturn(null);
+
+        when(violation.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.ACTIVE
+                );
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(violation)
+        );
+
+        lifecycleService.recordingError(
+                violationId,
+                errorAt,
+                "CLIP_UPLOAD_FAILED"
+        );
+
+        verify(violation)
+                .changeLifecycleStatus(
+                        ViolationLifecycleStatus.ERROR
+                );
+
+        verify(violationRepository)
+                .save(
+                        violation
+                );
+    }
+
     private ConfirmedViolation confirmedViolation(
             UUID cameraId,
             UUID sessionId,

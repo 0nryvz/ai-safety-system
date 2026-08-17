@@ -1,17 +1,17 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from collections.abc import Awaitable, Callable
 
+from app.services.clip_spool import (
+    ClipSpool,
+    ClipSpoolError,
+)
 from app.services.clip_storage import (
     ClipStorage,
     ClipStorageError,
     ClipStorageResult,
-)
-from app.services.clip_spool import (
-    ClipSpool,
-    ClipSpoolError,
 )
 from app.services.recording_callback_client import (
     RecordingCallbackClient,
@@ -59,14 +59,16 @@ class ClipDeliveryCoordinator:
             sleep_func: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._clip_storage = clip_storage
-        self._recording_callback_client = (
-            recording_callback_client
-        )
+        self._recording_callback_client = recording_callback_client
+
         self._upload_max_retries = upload_max_retries
         self._upload_initial_backoff_seconds = (
             upload_initial_backoff_seconds
         )
-        self._upload_max_backoff_seconds = upload_max_backoff_seconds
+        self._upload_max_backoff_seconds = (
+            upload_max_backoff_seconds
+        )
+
         self._callback_max_retries = callback_max_retries
         self._callback_initial_backoff_seconds = (
             callback_initial_backoff_seconds
@@ -74,6 +76,7 @@ class ClipDeliveryCoordinator:
         self._callback_max_backoff_seconds = (
             callback_max_backoff_seconds
         )
+
         self._clip_spool = clip_spool
         self._sleep = sleep_func
 
@@ -84,9 +87,26 @@ class ClipDeliveryCoordinator:
         self._prepare_spool(command)
 
         try:
-            storage_result = await self._store_with_retry(command)
+            try:
+                storage_result = await self._store_with_retry(
+                    command
+                )
+            except ClipDeliveryError:
+                error_callback_payload = RecordingCallbackPayload(
+                    recording_id=command.recording_id,
+                    violation_id=command.violation_id,
+                    status="ERROR",
+                    retry_count=0,
+                    error_code="CLIP_UPLOAD_FAILED",
+                )
 
-            callback_payload = RecordingCallbackPayload(
+                await self._send_error_callback_with_retry(
+                    callback_payload=error_callback_payload,
+                )
+
+                raise
+
+            ready_callback_payload = RecordingCallbackPayload(
                 recording_id=command.recording_id,
                 violation_id=command.violation_id,
                 status="READY",
@@ -98,12 +118,14 @@ class ClipDeliveryCoordinator:
             )
 
             await self._send_ready_callback_with_retry(
-                callback_payload=callback_payload,
+                callback_payload=ready_callback_payload,
                 storage_result=storage_result,
             )
 
             self._finalize_spool_success(command)
+
             return storage_result
+
         except ClipDeliveryError:
             self._mark_spool_failure(command)
             raise
@@ -168,8 +190,12 @@ class ClipDeliveryCoordinator:
                     finalized_mp4_path=command.output_path,
                     clip_started_at=command.started_at,
                 )
+
             except ClipStorageError as ex:
-                if (not ex.retryable) or attempt >= self._upload_max_retries:
+                if (
+                        not ex.retryable
+                        or attempt >= self._upload_max_retries
+                ):
                     raise ClipDeliveryError(
                         "Clip upload failed"
                     ) from ex
@@ -179,8 +205,11 @@ class ClipDeliveryCoordinator:
                     initial_backoff_seconds=(
                         self._upload_initial_backoff_seconds
                     ),
-                    max_backoff_seconds=self._upload_max_backoff_seconds,
+                    max_backoff_seconds=(
+                        self._upload_max_backoff_seconds
+                    ),
                 )
+
                 attempt += 1
 
     async def _send_ready_callback_with_retry(
@@ -197,8 +226,12 @@ class ClipDeliveryCoordinator:
                     callback_payload
                 )
                 return
+
             except RecordingCallbackError as ex:
-                if (not ex.retryable) or attempt >= self._callback_max_retries:
+                if (
+                        not ex.retryable
+                        or attempt >= self._callback_max_retries
+                ):
                     raise ClipDeliveryError(
                         "Recording READY callback failed",
                         storage_result=storage_result,
@@ -209,8 +242,46 @@ class ClipDeliveryCoordinator:
                     initial_backoff_seconds=(
                         self._callback_initial_backoff_seconds
                     ),
-                    max_backoff_seconds=self._callback_max_backoff_seconds,
+                    max_backoff_seconds=(
+                        self._callback_max_backoff_seconds
+                    ),
                 )
+
+                attempt += 1
+
+    async def _send_error_callback_with_retry(
+            self,
+            *,
+            callback_payload: RecordingCallbackPayload,
+    ) -> None:
+        attempt = 0
+
+        while True:
+            try:
+                await self._recording_callback_client.send_callback(
+                    callback_payload
+                )
+                return
+
+            except RecordingCallbackError as ex:
+                if (
+                        not ex.retryable
+                        or attempt >= self._callback_max_retries
+                ):
+                    raise ClipDeliveryError(
+                        "Recording ERROR callback failed"
+                    ) from ex
+
+                await self._sleep_with_backoff(
+                    retry_index=attempt,
+                    initial_backoff_seconds=(
+                        self._callback_initial_backoff_seconds
+                    ),
+                    max_backoff_seconds=(
+                        self._callback_max_backoff_seconds
+                    ),
+                )
+
                 attempt += 1
 
     async def _sleep_with_backoff(
@@ -241,9 +312,14 @@ def _compute_backoff_seconds(
     if initial_backoff_seconds <= 0:
         return 0.0
 
-    delay_seconds = initial_backoff_seconds * (2 ** retry_index)
+    delay_seconds = (
+            initial_backoff_seconds * (2 ** retry_index)
+    )
 
     if max_backoff_seconds <= 0:
         return delay_seconds
 
-    return min(delay_seconds, max_backoff_seconds)
+    return min(
+        delay_seconds,
+        max_backoff_seconds,
+    )

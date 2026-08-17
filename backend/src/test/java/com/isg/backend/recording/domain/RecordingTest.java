@@ -175,4 +175,26 @@ class RecordingTest {
         assertThat(recording.status())
                 .isEqualTo(RecordingStatus.READY);
     }
+
+    @Test
+    void markErrorAllowsTransitionDirectlyFromRecording() {
+        Recording recording = Recording.rehydrate(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                RecordingStatus.RECORDING,
+                Instant.parse("2026-01-01T10:00:00Z"),
+                UUID.randomUUID(),
+                null
+        );
+
+        recording.markError(
+                "CLIP_UPLOAD_FAILED"
+        );
+
+        assertThat(recording.status())
+                .isEqualTo(RecordingStatus.ERROR);
+
+        assertThat(recording.errorCode())
+                .isEqualTo("CLIP_UPLOAD_FAILED");
+    }
 }

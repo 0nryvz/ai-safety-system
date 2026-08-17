@@ -206,7 +206,8 @@ public class Recording {
     public void markError(
             String errorCode
     ) {
-        if (status != RecordingStatus.PROCESSING) {
+        if (status != RecordingStatus.PROCESSING
+                && status != RecordingStatus.RECORDING) {
             throw new IllegalStateException(
                     "Cannot transition to ERROR from " + status
             );

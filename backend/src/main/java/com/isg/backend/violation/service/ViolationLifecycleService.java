@@ -278,10 +278,6 @@ public class ViolationLifecycleService
                         violationId
                 );
 
-        requireEnded(
-                violation
-        );
-
         ViolationLifecycleStatus currentStatus =
                 violation.getLifecycleStatus();
 

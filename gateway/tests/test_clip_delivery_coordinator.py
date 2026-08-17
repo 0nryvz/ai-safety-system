@@ -173,29 +173,47 @@ async def test_deliver_ready_success_upload_then_callback() -> None:
 
 
 @pytest.mark.asyncio
-async def test_deliver_ready_upload_error_does_not_call_callback() -> None:
+async def test_deliver_ready_terminal_upload_error_sends_error_callback() -> None:
     storage = _FakeClipStorage(
-        raise_error=ClipStorageError("upload failed"),
+        raise_error=ClipStorageError(
+            "upload failed",
+            retryable=False,
+        ),
     )
+
     callback_client = _FakeRecordingCallbackClient()
+
     coordinator = ClipDeliveryCoordinator(
         clip_storage=storage,
         recording_callback_client=callback_client,
     )
 
-    with pytest.raises(ClipDeliveryError, match="Clip upload failed"):
-        await coordinator.deliver_ready(
-            ClipDeliveryCommand(
-                recording_id="recording-1",
-                violation_id="violation-1",
-                started_at=datetime.now(timezone.utc),
-                output_path=Path("C:/tmp/finalized.mp4"),
-                duration_ms=1,
-                size_bytes=1,
-            )
-        )
+    command = ClipDeliveryCommand(
+        recording_id="recording-1",
+        violation_id="violation-1",
+        started_at=datetime.now(timezone.utc),
+        output_path=Path("C:/tmp/finalized.mp4"),
+        duration_ms=30_000,
+        size_bytes=12345,
+    )
 
-    assert len(callback_client.calls) == 0
+    with pytest.raises(
+            ClipDeliveryError,
+            match="Clip upload failed",
+    ):
+        await coordinator.deliver_ready(command)
+
+    assert len(storage.calls) == 1
+    assert len(callback_client.calls) == 1
+
+    callback_payload = callback_client.calls[0]
+
+    assert callback_payload.recording_id == "recording-1"
+    assert callback_payload.violation_id == "violation-1"
+    assert callback_payload.status == "ERROR"
+    assert callback_payload.error_code == "CLIP_UPLOAD_FAILED"
+    assert callback_payload.retry_count == 0
+    assert callback_payload.object_key is None
 
 
 @pytest.mark.asyncio
@@ -278,12 +296,23 @@ async def test_deliver_ready_upload_retry_limit_raises_controlled_error() -> Non
 
     storage = _FakeClipStorage(
         errors=[
-            ClipStorageError("temporary upload error-1", retryable=True),
-            ClipStorageError("temporary upload error-2", retryable=True),
-            ClipStorageError("temporary upload error-3", retryable=True),
+            ClipStorageError(
+                "temporary upload error-1",
+                retryable=True,
+            ),
+            ClipStorageError(
+                "temporary upload error-2",
+                retryable=True,
+            ),
+            ClipStorageError(
+                "temporary upload error-3",
+                retryable=True,
+            ),
         ],
     )
+
     callback_client = _FakeRecordingCallbackClient()
+
     coordinator = ClipDeliveryCoordinator(
         clip_storage=storage,
         recording_callback_client=callback_client,
@@ -293,11 +322,26 @@ async def test_deliver_ready_upload_retry_limit_raises_controlled_error() -> Non
         sleep_func=fake_sleep,
     )
 
-    with pytest.raises(ClipDeliveryError, match="Clip upload failed"):
-        await coordinator.deliver_ready(_build_command())
+    with pytest.raises(
+            ClipDeliveryError,
+            match="Clip upload failed",
+    ):
+        await coordinator.deliver_ready(
+            _build_command()
+        )
 
     assert len(storage.calls) == 3
-    assert len(callback_client.calls) == 0
+
+    assert len(callback_client.calls) == 1
+
+    callback_payload = callback_client.calls[0]
+
+    assert callback_payload.recording_id == "recording-1"
+    assert callback_payload.violation_id == "violation-1"
+    assert callback_payload.status == "ERROR"
+    assert callback_payload.error_code == "CLIP_UPLOAD_FAILED"
+    assert callback_payload.object_key is None
+
     assert sleep_calls == [0.2, 0.3]
 
 
