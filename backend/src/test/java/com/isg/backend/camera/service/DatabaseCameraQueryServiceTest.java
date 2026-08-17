@@ -2,6 +2,7 @@ package com.isg.backend.camera.service;
 
 import com.isg.backend.modules.camera.domain.entity.Camera;
 import com.isg.backend.modules.camera.domain.entity.CameraSession;
+import com.isg.backend.modules.camera.infrastructure.repository.CameraRepository;
 import com.isg.backend.modules.camera.infrastructure.repository.CameraSessionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,16 +19,79 @@ class DatabaseCameraQueryServiceTest {
 
     private CameraSessionRepository cameraSessionRepository;
     private DatabaseCameraQueryService service;
+    private CameraRepository cameraRepository;
 
     @BeforeEach
     void setUp() {
         cameraSessionRepository =
                 mock(CameraSessionRepository.class);
 
+        cameraRepository =
+                mock(CameraRepository.class);
+
         service =
                 new DatabaseCameraQueryService(
-                        cameraSessionRepository
+                        cameraSessionRepository,
+                        cameraRepository
                 );
+    }
+
+    @Test
+    void resolvesDepartmentIdForExistingCamera() {
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        Camera camera =
+                mock(Camera.class);
+
+        com.isg.backend.modules.user.entity.Department department =
+                mock(
+                        com.isg.backend.modules.user.entity.Department.class
+                );
+
+        when(cameraRepository.findById(
+                cameraId
+        )).thenReturn(
+                Optional.of(camera)
+        );
+
+        when(camera.getDepartment())
+                .thenReturn(
+                        department
+                );
+
+        when(department.getId())
+                .thenReturn(
+                        departmentId
+                );
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                Optional.of(departmentId),
+                service.findDepartmentId(
+                        cameraId
+                )
+        );
+    }
+
+    @Test
+    void returnsEmptyDepartmentIdForMissingCamera() {
+        UUID cameraId =
+                UUID.randomUUID();
+
+        when(cameraRepository.findById(
+                cameraId
+        )).thenReturn(
+                Optional.empty()
+        );
+
+        assertTrue(
+                service.findDepartmentId(
+                        cameraId
+                ).isEmpty()
+        );
     }
 
     @Test
