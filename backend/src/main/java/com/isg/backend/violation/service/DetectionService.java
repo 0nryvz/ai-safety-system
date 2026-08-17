@@ -116,19 +116,43 @@ public class DetectionService {
                         candidates
                 );
 
-        for (ConfirmedViolation confirmation
-                : transitions.started()) {
+        List<ConfirmedViolation> startedViolations =
+                transitions.started();
 
-            activeViolationRegistry.getOrCreate(
-                    confirmation.stateKey(),
-                    () ->
-                            violationLifecycleService
-                                    .startViolation(
-                                            confirmation,
-                                            frame.modelVersion()
-                                    )
-                                    .getId()
-            );
+        for (int index = 0;
+             index < startedViolations.size();
+             index++) {
+
+            ConfirmedViolation confirmation =
+                    startedViolations.get(
+                            index
+                    );
+
+            try {
+                activeViolationRegistry.getOrCreate(
+                        confirmation.stateKey(),
+                        () ->
+                                violationLifecycleService
+                                        .startViolation(
+                                                confirmation,
+                                                frame.modelVersion()
+                                        )
+                                        .getId()
+                );
+            } catch (RuntimeException exception) {
+                for (int rollbackIndex = index;
+                     rollbackIndex < startedViolations.size();
+                     rollbackIndex++) {
+
+                    temporalConfirmationService.rollbackConfirmation(
+                            startedViolations
+                                    .get(rollbackIndex)
+                                    .stateKey()
+                    );
+                }
+
+                throw exception;
+            }
         }
 
         for (EndedViolation endedViolation

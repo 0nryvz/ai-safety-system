@@ -9,6 +9,7 @@ import com.isg.backend.violation.domain.temporal.TemporalViolationTransitions;
 import com.isg.backend.violation.domain.temporal.ViolationStateKey;
 import org.springframework.stereotype.Service;
 
+import java.util.Objects;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -180,6 +181,26 @@ public class TemporalConfirmationService {
                 confirmations,
                 endedViolations
         );
+    }
+
+    public synchronized void rollbackConfirmation(
+            ViolationStateKey stateKey
+    ) {
+        Objects.requireNonNull(
+                stateKey,
+                "stateKey must not be null"
+        );
+
+        CandidateViolationState state =
+                states.get(
+                        stateKey
+                );
+
+        if (state == null) {
+            return;
+        }
+
+        state.markUnconfirmed();
     }
 
     private List<EndedViolation> clearExpiredStatesAndCollectEnds(
