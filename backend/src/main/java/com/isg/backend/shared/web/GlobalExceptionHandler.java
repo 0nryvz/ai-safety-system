@@ -13,6 +13,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -20,6 +21,15 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private final Clock clock;
+
+    public GlobalExceptionHandler(
+            Clock clock
+    ) {
+        this.clock =
+                clock;
+    }
 
     @ExceptionHandler(UnsupportedDetectionLabelException.class)
     public ResponseEntity<ApiErrorResponse> unsupported(
@@ -46,11 +56,14 @@ public class GlobalExceptionHandler {
                         .stream()
                         .collect(
                                 Collectors.toMap(
-                                        error -> error.getField(),
-                                        error -> error.getDefaultMessage() == null
-                                                ? "Invalid value."
-                                                : error.getDefaultMessage(),
-                                        (first, ignored) -> first,
+                                        error ->
+                                                error.getField(),
+                                        error ->
+                                                error.getDefaultMessage() == null
+                                                        ? "Invalid value."
+                                                        : error.getDefaultMessage(),
+                                        (first, ignored) ->
+                                                first,
                                         LinkedHashMap::new
                                 )
                         );
@@ -118,7 +131,8 @@ public class GlobalExceptionHandler {
     ) {
         HttpStatus status =
                 HttpStatus.valueOf(
-                        ex.getStatusCode().value()
+                        ex.getStatusCode()
+                                .value()
                 );
 
         String message =
@@ -172,7 +186,9 @@ public class GlobalExceptionHandler {
     ) {
         ApiErrorResponse body =
                 new ApiErrorResponse(
-                        Instant.now(),
+                        Instant.now(
+                                clock
+                        ),
                         status.value(),
                         code,
                         message,
@@ -181,7 +197,11 @@ public class GlobalExceptionHandler {
                 );
 
         return ResponseEntity
-                .status(status)
-                .body(body);
+                .status(
+                        status
+                )
+                .body(
+                        body
+                );
     }
 }
