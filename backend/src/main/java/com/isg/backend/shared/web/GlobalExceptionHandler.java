@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.MDC;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -184,6 +185,11 @@ public class GlobalExceptionHandler {
             HttpServletRequest req,
             Map<String, String> fieldErrors
     ) {
+        String correlationId =
+                MDC.get(
+                        CorrelationIdFilter.MDC_KEY
+                );
+
         ApiErrorResponse body =
                 new ApiErrorResponse(
                         Instant.now(
@@ -193,6 +199,7 @@ public class GlobalExceptionHandler {
                         code,
                         message,
                         req.getRequestURI(),
+                        correlationId,
                         fieldErrors
                 );
 
