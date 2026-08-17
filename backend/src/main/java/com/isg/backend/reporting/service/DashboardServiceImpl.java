@@ -26,9 +26,10 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public List<DashboardTrendResponse> getTrend(
             LocalDate from,
-            LocalDate to
+            LocalDate to,
+            String bucket
     ) {
-        return dashboardRepository.getTrend(from, to);
+        return dashboardRepository.getTrend(from, to, bucket);
     }
 
     @Override

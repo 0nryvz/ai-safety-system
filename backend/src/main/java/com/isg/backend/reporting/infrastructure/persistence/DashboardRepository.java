@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,6 +20,7 @@ public class DashboardRepository {
 
     @PersistenceContext
     private EntityManager entityManager;
+
 
     private Instant toInstant(Object value) {
 
@@ -40,6 +42,7 @@ public class DashboardRepository {
 
         return Instant.parse(value.toString());
     }
+
 
     public DashboardSummaryResponse getSummary() {
 
@@ -81,6 +84,7 @@ public class DashboardRepository {
                 """)
                 .getSingleResult();
 
+
         return new DashboardSummaryResponse(
                 ((Number) result[0]).longValue(),
                 ((Number) result[1]).longValue(),
@@ -91,23 +95,39 @@ public class DashboardRepository {
         );
     }
 
+
     public List<DashboardTrendResponse> getTrend(
             LocalDate from,
-            LocalDate to
+            LocalDate to,
+            String bucket
     ) {
+
+        if (!"DAY".equalsIgnoreCase(bucket)) {
+            throw new IllegalArgumentException(
+                    "Only DAY bucket is supported"
+            );
+        }
+
+
+        Instant fromUtc =
+                from.atStartOfDay(ZoneOffset.UTC).toInstant();
+
+        Instant toUtc =
+                to.atStartOfDay(ZoneOffset.UTC).toInstant();
+
 
         return entityManager.createNativeQuery("""
                 SELECT
-                    DATE(started_at) AS day,
+                    (started_at AT TIME ZONE 'UTC')::date AS day,
                     COUNT(*) AS count
                 FROM violations
-                WHERE started_at >= :from
-                  AND started_at < :to
-                GROUP BY DATE(started_at)
+                WHERE started_at >= :fromUtc
+                  AND started_at < :toUtc
+                GROUP BY (started_at AT TIME ZONE 'UTC')::date
                 ORDER BY day
                 """)
-                .setParameter("from", from)
-                .setParameter("to", to)
+                .setParameter("fromUtc", fromUtc)
+                .setParameter("toUtc", toUtc)
                 .getResultList()
                 .stream()
                 .map(row -> {
@@ -122,14 +142,15 @@ public class DashboardRepository {
                         date = LocalDate.parse(data[0].toString());
                     }
 
+
                     return new DashboardTrendResponse(
                             date,
                             ((Number) data[1]).longValue()
                     );
-
                 })
                 .toList();
     }
+
 
     public List<DashboardDistributionResponse> getDistribution(
             String groupBy
@@ -138,24 +159,31 @@ public class DashboardRepository {
         String column;
 
         switch (groupBy.toUpperCase()) {
-            case "TYPE" -> column = "violation_type";
-            case "CAMERA" -> column = "camera_id";
-            case "DEPARTMENT" -> column = "department_id";
-            default -> throw new IllegalArgumentException(
-                    "Unsupported groupBy: " + groupBy
-            );
+
+            case "TYPE" ->
+                    column = "violation_type";
+
+            case "CAMERA" ->
+                    column = "camera_id";
+
+            case "DEPARTMENT" ->
+                    column = "department_id";
+
+            default ->
+                    throw new IllegalArgumentException(
+                            "Unsupported groupBy: " + groupBy
+                    );
         }
 
-        return entityManager.createNativeQuery(
-                        """
-                        SELECT
-                            CAST(%s AS TEXT) AS group_name,
-                            COUNT(*) AS count
-                        FROM violations
-                        GROUP BY %s
-                        ORDER BY count DESC
-                        """.formatted(column, column)
-                )
+
+        return entityManager.createNativeQuery("""
+                SELECT
+                    %s::text AS label,
+                    COUNT(*) AS count
+                FROM violations
+                GROUP BY %s
+                ORDER BY count DESC
+                """.formatted(column, column))
                 .getResultList()
                 .stream()
                 .map(row -> {
@@ -164,14 +192,15 @@ public class DashboardRepository {
 
                     return new DashboardDistributionResponse(
                             data[0].toString(),
-                            ((Number) data[1]).longValue()
+                            ((Number)data[1]).longValue()
                     );
-
                 })
                 .toList();
     }
 
+
     public List<RecentViolationResponse> getRecentViolations(UUID userId) {
+
 
         return entityManager.createNativeQuery("""
                 SELECT
@@ -214,12 +243,8 @@ public class DashboardRepository {
                             toInstant(data[1]),
                             toInstant(data[2]),
                             data[3] != null ? data[3].toString() : null,
-                            data[4] != null
-                                    ? UUID.fromString(data[4].toString())
-                                    : null,
-                            data[5] != null
-                                    ? UUID.fromString(data[5].toString())
-                                    : null,
+                            data[4] != null ? UUID.fromString(data[4].toString()) : null,
+                            data[5] != null ? UUID.fromString(data[5].toString()) : null,
                             data[6] != null ? data[6].toString() : null,
                             data[7] != null ? data[7].toString() : null,
                             data[8] != null ? data[8].toString() : null,
@@ -228,9 +253,7 @@ public class DashboardRepository {
                             toInstant(data[11]),
                             data[12] != null ? data[12].toString() : null,
                             data[13] != null ? data[13].toString() : null,
-                            data[14] != null
-                                    ? ((Number) data[14]).doubleValue()
-                                    : null,
+                            data[14] != null ? ((Number)data[14]).doubleValue() : null,
                             data[15] != null ? data[15].toString() : null
                     );
                 })

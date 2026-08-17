@@ -4,7 +4,8 @@ import { ApiError } from '../core/api/apiError'
 import { getApiErrorKind } from '../core/api/apiErrorPolicy'
 import { login } from '../services/authService'
 import './LoginPage.css'
-import { setAuthenticatedSession } from '../features/auth/authTokenProvider'
+import { clearSession, setAuthenticatedSession } from '../features/auth/authTokenProvider'
+import { hydrateCurrentUser } from '../features/auth/authActions'
 
 interface LoginPageProps {
   onLoginSuccess: () => void
@@ -45,6 +46,13 @@ function LoginPage({ onLoginSuccess }: LoginPageProps) {
         tokenType: response.tokenType,
         user: null,
       })
+
+      try {
+        await hydrateCurrentUser()
+      } catch (error) {
+        clearSession('logout')
+        throw error
+      }
 
       onLoginSuccess()
     } catch (caughtError) {
