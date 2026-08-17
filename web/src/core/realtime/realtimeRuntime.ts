@@ -1,12 +1,26 @@
 import { authTokenProvider } from '../../features/auth/authTokenProvider'
+import { featureFlags } from '../../config/featureFlags'
 import { RealtimeClient } from './RealtimeClient'
 import { bindRealtimeToAuth } from './realtimeAuthBridge'
 import type { RealtimeMessageHandler, RealtimeRecoveryCallback } from './realtimeTypes'
+import { RealtimeEventStore } from './RealtimeEventStore'
 
 const messageListeners = new Set<RealtimeMessageHandler>()
 const recoveryListeners = new Set<RealtimeRecoveryCallback>()
 
+export const realtimeEventStore = new RealtimeEventStore({
+  onDiagnostic: (diagnostic) => {
+    if (!featureFlags.debugLogging) {
+      return
+    }
+
+    console.warn('[realtime] Realtime message rejected', diagnostic.code)
+  },
+})
+
 function publishMessage(message: Parameters<RealtimeMessageHandler>[0]) {
+  realtimeEventStore.ingest(message.body)
+
   messageListeners.forEach((listener) => {
     listener(message)
   })
@@ -33,7 +47,11 @@ export function startRealtimeRuntime() {
     return
   }
 
-  cleanupAuthBinding = bindRealtimeToAuth(authTokenProvider, realtimeClient)
+  cleanupAuthBinding = bindRealtimeToAuth(authTokenProvider, realtimeClient, {
+    onSessionCleared: () => {
+      realtimeEventStore.reset()
+    },
+  })
 }
 
 export function stopRealtimeRuntime() {

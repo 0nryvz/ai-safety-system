@@ -14,6 +14,7 @@ const runtimeMock = vi.hoisted(() => ({
   clientOptions: null as unknown,
   cleanupAuthBinding: vi.fn(),
   bindRealtimeToAuth: vi.fn(),
+  debugLogging: false,
 }))
 
 vi.mock('../../features/auth/authTokenProvider', () => ({
@@ -22,6 +23,14 @@ vi.mock('../../features/auth/authTokenProvider', () => ({
     getSession: vi.fn(),
     getStatus: vi.fn(),
     subscribe: vi.fn(),
+  },
+}))
+
+vi.mock('../../config/featureFlags', () => ({
+  featureFlags: {
+    get debugLogging() {
+      return runtimeMock.debugLogging
+    },
   },
 }))
 
@@ -42,6 +51,7 @@ vi.mock('./realtimeAuthBridge', () => ({
 }))
 
 import {
+  realtimeEventStore,
   startRealtimeRuntime,
   stopRealtimeRuntime,
   subscribeToRealtimeMessages,
@@ -54,6 +64,8 @@ function getClientOptions() {
 
 describe('realtimeRuntime', () => {
   beforeEach(() => {
+    runtimeMock.debugLogging = false
+    realtimeEventStore.reset()
     runtimeMock.cleanupAuthBinding.mockReset()
     runtimeMock.bindRealtimeToAuth.mockReset()
     runtimeMock.bindRealtimeToAuth.mockReturnValue(runtimeMock.cleanupAuthBinding)
@@ -109,5 +121,86 @@ describe('realtimeRuntime', () => {
     expect(recoveryListener).toHaveBeenCalledOnce()
 
     unsubscribe()
+  })
+  it('stores valid realtime messages in the central event store', () => {
+    const message: RealtimeMessage = {
+      body: JSON.stringify({
+        violationId: 'violation-runtime',
+        type: 'MISSING_GLOVES',
+        cameraName: 'Kamera 3',
+        departmentName: 'Montaj',
+        startedAt: '2026-08-17T12:00:00Z',
+        confidence: 0.91,
+        lifecycleStatus: 'ACTIVE',
+        recordingStatus: 'REQUESTED',
+        clipReady: false,
+        coverImageReady: false,
+      }),
+      headers: {
+        destination: '/user/queue/alerts',
+      },
+    }
+
+    getClientOptions().onMessage(message)
+
+    expect(realtimeEventStore.getSnapshot().byId['violation-runtime']).toMatchObject({
+      violationId: 'violation-runtime',
+      recordingStatus: 'REQUESTED',
+      dismissed: false,
+    })
+  })
+
+  it('clears central event state when the auth session is cleared', () => {
+    getClientOptions().onMessage({
+      body: JSON.stringify({
+        violationId: 'violation-runtime',
+        type: 'MISSING_GLOVES',
+        cameraName: 'Kamera 3',
+        departmentName: 'Montaj',
+        startedAt: '2026-08-17T12:00:00Z',
+        confidence: 0.91,
+        lifecycleStatus: 'ACTIVE',
+        recordingStatus: 'REQUESTED',
+        clipReady: false,
+        coverImageReady: false,
+      }),
+      headers: {
+        destination: '/user/queue/alerts',
+      },
+    })
+
+    startRealtimeRuntime()
+
+    const bindingOptions = runtimeMock.bindRealtimeToAuth.mock.calls[0]?.[2] as
+      | {
+          onSessionCleared?: () => void
+        }
+      | undefined
+
+    bindingOptions?.onSessionCleared?.()
+
+    expect(realtimeEventStore.getSnapshot().byId).toEqual({})
+  })
+  it('logs only a safe diagnostic when debug logging is enabled', () => {
+    runtimeMock.debugLogging = true
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    getClientOptions().onMessage({
+      body: '{"accessToken":"must-not-be-logged"}',
+      headers: {
+        destination: '/user/queue/alerts',
+      },
+    })
+
+    expect(warnSpy).toHaveBeenCalledOnce()
+    expect(warnSpy).toHaveBeenCalledWith('[realtime] Realtime message rejected', 'INVALID_PAYLOAD')
+
+    const loggedValues = warnSpy.mock.calls.flat().join(' ')
+
+    expect(loggedValues).not.toContain('accessToken')
+    expect(loggedValues).not.toContain('must-not-be-logged')
+
+    warnSpy.mockRestore()
   })
 })

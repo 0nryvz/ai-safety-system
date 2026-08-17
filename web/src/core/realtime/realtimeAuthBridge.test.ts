@@ -71,7 +71,10 @@ describe('bindRealtimeToAuth', () => {
     const auth = createAuthProvider('anonymous', null)
     const client = createRealtimeClient()
 
-    bindRealtimeToAuth(auth.provider, client)
+    const onSessionCleared = vi.fn()
+    bindRealtimeToAuth(auth.provider, client, {
+      onSessionCleared,
+    })
 
     auth.emit('login')
     auth.emit('token-refresh')
@@ -82,6 +85,7 @@ describe('bindRealtimeToAuth', () => {
     expect(client.connect).toHaveBeenCalledOnce()
     expect(client.reconnectWithLatestToken).toHaveBeenCalledOnce()
     expect(client.disconnect).toHaveBeenCalledTimes(2)
+    expect(onSessionCleared).toHaveBeenCalledTimes(2)
   })
 
   it('unsubscribes and disconnects during cleanup', () => {
