@@ -92,7 +92,22 @@ Realtime bağlantısı `src/core/realtime` altında merkezi olarak yönetilir.
 - Bağlantı koptuğunda 1 saniyeden başlayıp 30 saniyede sınırlanan exponential backoff uygulanır.
 - Reconnect sonrasında REST recovery için callback sözleşmesi hazırdır; backend recovery endpointi kesinleşene kadar sahte endpoint kullanılmaz.
 
-Realtime transport ham mesajları yayınlar. Alert payload parsing ve `violationId` bazlı state güncellemesi ilgili feature katmanında yapılmalıdır.
+Realtime transport ham mesaj aboneliğini korurken, geçerli alert ve violation update mesajları merkezi `RealtimeEventStore` içine aktarılır.
+
+### Realtime Event Store
+
+- Gelen JSON payload’ları kullanılmadan önce runtime validation işleminden geçirilir.
+- Eksik veya geçersiz `violationId` içeren mesajlar state’e eklenmez.
+- Bilinmeyen violation type, lifecycle status ve recording status değerleri uygulamayı durdurmadan `UNKNOWN` değerine dönüştürülür.
+- Her violation `violationId` anahtarıyla tek bir merkezi kayıt olarak tutulur.
+- İlk alert violation kaydını oluşturur; sonraki update mesajları aynı kaydı günceller.
+- Update mesajları `updatedAt` değerine göre sıralanır; eski veya aynı tarihli update’ler uygulanmaz.
+- Tekrarlanan event’ler deterministik event anahtarı ve süre/kapasite sınırı bulunan cache ile engellenir.
+- Dismiss işlemi yalnızca istemci state’ini değiştirir ve backend violation kaydını silmez.
+- Logout veya session expiry sonrasında realtime state ve duplicate geçmişi temizlenir.
+- React bileşenleri merkezi state’e `useRealtimeViolations()` hook’u üzerinden abone olmalıdır.
+- `VITE_ENABLE_DEBUG_LOGGING=true` olduğunda geçersiz mesajlar ve bilinmeyen enum değerleri için yalnızca güvenli diagnostic kodu yazılır; payload, bilinmeyen enum’un gerçek değeri, JWT ve STOMP header bilgileri loglanmaz.
+- Reconnect sonrasında REST recovery abonelik sözleşmesi hazırdır. Backend recovery endpoint’i kesinleşmeden sahte endpoint veya DTO kullanılmaz.
 
 ## Feature Flag Yapısı
 

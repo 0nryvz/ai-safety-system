@@ -6,9 +6,14 @@ export interface AuthAwareRealtimeClient {
   disconnect(): Promise<void>
 }
 
+export interface RealtimeAuthBindingOptions {
+  onSessionCleared?: () => void
+}
+
 export function bindRealtimeToAuth(
   authTokenProvider: AuthTokenProvider,
   realtimeClient: AuthAwareRealtimeClient,
+  options: RealtimeAuthBindingOptions = {},
 ) {
   function connectIfAuthenticated() {
     if (authTokenProvider.getStatus() === 'authenticated' && authTokenProvider.getAccessToken()) {
@@ -30,6 +35,7 @@ export function bindRealtimeToAuth(
 
       case 'logout':
       case 'expiry':
+        options.onSessionCleared?.()
         void realtimeClient.disconnect()
         break
 
