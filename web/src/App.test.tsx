@@ -9,7 +9,14 @@ const session: AuthSession = {
   accessToken: 'access-token',
   refreshToken: 'refresh-token',
   tokenType: 'Bearer',
-  user: null,
+  user: {
+    id: '11111111-1111-1111-1111-111111111111',
+    email: 'user@example.com',
+    fullName: 'Test User',
+    active: true,
+    roles: ['OHS_SPECIALIST'],
+    departmentIds: [],
+  },
 }
 
 beforeEach(() => {
@@ -91,6 +98,16 @@ describe('App auth routing', () => {
     clearSession('expiry')
 
     renderApp('/dashboard')
+
+    expect(screen.getByText('Yönetim paneline giriş yapın')).toBeInTheDocument()
+  })
+  it('keeps an authenticated session without a hydrated user on login', () => {
+    setAuthenticatedSession({
+      ...session,
+      user: null,
+    })
+
+    renderApp('/login')
 
     expect(screen.getByText('Yönetim paneline giriş yapın')).toBeInTheDocument()
   })

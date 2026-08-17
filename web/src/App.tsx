@@ -15,10 +15,10 @@ interface LoginLocationState {
 function LoginRoute() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { status } = useAuthSession()
+  const { status, session } = useAuthSession()
   const state = location.state as LoginLocationState | null
 
-  if (status === 'authenticated') {
+  if (status === 'authenticated' && session?.user) {
     return <Navigate to={ROUTE_PATHS.dashboard} replace />
   }
 
