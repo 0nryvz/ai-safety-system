@@ -13,6 +13,7 @@ import jakarta.persistence.Version;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -124,6 +125,10 @@ public class ViolationJpaEntity {
         return cameraSessionId;
     }
 
+    public UUID getRestrictedZoneId() {
+        return restrictedZoneId;
+    }
+
     public ViolationType getViolationType() {
         return violationType;
     }
@@ -152,13 +157,76 @@ public class ViolationJpaEntity {
         return reviewStatus;
     }
 
-    public void markEnded(Instant endedAt) {
-        this.endedAt = endedAt;
+    public String getCoverImageKey() {
+        return coverImageKey;
+    }
+
+    public Instant getDetectedAt() {
+        return detectedAt;
+    }
+
+    public Instant getAlertSentAt() {
+        return alertSentAt;
+    }
+
+    public UUID getReviewedBy() {
+        return reviewedBy;
+    }
+
+    public Instant getReviewedAt() {
+        return reviewedAt;
+    }
+
+    public void markEnded(
+            Instant endedAt
+    ) {
+        this.endedAt =
+                endedAt;
     }
 
     public void changeLifecycleStatus(
             ViolationLifecycleStatus lifecycleStatus
     ) {
-        this.lifecycleStatus = lifecycleStatus;
+        this.lifecycleStatus =
+                Objects.requireNonNull(
+                        lifecycleStatus,
+                        "lifecycleStatus must not be null"
+                );
+    }
+
+    public void review(
+            ViolationReviewStatus reviewStatus,
+            UUID reviewedBy,
+            Instant reviewedAt
+    ) {
+        Objects.requireNonNull(
+                reviewStatus,
+                "reviewStatus must not be null"
+        );
+
+        Objects.requireNonNull(
+                reviewedBy,
+                "reviewedBy must not be null"
+        );
+
+        Objects.requireNonNull(
+                reviewedAt,
+                "reviewedAt must not be null"
+        );
+
+        if (reviewStatus == ViolationReviewStatus.UNREVIEWED) {
+            throw new IllegalArgumentException(
+                    "reviewStatus must be REVIEWED, CONFIRMED or FALSE_ALARM"
+            );
+        }
+
+        this.reviewStatus =
+                reviewStatus;
+
+        this.reviewedBy =
+                reviewedBy;
+
+        this.reviewedAt =
+                reviewedAt;
     }
 }
