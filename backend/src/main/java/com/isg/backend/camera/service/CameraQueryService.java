@@ -14,4 +14,8 @@ public interface CameraQueryService {
             UUID cameraId,
             UUID sessionId
     );
+
+    Optional<UUID> findDepartmentId(
+            UUID cameraId
+    );
 }

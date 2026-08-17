@@ -234,15 +234,6 @@ class ViolationLifecycleIntegrationTest {
         Instant confirmedAt =
                 candidateStartedAt.plusSeconds(2);
 
-        when(cameraService.getCameraById(cameraId))
-                .thenReturn(
-                        CameraResponse.builder()
-                                .id(cameraId)
-                                .departmentId(departmentId)
-                                .active(true)
-                                .build()
-                );
-
         ConfirmedViolation confirmedViolation =
                 new ConfirmedViolation(
                         new ViolationStateKey(
@@ -426,13 +417,28 @@ class ViolationLifecycleIntegrationTest {
                     assertThat(
                             history.getFromStatus()
                     ).isEqualTo(
-                            ViolationLifecycleStatus.ACTIVE.name()
+                            ViolationLifecycleStatus.PREPARING.name()
                     );
 
                     assertThat(
                             history.getToStatus()
                     ).isEqualTo(
                             ViolationLifecycleStatus.COMPLETED.name()
+                    );
+                });
+
+        assertThat(historiesFor(violationId))
+                .anySatisfy(history -> {
+                    assertThat(
+                            history.getFromStatus()
+                    ).isEqualTo(
+                            ViolationLifecycleStatus.ACTIVE.name()
+                    );
+
+                    assertThat(
+                            history.getToStatus()
+                    ).isEqualTo(
+                            ViolationLifecycleStatus.PREPARING.name()
                     );
                 });
     }
@@ -454,15 +460,6 @@ class ViolationLifecycleIntegrationTest {
         Instant startedAt =
                 Instant.parse(
                         "2026-08-13T13:00:00Z"
-                );
-
-        when(cameraService.getCameraById(cameraId))
-                .thenReturn(
-                        CameraResponse.builder()
-                                .id(cameraId)
-                                .departmentId(departmentId)
-                                .active(true)
-                                .build()
                 );
 
         ConfirmedViolation confirmedViolation =
@@ -530,6 +527,21 @@ class ViolationLifecycleIntegrationTest {
                             item.getFromStatus()
                     ).isEqualTo(
                             ViolationLifecycleStatus.ACTIVE.name()
+                    );
+
+                    assertThat(
+                            item.getToStatus()
+                    ).isEqualTo(
+                            ViolationLifecycleStatus.PREPARING.name()
+                    );
+                });
+
+        assertThat(history)
+                .anySatisfy(item -> {
+                    assertThat(
+                            item.getFromStatus()
+                    ).isEqualTo(
+                            ViolationLifecycleStatus.PREPARING.name()
                     );
 
                     assertThat(
