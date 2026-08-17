@@ -13,6 +13,7 @@ import com.isg.backend.violation.query.ViolationReviewRequest;
 import com.isg.backend.violation.query.ViolationReviewResponse;
 import com.isg.backend.violation.service.ViolationQueryService;
 import com.isg.backend.violation.service.ViolationReviewService;
+import com.isg.backend.shared.web.PageResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -123,7 +124,7 @@ class ViolationControllerTest {
                 page
         );
 
-        ResponseEntity<Page<ViolationListItem>> response =
+        ResponseEntity<PageResponse<ViolationListItem>> response =
                 controller.findViolations(
                         authentication,
                         from,
@@ -190,9 +191,35 @@ class ViolationControllerTest {
                         ViolationReviewStatus.CONFIRMED
                 );
 
-        assertThat(response.getBody())
-                .isSameAs(
-                        page
+        PageResponse<ViolationListItem> body =
+                response.getBody();
+
+        assertThat(body)
+                .isNotNull();
+
+        assertThat(body.content())
+                .isEqualTo(
+                        page.getContent()
+                );
+
+        assertThat(body.page())
+                .isEqualTo(
+                        page.getNumber()
+                );
+
+        assertThat(body.size())
+                .isEqualTo(
+                        page.getSize()
+                );
+
+        assertThat(body.totalElements())
+                .isEqualTo(
+                        page.getTotalElements()
+                );
+
+        assertThat(body.totalPages())
+                .isEqualTo(
+                        page.getTotalPages()
                 );
     }
 

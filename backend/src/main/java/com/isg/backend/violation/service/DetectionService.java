@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +44,7 @@ public class DetectionService {
     private final ViolationLifecycleService violationLifecycleService;
     private final ActiveViolationRegistry activeViolationRegistry;
     private final ViolationMetrics violationMetrics;
+    private final Clock clock;
 
     public DetectionService(
             CameraQueryService cameraQueryService,
@@ -52,13 +54,17 @@ public class DetectionService {
             TemporalConfirmationService temporalConfirmationService,
             ViolationLifecycleService violationLifecycleService,
             ActiveViolationRegistry activeViolationRegistry,
-            ViolationMetrics violationMetrics
+            ViolationMetrics violationMetrics,
+            Clock clock
     ) {
         this.cameraQueryService =
                 cameraQueryService;
 
         this.detectionMapper =
                 detectionMapper;
+
+        this.clock =
+                clock;
 
         this.duplicateEventGuard =
                 duplicateEventGuard;
@@ -199,7 +205,9 @@ public class DetectionService {
             Instant frameTimestamp
     ) {
         Instant now =
-                Instant.now();
+                Instant.now(
+                        clock
+                );
 
         if (frameTimestamp.isAfter(
                 now.plus(

@@ -21,7 +21,8 @@ public class CreateUserRequest {
     @NotBlank
     private String fullName;
 
-    private UUID departmentId;
+    // Tekil ID yerine artık ID listesi alıyoruz
+    private Set<UUID> departmentIds;
 
     private Set<String> roleNames;
 }

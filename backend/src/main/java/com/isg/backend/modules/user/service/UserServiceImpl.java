@@ -36,12 +36,6 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("Bu email adresi zaten kullanımda.");
         }
 
-        Department department = null;
-        if (request.getDepartmentId() != null) {
-            department = departmentRepository.findById(request.getDepartmentId())
-                    .orElseThrow(() -> new IllegalArgumentException("Departman bulunamadı."));
-        }
-
         Set<Role> roles = request.getRoleNames().stream()
                 .map(name -> roleRepository.findByName(name)
                         .orElseThrow(() -> new IllegalArgumentException("Rol bulunamadı: " + name)))
@@ -55,8 +49,10 @@ public class UserServiceImpl implements UserService {
                 .active(true)
                 .build();
 
-        if (department != null) {
-            user.setDepartment(department);
+        // Çoklu departman ataması (Güncel DTO ile uyumlu)
+        if (request.getDepartmentIds() != null && !request.getDepartmentIds().isEmpty()) {
+            List<Department> departments = departmentRepository.findAllById(request.getDepartmentIds());
+            user.getDepartments().addAll(departments);
         }
 
         user = userRepository.save(user);
@@ -79,12 +75,11 @@ public class UserServiceImpl implements UserService {
             user.setActive(request.getActive());
         }
 
-        if (request.getDepartmentId() != null) {
-            Department dept = departmentRepository.findById(request.getDepartmentId())
-                    .orElseThrow(() -> new IllegalArgumentException("Departman bulunamadı."));
-            user.setDepartment(dept);
-        } else {
-            user.setDepartment(null);
+        // Departman listesini temizleyip, DTO'dan gelen güncel ID listesini koleksiyona ekliyoruz
+        user.getDepartments().clear();
+        if (request.getDepartmentIds() != null && !request.getDepartmentIds().isEmpty()) {
+            List<Department> depts = departmentRepository.findAllById(request.getDepartmentIds());
+            user.getDepartments().addAll(depts);
         }
 
         if (request.getRoleNames() != null && !request.getRoleNames().isEmpty()) {
@@ -153,19 +148,21 @@ public class UserServiceImpl implements UserService {
     }
 
     private UserResponse mapToResponse(User user) {
-        Set<UUID> deptIds = new HashSet<>();
+        Set<UUID> deptIds = user.getDepartments().stream()
+                .map(Department::getId)
+                .collect(Collectors.toSet());
 
-        if (user.getDepartment() != null) {
-            deptIds.add(user.getDepartment().getId());
-        }
+        // Geriye dönük uyumluluk: Frontend DTO'da hala tekil "departmentId" bekliyorsa uygulamanın patlamaması için ilk departmanı seçiyoruz.
+        UUID firstDeptId = user.getDepartments().isEmpty() ? null : user.getDepartments().iterator().next().getId();
+        String firstDeptName = user.getDepartments().isEmpty() ? null : user.getDepartments().iterator().next().getName();
 
         return UserResponse.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .active(user.isActive())
-                .departmentId(user.getDepartment() != null ? user.getDepartment().getId() : null)
-                .departmentName(user.getDepartment() != null ? user.getDepartment().getName() : null)
+                .departmentId(firstDeptId)
+                .departmentName(firstDeptName)
                 .departmentIds(deptIds)
                 .roles(user.getRoles().stream().map(Role::getName).collect(Collectors.toSet()))
                 .createdAt(user.getCreatedAt())

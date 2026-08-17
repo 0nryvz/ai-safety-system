@@ -2,6 +2,7 @@ package com.isg.backend.violation.controller;
 
 import com.isg.backend.modules.user.dto.UserResponse;
 import com.isg.backend.modules.user.service.UserService;
+import com.isg.backend.shared.web.PageResponse;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
 import com.isg.backend.violation.domain.ViolationType;
@@ -58,7 +59,7 @@ public class ViolationController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<ViolationListItem>> findViolations(
+    public ResponseEntity<PageResponse<ViolationListItem>> findViolations(
             Authentication authentication,
 
             @RequestParam(required = false)
@@ -110,11 +111,20 @@ public class ViolationController {
                         reviewStatus
                 );
 
-        return ResponseEntity.ok(
+        Page<ViolationListItem> result =
                 queryService.findViolations(
                         userId,
                         filter,
                         pageable
+                );
+
+        return ResponseEntity.ok(
+                new PageResponse<>(
+                        result.getContent(),
+                        result.getNumber(),
+                        result.getSize(),
+                        result.getTotalElements(),
+                        result.getTotalPages()
                 )
         );
     }

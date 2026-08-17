@@ -13,11 +13,24 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.MDC;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private final Clock clock;
+
+    public GlobalExceptionHandler(
+            Clock clock
+    ) {
+        this.clock =
+                clock;
+    }
 
     @ExceptionHandler(UnsupportedDetectionLabelException.class)
     public ResponseEntity<ApiErrorResponse> unsupported(
@@ -26,8 +39,10 @@ public class GlobalExceptionHandler {
     ) {
         return build(
                 HttpStatus.UNPROCESSABLE_ENTITY,
+                "UNSUPPORTED_DETECTION_LABEL",
                 ex.getMessage(),
-                req
+                req,
+                Map.of()
         );
     }
 
@@ -36,26 +51,30 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException ex,
             HttpServletRequest req
     ) {
-        String message =
+        Map<String, String> fieldErrors =
                 ex.getBindingResult()
                         .getFieldErrors()
                         .stream()
-                        .map(
-                                error ->
-                                        error.getField()
-                                                + ": "
-                                                + error.getDefaultMessage()
-                        )
                         .collect(
-                                Collectors.joining(
-                                        ", "
+                                Collectors.toMap(
+                                        error ->
+                                                error.getField(),
+                                        error ->
+                                                error.getDefaultMessage() == null
+                                                        ? "Invalid value."
+                                                        : error.getDefaultMessage(),
+                                        (first, ignored) ->
+                                                first,
+                                        LinkedHashMap::new
                                 )
                         );
 
         return build(
                 HttpStatus.BAD_REQUEST,
-                message,
-                req
+                "VALIDATION_ERROR",
+                "Validation failed.",
+                req,
+                fieldErrors
         );
     }
 
@@ -71,8 +90,10 @@ public class GlobalExceptionHandler {
 
         return build(
                 HttpStatus.BAD_REQUEST,
+                "INVALID_PARAMETER",
                 message,
-                req
+                req,
+                Map.of()
         );
     }
 
@@ -83,8 +104,10 @@ public class GlobalExceptionHandler {
     ) {
         return build(
                 HttpStatus.BAD_REQUEST,
+                "INVALID_PARAMETER",
                 ex.getMessage(),
-                req
+                req,
+                Map.of()
         );
     }
 
@@ -95,8 +118,10 @@ public class GlobalExceptionHandler {
     ) {
         return build(
                 HttpStatus.NOT_FOUND,
+                "VIOLATION_NOT_FOUND",
                 "Violation not found.",
-                req
+                req,
+                Map.of()
         );
     }
 
@@ -107,7 +132,8 @@ public class GlobalExceptionHandler {
     ) {
         HttpStatus status =
                 HttpStatus.valueOf(
-                        ex.getStatusCode().value()
+                        ex.getStatusCode()
+                                .value()
                 );
 
         String message =
@@ -117,8 +143,10 @@ public class GlobalExceptionHandler {
 
         return build(
                 status,
+                "REQUEST_ERROR",
                 message,
-                req
+                req,
+                Map.of()
         );
     }
 
@@ -129,8 +157,10 @@ public class GlobalExceptionHandler {
     ) {
         return build(
                 HttpStatus.NOT_FOUND,
+                "RESOURCE_NOT_FOUND",
                 "Resource not found.",
-                req
+                req,
+                Map.of()
         );
     }
 
@@ -141,23 +171,36 @@ public class GlobalExceptionHandler {
     ) {
         return build(
                 HttpStatus.INTERNAL_SERVER_ERROR,
+                "INTERNAL_ERROR",
                 "An unexpected error occurred.",
-                req
+                req,
+                Map.of()
         );
     }
 
     private ResponseEntity<ApiErrorResponse> build(
             HttpStatus status,
+            String code,
             String message,
-            HttpServletRequest req
+            HttpServletRequest req,
+            Map<String, String> fieldErrors
     ) {
+        String correlationId =
+                MDC.get(
+                        CorrelationIdFilter.MDC_KEY
+                );
+
         ApiErrorResponse body =
                 new ApiErrorResponse(
-                        Instant.now(),
+                        Instant.now(
+                                clock
+                        ),
                         status.value(),
-                        status.getReasonPhrase(),
+                        code,
                         message,
-                        req.getRequestURI()
+                        req.getRequestURI(),
+                        correlationId,
+                        fieldErrors
                 );
 
         return ResponseEntity

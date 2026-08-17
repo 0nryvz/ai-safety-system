@@ -18,7 +18,9 @@ from app.services.session_frame_ring_buffer_manager import (
     FrameRingBufferNotFoundError,
     SessionFrameRingBufferManager,
 )
-
+from app.services.event_recorder import (
+    EventRecorderCoordinator,
+)
 
 class SessionFrameIngestionWorkerConflictError(RuntimeError):
     """Worker session identity belongs to another camera."""
@@ -53,10 +55,16 @@ class SessionFrameIngestionWorkerCoordinator:
             self,
             ai_frame_sampler: SessionAIFrameSampler | None = None,
             ai_frame_dispatch_worker_coordinator: (
-                SessionAIFrameDispatchWorkerCoordinator | None
+                    SessionAIFrameDispatchWorkerCoordinator | None
             ) = None,
             ai_frame_client: AIFrameClient | None = None,
+            event_recorder_coordinator: (
+                    EventRecorderCoordinator | None
+            ) = None,
     ) -> None:
+        self._event_recorder_coordinator = (
+            event_recorder_coordinator
+        )
         self._workers: dict[str, SessionFrameIngestionWorker] = {}
         self._lock = asyncio.Lock()
         self._ring_buffer_error_count = 0
@@ -284,6 +292,22 @@ class SessionFrameIngestionWorkerCoordinator:
                     session_id=session_id,
                     frame=frame,
                 )
+
+                if self._event_recorder_coordinator is not None:
+                    try:
+                        await (
+                            self
+                            ._event_recorder_coordinator
+                            .offer_frame(
+                                frame
+                            )
+                        )
+
+                    except asyncio.CancelledError:
+                        raise
+
+                    except Exception:
+                        self._unexpected_error_count += 1
 
                 sampled_frame: FramePacket | None = None
 

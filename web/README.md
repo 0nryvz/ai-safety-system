@@ -23,14 +23,22 @@ Yerel geliştirme ayarları için örnek dosyayı `.env.local` adıyla kopyalaya
 cp .env.example .env.local
 ```
 
+Yerel geliştirmede frontend ve backend farklı portlarda çalışıyorsa `.env.local` içinde tam WebSocket adresi verilmelidir:
+
+```env
+VITE_WEBSOCKET_URL=ws://localhost:8080/ws
+```
+
+Production ortamında frontend ve backend aynı origin üzerinden sunuluyorsa değişken boş bırakılabilir. Uygulama bağlantıyı otomatik olarak `ws://<host>/ws` veya HTTPS altında `wss://<host>/ws` şeklinde oluşturur.
+
 Kullanılabilen değişkenler:
 
-| Değişken                    | Varsayılan değer | Açıklama                            |
-| --------------------------- | ---------------- | ----------------------------------- |
-| `VITE_API_BASE_URL`         | `/api/v1`        | Backend API adresi                  |
-| `VITE_WEBSOCKET_URL`        | Boş              | WebSocket bağlantı adresi           |
-| `VITE_ENABLE_MOCK_DATA`     | `false`          | Mock veri kullanımını etkinleştirir |
-| `VITE_ENABLE_DEBUG_LOGGING` | `false`          | Geliştirme loglarını etkinleştirir  |
+| Değişken                    | Varsayılan değer | Açıklama                                                          |
+| --------------------------- | ---------------- | ----------------------------------------------------------------- |
+| `VITE_API_BASE_URL`         | `/api/v1`        | Backend API adresi                                                |
+| `VITE_WEBSOCKET_URL`        | Boş              | WebSocket adresi; boşsa mevcut origin üzerindeki `/ws` kullanılır |
+| `VITE_ENABLE_MOCK_DATA`     | `false`          | Mock veri kullanımını etkinleştirir                               |
+| `VITE_ENABLE_DEBUG_LOGGING` | `false`          | Geliştirme loglarını etkinleştirir                                |
 
 Gerçek parola, erişim anahtarı veya token gibi gizli bilgiler `.env.example` dosyasına eklenmemelidir.
 
@@ -59,10 +67,47 @@ Yeni bir route eklenirken adres, sahiplik ve erişim türü `appRouteConfig` sö
 
 `src/app/RequireAuth.tsx`, korumalı route’lar için ortak entegrasyon noktasıdır.
 
-- `sessionStorage` içinde `accessToken` yoksa kullanıcı `/login` adresine yönlendirilir.
+- Session yaşam döngüsü merkezi `AuthTokenProvider` üzerinden yönetilir.
+- Uygulama başlangıcında kayıtlı session restore edilir ve `/api/v1/users/me` ile kullanıcı bilgisi alınır.
+- Token yoksa kullanıcı `/login` adresine yönlendirilir.
 - Kullanıcının ulaşmak istediği adres yönlendirme sırasında korunur.
-- Token varsa korumalı alt route görüntülenir.
-- FE2 tarafından geliştirilecek yeni korumalı sayfalar aynı guard altında tanımlanabilir.
+- Realtime ve diğer feature modülleri tokenı doğrudan `sessionStorage` üzerinden okumamalıdır.
+- Token erişimi için `authTokenProvider.getAccessToken()` kullanılmalıdır.
+
+## Realtime WebSocket Entegrasyonu
+
+Realtime bağlantısı `src/core/realtime` altında merkezi olarak yönetilir.
+
+- Protokol: Native WebSocket üzerinden STOMP
+- Client: `@stomp/stompjs`
+- Endpoint: `/ws`
+- Subscription: `/user/queue/alerts`
+- CONNECT header: `Authorization: Bearer <JWT>`
+- SockJS kullanılmaz.
+- JWT query string’e veya loglara yazılmaz.
+- Login sonrasında bağlantı kurulur.
+- Token refresh sonrasında güncel tokenla yeniden bağlantı kurulur.
+- Profile update bağlantıyı yenilemez.
+- Logout ve session expiry bağlantıyı kapatır.
+- Bağlantı koptuğunda 1 saniyeden başlayıp 30 saniyede sınırlanan exponential backoff uygulanır.
+- Reconnect sonrasında REST recovery için callback sözleşmesi hazırdır; backend recovery endpointi kesinleşene kadar sahte endpoint kullanılmaz.
+
+Realtime transport ham mesaj aboneliğini korurken, geçerli alert ve violation update mesajları merkezi `RealtimeEventStore` içine aktarılır.
+
+### Realtime Event Store
+
+- Gelen JSON payload’ları kullanılmadan önce runtime validation işleminden geçirilir.
+- Eksik veya geçersiz `violationId` içeren mesajlar state’e eklenmez.
+- Bilinmeyen violation type, lifecycle status ve recording status değerleri uygulamayı durdurmadan `UNKNOWN` değerine dönüştürülür.
+- Her violation `violationId` anahtarıyla tek bir merkezi kayıt olarak tutulur.
+- İlk alert violation kaydını oluşturur; sonraki update mesajları aynı kaydı günceller.
+- Update mesajları `updatedAt` değerine göre sıralanır; eski veya aynı tarihli update’ler uygulanmaz.
+- Tekrarlanan event’ler deterministik event anahtarı ve süre/kapasite sınırı bulunan cache ile engellenir.
+- Dismiss işlemi yalnızca istemci state’ini değiştirir ve backend violation kaydını silmez.
+- Logout veya session expiry sonrasında realtime state ve duplicate geçmişi temizlenir.
+- React bileşenleri merkezi state’e `useRealtimeViolations()` hook’u üzerinden abone olmalıdır.
+- `VITE_ENABLE_DEBUG_LOGGING=true` olduğunda geçersiz mesajlar ve bilinmeyen enum değerleri için yalnızca güvenli diagnostic kodu yazılır; payload, bilinmeyen enum’un gerçek değeri, JWT ve STOMP header bilgileri loglanmaz.
+- Reconnect sonrasında REST recovery abonelik sözleşmesi hazırdır. Backend recovery endpoint’i kesinleşmeden sahte endpoint veya DTO kullanılmaz.
 
 ## Feature Flag Yapısı
 
