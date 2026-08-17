@@ -10,6 +10,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -55,7 +56,7 @@ public class RecordingApplicationService {
         this.clock = clock;
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Recording start(
             StartRecordingCommand command
     ) {
@@ -76,7 +77,7 @@ public class RecordingApplicationService {
         return recordingRepository.save(recording);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Recording stop(
             StopRecordingCommand command
     ) {
