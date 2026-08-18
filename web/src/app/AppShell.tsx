@@ -5,6 +5,7 @@ import Button from '../shared/ui/Button/Button'
 import './AppShell.css'
 import { NavLink } from 'react-router-dom'
 import { ROUTE_PATHS } from './routeConfig'
+import AlertCenter from '../features/alerts/AlertCenter'
 
 interface AppShellProps {
   children: ReactNode
@@ -27,15 +28,19 @@ function AppShell({ children }: AppShellProps) {
           <p>Gerçek Zamanlı Güvenlik İzleme Paneli</p>
         </div>
 
-        <Button
-          type="button"
-          variant="secondary"
-          className="app-header__logout"
-          onClick={handleLogout}
-        >
-          <LogOut size={18} aria-hidden="true" />
-          Çıkış yap
-        </Button>
+        <div className="app-header__actions">
+          <AlertCenter />
+
+          <Button
+            type="button"
+            variant="secondary"
+            className="app-header__logout"
+            onClick={handleLogout}
+          >
+            <LogOut size={18} aria-hidden="true" />
+            Çıkış yap
+          </Button>
+        </div>
       </header>
 
       <div className="app-layout">

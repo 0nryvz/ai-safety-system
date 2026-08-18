@@ -25,6 +25,13 @@
   color: var(--color-text-secondary);
 }
 
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
 .app-header__logout {
   flex-shrink: 0;
 }
@@ -70,6 +77,9 @@
     min-height: auto;
     gap: var(--space-4);
     padding: 20px;
+  }
+  .app-header__actions {
+    gap: var(--space-2);
   }
 
   .app-layout {
