@@ -22,7 +22,6 @@ class DatabaseCameraQueryServiceTest {
     private CameraSessionRepository cameraSessionRepository;
     private CameraRepository cameraRepository;
     private DatabaseCameraQueryService service;
-    private CameraRepository cameraRepository;
 
     @BeforeEach
     void setUp() {

@@ -765,7 +765,8 @@ class DetectionServiceTest {
                         candidateViolationEvaluator,
                         realTemporalConfirmationService,
                         violationLifecycleService,
-                        activeViolationRegistry
+                        activeViolationRegistry,
+                        clock
                 );
 
         UUID cameraId =

@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.util.UUID;
+import java.time.Clock;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -41,7 +42,11 @@ class RecordingCallbackControllerTest {
 
         mockMvc = MockMvcBuilders
                 .standaloneSetup(new RecordingCallbackController(recordingApplicationService))
-                .setControllerAdvice(new GlobalExceptionHandler())
+                .setControllerAdvice(
+                        new GlobalExceptionHandler(
+                                Clock.systemUTC()
+                        )
+                )
                 .setValidator(validator)
                 .addFilters(new InternalApiKeyFilter(
                         new MockEnvironment().withProperty(
