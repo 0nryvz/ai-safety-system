@@ -41,6 +41,7 @@ class RecordingCommandAck:
 @dataclass(slots=True)
 class RecordingCommandState:
     violation_id: str
+    recording_id: str
     camera_id: str
     session_id: str
     start_command_id: str
@@ -91,6 +92,15 @@ class RecordingCommandCoordinator:
                         existing_state.start_command_id
                         == command.command_id
                 ):
+                    if (
+                            existing_state.recording_id
+                            != command.recording_id
+                    ):
+                        raise RecordingStartConflictError(
+                            f"Violation '{command.violation_id}' "
+                            "already accepted with a different recording identity"
+                        )
+
                     return RecordingCommandAck(
                         command_id=command.command_id,
                         violation_id=command.violation_id,
@@ -106,6 +116,9 @@ class RecordingCommandCoordinator:
                 await (
                     self._event_recorder_coordinator
                     .start_recording(
+                        recording_id=(
+                            command.recording_id
+                        ),
                         violation_id=(
                             command.violation_id
                         ),
@@ -144,6 +157,9 @@ class RecordingCommandCoordinator:
             ] = RecordingCommandState(
                 violation_id=(
                     command.violation_id
+                ),
+                recording_id=(
+                    command.recording_id
                 ),
                 camera_id=(
                     command.camera_id

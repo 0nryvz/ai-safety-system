@@ -9,6 +9,7 @@ import com.isg.backend.violation.domain.temporal.TemporalViolationTransitions;
 import com.isg.backend.violation.domain.temporal.ViolationStateKey;
 import org.springframework.stereotype.Service;
 
+import java.util.Objects;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -191,14 +192,11 @@ public class TemporalConfirmationService {
                 endedViolations
         );
     }
-
     /**
      * Finds states that exceeded the AI detection silence timeout.
-     *
      * Confirmed states are deliberately NOT removed here. They remain
      * available until the persistent violation lifecycle transition succeeds.
      * This allows a later watchdog sweep to retry after transient DB failures.
-     *
      * Unconfirmed stale candidates may safely be discarded because they have
      * no persisted violation lifecycle to reconcile.
      */
@@ -262,7 +260,6 @@ public class TemporalConfirmationService {
     /**
      * Removes a silent confirmed state only after its persistent lifecycle
      * transition has completed successfully.
-     *
      * The timeout timestamp is checked so that a newer temporal state using
      * the same key cannot accidentally be removed by an older watchdog result.
      */
@@ -310,6 +307,25 @@ public class TemporalConfirmationService {
         }
 
         return removed;
+    }
+    public synchronized void rollbackConfirmation(
+            ViolationStateKey stateKey
+    ) {
+        Objects.requireNonNull(
+                stateKey,
+                "stateKey must not be null"
+        );
+
+        CandidateViolationState state =
+                states.get(
+                        stateKey
+                );
+
+        if (state == null) {
+            return;
+        }
+
+        state.markUnconfirmed();
     }
 
     private List<EndedViolation> clearExpiredStatesAndCollectEnds(

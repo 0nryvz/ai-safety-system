@@ -1,8 +1,6 @@
 package com.isg.backend.violation.service;
 
 import com.isg.backend.camera.service.CameraQueryService;
-import com.isg.backend.modules.camera.api.dto.CameraResponse;
-import com.isg.backend.modules.camera.application.CameraService;
 import com.isg.backend.violation.application.event.ViolationEndedEvent;
 import com.isg.backend.violation.application.event.ViolationRecordingUpdatedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
@@ -52,13 +50,11 @@ public class ViolationLifecycleService
     private final CameraQueryService cameraQueryService;
     private final SpringDataViolationRepository violationRepository;
     private final SpringDataViolationStatusHistoryRepository statusHistoryRepository;
-    private final CameraService cameraService;
     private final ApplicationEventPublisher eventPublisher;
 
     public ViolationLifecycleService(
             SpringDataViolationRepository violationRepository,
             SpringDataViolationStatusHistoryRepository statusHistoryRepository,
-            CameraService cameraService,
             CameraQueryService cameraQueryService,
             ApplicationEventPublisher eventPublisher
     ) {
@@ -67,9 +63,6 @@ public class ViolationLifecycleService
 
         this.statusHistoryRepository =
                 statusHistoryRepository;
-
-        this.cameraService =
-                cameraService;
 
         this.cameraQueryService =
                 cameraQueryService;
@@ -93,16 +86,15 @@ public class ViolationLifecycleService
                 "modelVersion must not be null"
         );
 
-        CameraResponse camera =
-                cameraService.getCameraById(
+        UUID departmentId =
+                cameraQueryService.findDepartmentId(
                         confirmedViolation.cameraId()
+                ).orElseThrow(
+                        () -> new IllegalStateException(
+                                "Camera department not found. cameraId="
+                                        + confirmedViolation.cameraId()
+                        )
                 );
-
-        if (camera.getDepartmentId() == null) {
-            throw new IllegalStateException(
-                    "Camera department must not be null."
-            );
-        }
 
         UUID cameraSessionRecordId =
                 cameraQueryService.findSessionRecordId(
@@ -130,7 +122,7 @@ public class ViolationLifecycleService
                 new ViolationJpaEntity(
                         violationId,
                         confirmedViolation.cameraId(),
-                        camera.getDepartmentId(),
+                        departmentId,
                         cameraSessionRecordId,
                         null,
                         confirmedViolation.violationType(),
@@ -256,9 +248,9 @@ public class ViolationLifecycleService
                         violationId
                 );
 
-        requireEnded(
-                violation
-        );
+        if (violation.getEndedAt() == null) {
+            return;
+        }
 
         ViolationLifecycleStatus currentStatus =
                 violation.getLifecycleStatus();
@@ -329,9 +321,9 @@ public class ViolationLifecycleService
                         violationId
                 );
 
-        requireEnded(
-                violation
-        );
+        if (violation.getEndedAt() == null) {
+            return;
+        }
 
         ViolationLifecycleStatus currentStatus =
                 violation.getLifecycleStatus();

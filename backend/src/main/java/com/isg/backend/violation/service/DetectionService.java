@@ -138,20 +138,43 @@ public class DetectionService {
                             frame.frameTimestamp(),
                             candidates
                     );
+            List<ConfirmedViolation> startedViolations =
+                    transitions.started();
 
-            for (ConfirmedViolation confirmation
-                    : transitions.started()) {
+            for (int index = 0;
+                 index < startedViolations.size();
+                 index++) {
 
-                activeViolationRegistry.getOrCreate(
-                        confirmation.stateKey(),
-                        () ->
-                                violationLifecycleService
-                                        .startViolation(
-                                                confirmation,
-                                                frame.modelVersion()
-                                        )
-                                        .getId()
-                );
+                ConfirmedViolation confirmation =
+                        startedViolations.get(
+                                index
+                        );
+
+                try {
+                    activeViolationRegistry.getOrCreate(
+                            confirmation.stateKey(),
+                            () ->
+                                    violationLifecycleService
+                                            .startViolation(
+                                                    confirmation,
+                                                    frame.modelVersion()
+                                            )
+                                            .getId()
+                    );
+                } catch (RuntimeException exception) {
+                    for (int rollbackIndex = index;
+                         rollbackIndex < startedViolations.size();
+                         rollbackIndex++) {
+
+                        temporalConfirmationService.rollbackConfirmation(
+                                startedViolations
+                                        .get(rollbackIndex)
+                                        .stateKey()
+                        );
+                    }
+
+                    throw exception;
+                }
             }
 
             for (EndedViolation endedViolation

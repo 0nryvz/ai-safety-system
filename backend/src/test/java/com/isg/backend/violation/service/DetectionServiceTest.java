@@ -17,6 +17,9 @@ import com.isg.backend.violation.rule.CandidateViolationEvaluator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
+import com.isg.backend.violation.config.ViolationTemporalProperties;
+
+import java.time.Duration;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -817,6 +820,194 @@ class DetectionServiceTest {
                 violationMetrics
         ).recordValidationDurationNanos(
                 anyLong()
+        );
+    }
+
+    @Test
+    void retriesConfirmationAfterLifecycleStartFailureWithoutCreatingDuplicateViolation() {
+        ViolationTemporalProperties temporalProperties =
+                new ViolationTemporalProperties();
+
+        temporalProperties.setConfirmationDuration(
+                Duration.ofSeconds(1)
+        );
+
+        temporalProperties.setFrameGapTolerance(
+                Duration.ofMillis(750)
+        );
+
+        temporalProperties.setCooldownDuration(
+                Duration.ofSeconds(10)
+        );
+
+        TemporalConfirmationService realTemporalConfirmationService =
+                new TemporalConfirmationService(
+                        temporalProperties
+                );
+
+        DetectionService retryingDetectionService =
+                new DetectionService(
+                        cameraQueryService,
+                        detectionMapper,
+                        duplicateEventGuard,
+                        candidateViolationEvaluator,
+                        realTemporalConfirmationService,
+                        violationLifecycleService,
+                        activeViolationRegistry,
+                        violationMetrics,
+                        clock
+                );
+
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID sessionId =
+                UUID.randomUUID();
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        Instant t0 =
+                Instant.now()
+                        .minusSeconds(2);
+
+        DetectionRequest first =
+                validRequest(
+                        UUID.randomUUID(),
+                        cameraId,
+                        sessionId,
+                        t0
+                );
+
+        DetectionRequest second =
+                validRequest(
+                        UUID.randomUUID(),
+                        cameraId,
+                        sessionId,
+                        t0.plusMillis(500)
+                );
+
+        DetectionRequest threshold =
+                validRequest(
+                        UUID.randomUUID(),
+                        cameraId,
+                        sessionId,
+                        t0.plusMillis(1000)
+                );
+
+        DetectionRequest retry =
+                validRequest(
+                        UUID.randomUUID(),
+                        cameraId,
+                        sessionId,
+                        t0.plusMillis(1200)
+                );
+
+        DetectionRequest afterSuccess =
+                validRequest(
+                        UUID.randomUUID(),
+                        cameraId,
+                        sessionId,
+                        t0.plusMillis(1400)
+                );
+
+        when(cameraQueryService.isValid(
+                cameraId,
+                sessionId
+        )).thenReturn(true);
+
+        when(duplicateEventGuard.isFirstOccurrence(
+                any(UUID.class)
+        )).thenReturn(true);
+
+        when(detectionMapper.toDomain(
+                any(DetectionRequest.class)
+        )).thenAnswer(invocation ->
+                domainFrame(
+                        invocation.getArgument(0)
+                )
+        );
+
+        when(candidateViolationEvaluator.evaluate(
+                any(DetectionFrame.class)
+        )).thenAnswer(invocation ->
+                List.of(
+                        candidate(
+                                invocation.getArgument(0)
+                        )
+                )
+        );
+
+        ViolationJpaEntity persistedViolation =
+                mock(
+                        ViolationJpaEntity.class
+                );
+
+        when(persistedViolation.getId())
+                .thenReturn(
+                        violationId
+                );
+
+        when(violationLifecycleService.startViolation(
+                any(),
+                any()
+        ))
+                .thenThrow(
+                        new IllegalStateException(
+                                "simulated start failure"
+                        )
+                )
+                .thenReturn(
+                        persistedViolation
+                );
+
+        retryingDetectionService.process(
+                first
+        );
+
+        retryingDetectionService.process(
+                second
+        );
+
+        assertThatThrownBy(
+                () -> retryingDetectionService.process(
+                        threshold
+                )
+        )
+                .isInstanceOf(
+                        IllegalStateException.class
+                )
+                .hasMessage(
+                        "simulated start failure"
+                );
+
+        retryingDetectionService.process(
+                retry
+        );
+
+        retryingDetectionService.process(
+                afterSuccess
+        );
+
+        verify(
+                violationLifecycleService,
+                times(2)
+        ).startViolation(
+                any(),
+                any()
+        );
+
+        assertThat(
+                activeViolationRegistry.find(
+                        new ViolationStateKey(
+                                cameraId,
+                                sessionId,
+                                ViolationType.MISSING_WELDING_MASK,
+                                "track-1"
+                        )
+                )
+        ).contains(
+                violationId
         );
     }
 

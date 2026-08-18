@@ -31,6 +31,8 @@ application:
       api-key: "benim-gizli-anahtarim-123"
 
 logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{correlationId}] %-5level %logger{36} - %msg%n"
   level:
     org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
