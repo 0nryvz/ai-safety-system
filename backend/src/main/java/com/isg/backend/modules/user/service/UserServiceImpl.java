@@ -3,7 +3,7 @@ package com.isg.backend.modules.user.service;
 import com.isg.backend.modules.user.dto.CreateUserRequest;
 import com.isg.backend.modules.user.dto.UpdateUserRequest;
 import com.isg.backend.modules.user.dto.UserResponse;
-import com.isg.backend.modules.user.dto.DepartmentResponse; // Eklendi
+import com.isg.backend.modules.user.dto.DepartmentResponse;
 import com.isg.backend.modules.user.entity.Department;
 import com.isg.backend.modules.user.entity.Role;
 import com.isg.backend.modules.user.entity.User;
@@ -11,9 +11,11 @@ import com.isg.backend.modules.user.infrastructure.DepartmentRepository;
 import com.isg.backend.modules.user.infrastructure.RoleRepository;
 import com.isg.backend.modules.user.infrastructure.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashSet;
 import java.util.List;
@@ -29,18 +31,19 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final DepartmentRepository departmentRepository;
     private final PasswordEncoder passwordEncoder;
-    private final AuthorizationService authorizationService; // EKLENDİ
+    private final AuthorizationService authorizationService;
 
     @Override
     @Transactional
     public UserResponse createUser(CreateUserRequest request) {
+        // Duplicate email için 409 CONFLICT durumu sağlandı
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException("Bu email adresi zaten kullanımda.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bu email adresi zaten kullanımda.");
         }
 
         Set<Role> roles = request.getRoleNames().stream()
                 .map(name -> roleRepository.findByName(name)
-                        .orElseThrow(() -> new IllegalArgumentException("Rol bulunamadı: " + name)))
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Rol bulunamadı: " + name)))
                 .collect(Collectors.toSet());
 
         User user = User.builder()
@@ -64,7 +67,7 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponse updateUser(UUID id, UpdateUserRequest request) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kullanıcı bulunamadı."));
 
         if (request.getActive() != null && !request.getActive() && isAdmin(user)) {
             checkIfLastAdmin();
@@ -85,7 +88,7 @@ public class UserServiceImpl implements UserService {
         if (request.getRoleNames() != null && !request.getRoleNames().isEmpty()) {
             Set<Role> roles = request.getRoleNames().stream()
                     .map(name -> roleRepository.findByName(name)
-                            .orElseThrow(() -> new IllegalArgumentException("Rol bulunamadı: " + name)))
+                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Rol bulunamadı: " + name)))
                     .collect(Collectors.toSet());
             user.setRoles(roles);
         }
@@ -97,7 +100,7 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public void deactivateUser(UUID id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kullanıcı bulunamadı."));
 
         if (isAdmin(user)) {
             checkIfLastAdmin();
@@ -111,7 +114,7 @@ public class UserServiceImpl implements UserService {
     @Transactional(readOnly = true)
     public UserResponse getUserById(UUID id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kullanıcı bulunamadı."));
         return mapToResponse(user);
     }
 
@@ -127,21 +130,18 @@ public class UserServiceImpl implements UserService {
     @Transactional(readOnly = true)
     public UserResponse getMe(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kullanıcı bulunamadı."));
         return mapToResponse(user);
     }
 
-    // YENİ EKLENEN METOT: FE2 Talebi (Madde 1)
     @Override
     @Transactional(readOnly = true)
     public List<DepartmentResponse> getMyDepartments(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kullanıcı bulunamadı."));
 
-        // AuthorizationService üzerinden kullanıcının görebileceği departman ID'lerini alıyoruz
         List<UUID> accessibleIds = authorizationService.accessibleDepartmentIds(user.getId());
 
-        // Bu ID'leri kullanarak veritabanından isimleri çekiyor ve DTO'ya dönüştürüyoruz
         return departmentRepository.findAllById(accessibleIds).stream()
                 .map(dept -> DepartmentResponse.builder()
                         .id(dept.getId())
@@ -149,8 +149,6 @@ public class UserServiceImpl implements UserService {
                         .build())
                 .collect(Collectors.toList());
     }
-
-    // --- Yardımcı Metotlar ---
 
     private boolean isAdmin(User user) {
         return user.getRoles().stream().anyMatch(r -> r.getName().equals("ADMIN"));
@@ -162,7 +160,7 @@ public class UserServiceImpl implements UserService {
                 .count();
 
         if (adminCount <= 1) {
-            throw new IllegalStateException("Sistemdeki son aktif ADMIN hesabı pasife alınamaz!");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Sistemdeki son aktif ADMIN hesabı pasife alınamaz!");
         }
     }
 
