@@ -180,7 +180,8 @@ public class CameraService {
                 .id(camera.getId())
                 .name(camera.getName())
                 .code(camera.getCode())
-                .departmentId(camera.getDepartment().getId())
+                .departmentId(camera.getDepartment() != null ? camera.getDepartment().getId() : null)
+                .departmentName(camera.getDepartment() != null ? camera.getDepartment().getName() : null) // <-- BURASI EKLENDİ
                 .active(camera.isActive())
                 .connectionStatus(camera.getStatus() != null ? camera.getStatus().name() : "OFFLINE")
                 .lastSeenAt(camera.getLastSeenAt())
