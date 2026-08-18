@@ -3,6 +3,7 @@ package com.isg.backend.modules.user.service;
 import com.isg.backend.modules.user.dto.CreateUserRequest;
 import com.isg.backend.modules.user.dto.UpdateUserRequest;
 import com.isg.backend.modules.user.dto.UserResponse;
+import com.isg.backend.modules.user.dto.DepartmentResponse; // Eklendi
 import com.isg.backend.modules.user.entity.Department;
 import com.isg.backend.modules.user.entity.Role;
 import com.isg.backend.modules.user.entity.User;
@@ -28,6 +29,7 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final DepartmentRepository departmentRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthorizationService authorizationService; // EKLENDİ
 
     @Override
     @Transactional
@@ -49,7 +51,6 @@ public class UserServiceImpl implements UserService {
                 .active(true)
                 .build();
 
-        // Çoklu departman ataması (Güncel DTO ile uyumlu)
         if (request.getDepartmentIds() != null && !request.getDepartmentIds().isEmpty()) {
             List<Department> departments = departmentRepository.findAllById(request.getDepartmentIds());
             user.getDepartments().addAll(departments);
@@ -75,7 +76,6 @@ public class UserServiceImpl implements UserService {
             user.setActive(request.getActive());
         }
 
-        // Departman listesini temizleyip, DTO'dan gelen güncel ID listesini koleksiyona ekliyoruz
         user.getDepartments().clear();
         if (request.getDepartmentIds() != null && !request.getDepartmentIds().isEmpty()) {
             List<Department> depts = departmentRepository.findAllById(request.getDepartmentIds());
@@ -131,6 +131,25 @@ public class UserServiceImpl implements UserService {
         return mapToResponse(user);
     }
 
+    // YENİ EKLENEN METOT: FE2 Talebi (Madde 1)
+    @Override
+    @Transactional(readOnly = true)
+    public List<DepartmentResponse> getMyDepartments(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı."));
+
+        // AuthorizationService üzerinden kullanıcının görebileceği departman ID'lerini alıyoruz
+        List<UUID> accessibleIds = authorizationService.accessibleDepartmentIds(user.getId());
+
+        // Bu ID'leri kullanarak veritabanından isimleri çekiyor ve DTO'ya dönüştürüyoruz
+        return departmentRepository.findAllById(accessibleIds).stream()
+                .map(dept -> DepartmentResponse.builder()
+                        .id(dept.getId())
+                        .name(dept.getName())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
     // --- Yardımcı Metotlar ---
 
     private boolean isAdmin(User user) {
@@ -152,7 +171,6 @@ public class UserServiceImpl implements UserService {
                 .map(Department::getId)
                 .collect(Collectors.toSet());
 
-        // Geriye dönük uyumluluk: Frontend DTO'da hala tekil "departmentId" bekliyorsa uygulamanın patlamaması için ilk departmanı seçiyoruz.
         UUID firstDeptId = user.getDepartments().isEmpty() ? null : user.getDepartments().iterator().next().getId();
         String firstDeptName = user.getDepartments().isEmpty() ? null : user.getDepartments().iterator().next().getName();
 
