@@ -38,7 +38,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest req
     ) {
         return build(
-                HttpStatus.UNPROCESSABLE_ENTITY,
+                HttpStatus.UNPROCESSABLE_CONTENT,
                 "UNSUPPORTED_DETECTION_LABEL",
                 ex.getMessage(),
                 req,
@@ -143,7 +143,7 @@ public class GlobalExceptionHandler {
 
         return build(
                 status,
-                "REQUEST_ERROR",
+                codeFor(status),
                 message,
                 req,
                 Map.of()
@@ -177,6 +177,19 @@ public class GlobalExceptionHandler {
                 Map.of()
         );
     }
+    private static String codeFor(HttpStatus status) {
+        return switch (status) {
+            case BAD_REQUEST -> "INVALID_REQUEST";
+            case UNAUTHORIZED -> "UNAUTHORIZED";
+            case FORBIDDEN -> "FORBIDDEN";
+            case NOT_FOUND -> "NOT_FOUND";
+            case CONFLICT -> "CONFLICT";
+            case UNPROCESSABLE_CONTENT -> "UNPROCESSABLE_CONTENT";
+            case INTERNAL_SERVER_ERROR -> "INTERNAL_ERROR";
+            default -> "REQUEST_ERROR";
+        };
+    }
+
 
     private ResponseEntity<ApiErrorResponse> build(
             HttpStatus status,
