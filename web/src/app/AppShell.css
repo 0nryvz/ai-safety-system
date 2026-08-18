@@ -47,13 +47,15 @@
   gap: var(--space-2);
 }
 
-.app-sidebar nav span {
+.app-sidebar nav span,
+.app-sidebar nav a {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
   color: #475569;
+  text-decoration: none;
 }
 
-.app-sidebar nav span:first-child {
+.app-sidebar nav a.active {
   color: var(--color-text-on-primary);
   background-color: var(--color-primary);
 }

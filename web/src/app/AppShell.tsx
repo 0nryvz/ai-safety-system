@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { performLogout } from '../features/auth/authActions'
 import Button from '../shared/ui/Button/Button'
 import './AppShell.css'
+import { NavLink } from 'react-router-dom'
+import { ROUTE_PATHS } from './routeConfig'
 
 interface AppShellProps {
   children: ReactNode
@@ -39,10 +41,15 @@ function AppShell({ children }: AppShellProps) {
       <div className="app-layout">
         <aside className="app-sidebar" aria-label="Ana menü">
           <nav>
-            <span>Dashboard</span>
-            <span>Kameralar</span>
-            <span>İhlaller</span>
-            <span>Kullanıcılar</span>
+            <nav>
+              <NavLink to={ROUTE_PATHS.dashboard}>Dashboard</NavLink>
+
+              <span>Kameralar</span>
+
+              <NavLink to={ROUTE_PATHS.violations}>İhlaller</NavLink>
+
+              <span>Kullanıcılar</span>
+            </nav>
           </nav>
         </aside>
 
