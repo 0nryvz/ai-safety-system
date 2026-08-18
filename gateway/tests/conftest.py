@@ -1,7 +1,11 @@
 import pytest
 
 from app.api.dependencies import (
+    get_clip_delivery_coordinator,
+    get_clip_spool,
+    get_clip_storage,
     get_recording_command_coordinator,
+    get_recording_callback_client,
     get_camera_session_lifecycle_notifier,
     get_camera_session_validator,
     get_session_frame_ingestion_worker_coordinator,
@@ -16,6 +20,10 @@ from app.main import app
 
 CACHED_DEPENDENCIES = (
     get_settings,
+    get_clip_spool,
+    get_clip_storage,
+    get_recording_callback_client,
+    get_clip_delivery_coordinator,
     get_event_recorder_coordinator,
     get_recording_command_coordinator,
     get_session_manager,

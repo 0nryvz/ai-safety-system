@@ -83,4 +83,8 @@ public class CandidateViolationState {
     public void markConfirmed() {
         this.confirmed = true;
     }
+
+    public void markUnconfirmed() {
+        this.confirmed = false;
+    }
 }

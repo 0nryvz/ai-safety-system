@@ -18,6 +18,7 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
 
     private final Environment environment;
     private static final String API_KEY_HEADER = "X-Internal-Api-Key";
+    private static final String INTERNAL_API_KEY_PROPERTY = "application.security.internal.api-key";
 
     public InternalApiKeyFilter(Environment environment) {
         this.environment = environment;
@@ -31,16 +32,14 @@ public class InternalApiKeyFilter extends OncePerRequestFilter {
 
         String requestURI = request.getRequestURI();
 
-        // Sadece /internal/ ile başlayan endpointler için API Key kontrolü yap
-        if (requestURI.startsWith("/internal/")) {
+        if (requestURI != null && requestURI.startsWith("/internal/")) {
             String providedKey = request.getHeader(API_KEY_HEADER);
-            String expectedApiKey = environment.getProperty("application.security.internal.api-key");
+            String expectedApiKey = environment.getProperty(INTERNAL_API_KEY_PROPERTY);
 
-            // Eğer header boşsa veya şifreyle eşleşmiyorsa ortak ApiErrorResponse formatında 401 dön
-            if (providedKey == null || !providedKey.equals(expectedApiKey)) {
+            // Gelişmiş güvenlik kontrolü ve ortak ApiErrorResponse formatı
+            if (expectedApiKey == null || expectedApiKey.isBlank() || providedKey == null || !providedKey.equals(expectedApiKey)) {
                 HttpStatus status = HttpStatus.UNAUTHORIZED;
 
-                // Ortak ApiErrorResponse standartlarına uygun JSON yapısı
                 String jsonResponse = String.format(
                         "{\"timestamp\":\"%s\",\"status\":%d,\"error\":\"%s\",\"message\":\"%s\",\"path\":\"%s\"}",
                         Instant.now().toString(),

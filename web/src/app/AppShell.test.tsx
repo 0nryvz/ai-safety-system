@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as authActions from '../features/auth/authActions'
 import AppShell from './AppShell'
+import { MemoryRouter } from 'react-router-dom'
 
 afterEach(() => {
   cleanup()
@@ -11,9 +12,12 @@ afterEach(() => {
 describe('AppShell', () => {
   it('renders the provided page content', () => {
     render(
-      <AppShell>
-        <h1>Test page content</h1>
-      </AppShell>,
+      <MemoryRouter>
+        <AppShell>
+          <h1>Test page content</h1>
+        </AppShell>
+        ,
+      </MemoryRouter>,
     )
 
     expect(screen.getByRole('heading', { name: 'Test page content' })).toBeInTheDocument()
@@ -21,9 +25,12 @@ describe('AppShell', () => {
 
   it('renders the logout action', () => {
     render(
-      <AppShell>
-        <div>Content</div>
-      </AppShell>,
+      <MemoryRouter>
+        <AppShell>
+          <div>Content</div>
+        </AppShell>
+        ,
+      </MemoryRouter>,
     )
 
     expect(screen.getByRole('button', { name: 'Çıkış yap' })).toBeInTheDocument()
@@ -33,9 +40,12 @@ describe('AppShell', () => {
     const logoutSpy = vi.spyOn(authActions, 'performLogout').mockResolvedValue()
 
     render(
-      <AppShell>
-        <div>Content</div>
-      </AppShell>,
+      <MemoryRouter>
+        <AppShell>
+          <div>Content</div>
+        </AppShell>
+        ,
+      </MemoryRouter>,
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Çıkış yap' }))

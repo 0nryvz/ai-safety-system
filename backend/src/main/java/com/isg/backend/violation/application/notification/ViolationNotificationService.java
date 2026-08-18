@@ -16,6 +16,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -45,6 +46,7 @@ public class ViolationNotificationService {
     private final SpringDataViolationRepository violationRepository;
     private final CameraService cameraService;
     private final Timer initialAlertLatencyTimer;
+    private final Clock clock;
 
     public ViolationNotificationService(
             SimpMessagingTemplate messagingTemplate,
@@ -52,7 +54,8 @@ public class ViolationNotificationService {
             DepartmentNameResolver departmentNameResolver,
             SpringDataViolationRepository violationRepository,
             CameraService cameraService,
-            MeterRegistry meterRegistry
+            MeterRegistry meterRegistry,
+            Clock clock
     ) {
         this.messagingTemplate =
                 messagingTemplate;
@@ -68,6 +71,9 @@ public class ViolationNotificationService {
 
         this.cameraService =
                 cameraService;
+
+        this.clock =
+                clock;
 
         this.initialAlertLatencyTimer =
                 Timer.builder(
@@ -143,7 +149,9 @@ public class ViolationNotificationService {
 
         if (delivered) {
             Instant notificationSentAt =
-                    Instant.now();
+                    Instant.now(
+                            clock
+                    );
 
             Duration latency =
                     Duration.between(

@@ -11,14 +11,17 @@ import java.util.UUID;
 
 public interface DashboardService {
 
-    DashboardSummaryResponse getSummary();
+    DashboardSummaryResponse getSummary(UUID userId);
 
     List<DashboardTrendResponse> getTrend(
+            UUID userId,
             LocalDate from,
-            LocalDate to
+            LocalDate to,
+            String bucket
     );
 
     List<DashboardDistributionResponse> getDistribution(
+            UUID userId,
             String groupBy
     );
 

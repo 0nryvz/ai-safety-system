@@ -5,6 +5,7 @@ import { useAuthSession } from './features/auth/useAuthSession'
 import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import NotFoundPage from './pages/NotFoundPage'
+import ViolationHistoryPage from './pages/ViolationHistoryPage'
 
 interface LoginLocationState {
   from?: {
@@ -15,10 +16,10 @@ interface LoginLocationState {
 function LoginRoute() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { status } = useAuthSession()
+  const { status, session } = useAuthSession()
   const state = location.state as LoginLocationState | null
 
-  if (status === 'authenticated') {
+  if (status === 'authenticated' && session?.user) {
     return <Navigate to={ROUTE_PATHS.dashboard} replace />
   }
 
@@ -47,6 +48,7 @@ function App() {
 
       <Route element={<RequireAuth />}>
         <Route path={ROUTE_PATHS.dashboard} element={<DashboardPage />} />
+        <Route path={ROUTE_PATHS.violations} element={<ViolationHistoryPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

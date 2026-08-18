@@ -4,3 +4,4 @@ pydantic-settings
 httpx
 python-multipart
 prometheus-client
+minio
