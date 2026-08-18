@@ -8,6 +8,7 @@ import io.minio.Http;
 import io.minio.MinioClient;
 import io.minio.errors.MinioException;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -21,6 +22,7 @@ public class MinioPlaybackUrlAdapter
     private final RecordingPlaybackProperties properties;
     private final Clock clock;
 
+    @Autowired
     public MinioPlaybackUrlAdapter(
             MinioClient minioClient,
             RecordingPlaybackProperties properties
