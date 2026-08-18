@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 import hashlib
 from pathlib import Path
+from urllib3 import PoolManager, Retry
+from urllib3.util import Timeout
 
 from app.services.clip_storage import (
     ClipStorage,
@@ -120,11 +122,26 @@ class MinioClipStorage(ClipStorage):
                 retryable=False,
             ) from ex
 
+        http_client = PoolManager(
+            timeout=Timeout(
+                connect=2.0,
+                read=10.0,
+            ),
+            retries=Retry(
+                total=0,
+                connect=0,
+                read=0,
+                redirect=0,
+                status=0,
+            ),
+        )
+
         self._minio_client = Minio(
             endpoint=self._endpoint,
             access_key=self._access_key,
             secret_key=self._secret_key,
             secure=self._secure,
+            http_client=http_client,
         )
 
         return self._minio_client
