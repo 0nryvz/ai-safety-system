@@ -22,6 +22,7 @@ class DatabaseCameraQueryServiceTest {
     private CameraSessionRepository cameraSessionRepository;
     private CameraRepository cameraRepository;
     private DatabaseCameraQueryService service;
+    private CameraRepository cameraRepository;
 
     @BeforeEach
     void setUp() {
@@ -36,6 +37,64 @@ class DatabaseCameraQueryServiceTest {
                         cameraSessionRepository,
                         cameraRepository
                 );
+    }
+
+    @Test
+    void resolvesDepartmentIdForExistingCamera() {
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        Camera camera =
+                mock(Camera.class);
+
+        com.isg.backend.modules.user.entity.Department department =
+                mock(
+                        com.isg.backend.modules.user.entity.Department.class
+                );
+
+        when(cameraRepository.findById(
+                cameraId
+        )).thenReturn(
+                Optional.of(camera)
+        );
+
+        when(camera.getDepartment())
+                .thenReturn(
+                        department
+                );
+
+        when(department.getId())
+                .thenReturn(
+                        departmentId
+                );
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                Optional.of(departmentId),
+                service.findDepartmentId(
+                        cameraId
+                )
+        );
+    }
+
+    @Test
+    void returnsEmptyDepartmentIdForMissingCamera() {
+        UUID cameraId =
+                UUID.randomUUID();
+
+        when(cameraRepository.findById(
+                cameraId
+        )).thenReturn(
+                Optional.empty()
+        );
+
+        assertTrue(
+                service.findDepartmentId(
+                        cameraId
+                ).isEmpty()
+        );
     }
 
     @Test

@@ -22,15 +22,14 @@ import com.isg.backend.violation.config.ViolationTemporalProperties;
 import java.time.Duration;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -47,6 +46,7 @@ class DetectionServiceTest {
     private TemporalConfirmationService temporalConfirmationService;
     private ViolationLifecycleService violationLifecycleService;
     private ActiveViolationRegistry activeViolationRegistry;
+    private Clock clock;
     private DetectionService detectionService;
 
     @BeforeEach
@@ -72,6 +72,9 @@ class DetectionServiceTest {
         activeViolationRegistry =
                 new ActiveViolationRegistry();
 
+        clock =
+                Clock.systemUTC();
+
         detectionService =
                 new DetectionService(
                         cameraQueryService,
@@ -80,7 +83,8 @@ class DetectionServiceTest {
                         candidateViolationEvaluator,
                         temporalConfirmationService,
                         violationLifecycleService,
-                        activeViolationRegistry
+                        activeViolationRegistry,
+                        clock
                 );
     }
 
@@ -88,7 +92,7 @@ class DetectionServiceTest {
     void processesValidDetectionThroughCandidateAndTemporalPipeline() {
         DetectionRequest request =
                 validRequest(
-                        Instant.now()
+                        Instant.now(clock)
                 );
 
         DetectionFrame frame =
@@ -152,7 +156,7 @@ class DetectionServiceTest {
     void passesEmptyCandidateListToTemporalEngine() {
         DetectionRequest request =
                 validRequest(
-                        Instant.now()
+                        Instant.now(clock)
                 );
 
         DetectionFrame frame =
@@ -189,7 +193,7 @@ class DetectionServiceTest {
     void persistsStartedViolationAndRegistersActiveMapping() {
         DetectionRequest request =
                 validRequest(
-                        Instant.now()
+                        Instant.now(clock)
                 );
 
         DetectionFrame frame =
@@ -266,12 +270,15 @@ class DetectionServiceTest {
         UUID sessionId =
                 UUID.randomUUID();
 
+        Instant now =
+                Instant.now(clock);
+
         DetectionRequest firstRequest =
                 validRequest(
                         UUID.randomUUID(),
                         cameraId,
                         sessionId,
-                        Instant.now()
+                        now
                 );
 
         DetectionRequest secondRequest =
@@ -389,7 +396,7 @@ class DetectionServiceTest {
     void endsMappedViolationWhenTemporalEngineReportsEnd() {
         DetectionRequest request =
                 validRequest(
-                        Instant.now()
+                        Instant.now(clock)
                 );
 
         DetectionFrame frame =
@@ -465,7 +472,7 @@ class DetectionServiceTest {
     void doesNotEndDatabaseViolationWhenActiveMappingIsMissing() {
         DetectionRequest request =
                 validRequest(
-                        Instant.now()
+                        Instant.now(clock)
                 );
 
         DetectionFrame frame =
@@ -525,7 +532,7 @@ class DetectionServiceTest {
     void keepsActiveMappingWhenEndingViolationFails() {
         DetectionRequest request =
                 validRequest(
-                        Instant.now()
+                        Instant.now(clock)
                 );
 
         DetectionFrame frame =
@@ -615,7 +622,7 @@ class DetectionServiceTest {
     void invalidCameraOrSessionReturns404() {
         DetectionRequest request =
                 validRequest(
-                        Instant.now()
+                        Instant.now(clock)
                 );
 
         when(cameraQueryService.isValid(
@@ -642,7 +649,7 @@ class DetectionServiceTest {
     void duplicateEventReturns409BeforeCandidateEvaluation() {
         DetectionRequest request =
                 validRequest(
-                        Instant.now()
+                        Instant.now(clock)
                 );
 
         DetectionFrame frame =
@@ -684,7 +691,7 @@ class DetectionServiceTest {
     void futureTimestampReturns422() {
         DetectionRequest request =
                 validRequest(
-                        Instant.now()
+                        Instant.now(clock)
                                 .plusSeconds(30)
                 );
 
@@ -708,7 +715,7 @@ class DetectionServiceTest {
     void oldTimestampReturns422() {
         DetectionRequest request =
                 validRequest(
-                        Instant.now()
+                        Instant.now(clock)
                                 .minusSeconds(180)
                 );
 

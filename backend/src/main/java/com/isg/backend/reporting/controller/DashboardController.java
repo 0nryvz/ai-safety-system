@@ -32,10 +32,11 @@ public class DashboardController {
     @GetMapping("/trend")
     public ResponseEntity<List<DashboardTrendResponse>> getTrend(
             @RequestParam LocalDate from,
-            @RequestParam LocalDate to
+            @RequestParam LocalDate to,
+            @RequestParam(defaultValue = "DAY") String bucket
     ) {
         return ResponseEntity.ok(
-                dashboardService.getTrend(from, to)
+                dashboardService.getTrend(from, to, bucket)
         );
     }
 

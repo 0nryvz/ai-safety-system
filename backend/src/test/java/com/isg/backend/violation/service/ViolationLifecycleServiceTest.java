@@ -101,6 +101,8 @@ class ViolationLifecycleServiceTest {
                 )
         );
 
+
+
         when(
                 cameraQueryService.findSessionRecordId(
                         cameraId,
@@ -394,6 +396,9 @@ class ViolationLifecycleServiceTest {
         )
                 .isInstanceOf(
                         IllegalStateException.class
+                )
+                .hasMessageContaining(
+                        "Camera department not found"
                 );
 
         verify(
@@ -434,6 +439,11 @@ class ViolationLifecycleServiceTest {
         when(violation.getEndedAt())
                 .thenReturn(null);
 
+        when(violation.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.ACTIVE
+                );
+
         when(violationRepository.findById(
                 violationId
         )).thenReturn(
@@ -450,9 +460,47 @@ class ViolationLifecycleServiceTest {
                         endedAt
                 );
 
+        verify(violation)
+                .changeLifecycleStatus(
+                        ViolationLifecycleStatus.PREPARING
+                );
+
         verify(violationRepository)
                 .save(
                         violation
+                );
+
+        ArgumentCaptor<ViolationStatusHistoryJpaEntity> historyCaptor =
+                ArgumentCaptor.forClass(
+                        ViolationStatusHistoryJpaEntity.class
+                );
+
+        verify(statusHistoryRepository)
+                .save(
+                        historyCaptor.capture()
+                );
+
+        ViolationStatusHistoryJpaEntity history =
+                historyCaptor.getValue();
+
+        assertThat(history.getViolationId())
+                .isEqualTo(
+                        violationId
+                );
+
+        assertThat(history.getFromStatus())
+                .isEqualTo(
+                        ViolationLifecycleStatus.ACTIVE.name()
+                );
+
+        assertThat(history.getToStatus())
+                .isEqualTo(
+                        ViolationLifecycleStatus.PREPARING.name()
+                );
+
+        assertThat(history.getChangedAt())
+                .isEqualTo(
+                        endedAt
                 );
 
         ArgumentCaptor<ViolationEndedEvent> eventCaptor =
