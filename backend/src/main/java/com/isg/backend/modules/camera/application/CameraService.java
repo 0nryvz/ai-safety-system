@@ -19,6 +19,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock; // Eklendi
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -33,6 +34,7 @@ public class CameraService {
     private final CameraSessionRepository cameraSessionRepository;
     private final AuthorizationService authorizationService;
     private final UserRepository userRepository;
+    private final Clock clock; // Merkezi saat bean'i eklendi
 
     @Transactional
     public CameraResponse createCamera(CameraCreateRequest request) {
@@ -124,11 +126,11 @@ public class CameraService {
         cameraSessionRepository.findByCameraIdAndStatus(request.getCameraId(), CameraSession.SessionStatus.ACTIVE)
                 .ifPresent(oldSession -> {
                     oldSession.setStatus(CameraSession.SessionStatus.CLOSED);
-                    oldSession.setEndedAt(Instant.now());
+                    oldSession.setEndedAt(Instant.now(clock)); // Clock kullanılarak güncellendi
                     cameraSessionRepository.save(oldSession);
                 });
 
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock); // Clock kullanılarak güncellendi
         CameraSession session = CameraSession.builder()
                 .sessionId(request.getSessionId())
                 .camera(camera)
@@ -153,7 +155,7 @@ public class CameraService {
             throw new RuntimeException("Bu oturum aktif değil!");
         }
 
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock); // Clock kullanılarak güncellendi
 
         Camera camera = session.getCamera();
         camera.setLastSeenAt(now);
@@ -167,7 +169,7 @@ public class CameraService {
                 .orElseThrow(() -> new RuntimeException("Oturum bulunamadı!"));
 
         session.setStatus(CameraSession.SessionStatus.CLOSED);
-        session.setEndedAt(Instant.now());
+        session.setEndedAt(Instant.now(clock)); // Clock kullanılarak güncellendi
         cameraSessionRepository.save(session);
 
         Camera camera = session.getCamera();
@@ -181,7 +183,7 @@ public class CameraService {
                 .name(camera.getName())
                 .code(camera.getCode())
                 .departmentId(camera.getDepartment() != null ? camera.getDepartment().getId() : null)
-                .departmentName(camera.getDepartment() != null ? camera.getDepartment().getName() : null) // <-- BURASI EKLENDİ
+                .departmentName(camera.getDepartment() != null ? camera.getDepartment().getName() : null)
                 .active(camera.isActive())
                 .connectionStatus(camera.getStatus() != null ? camera.getStatus().name() : "OFFLINE")
                 .lastSeenAt(camera.getLastSeenAt())
