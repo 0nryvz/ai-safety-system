@@ -278,6 +278,10 @@ public class ViolationLifecycleService
                         violationId
                 );
 
+        if (violation.getEndedAt() == null) {
+            return;
+        }
+
         ViolationLifecycleStatus currentStatus =
                 violation.getLifecycleStatus();
 

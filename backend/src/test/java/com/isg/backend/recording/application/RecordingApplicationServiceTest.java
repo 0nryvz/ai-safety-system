@@ -428,6 +428,49 @@ class RecordingApplicationServiceTest {
         ).isEqualTo(2);
     }
 
+    @Test
+    void stopAfterEarlyErrorRepublishesErrorStatusWithoutCallingGatewayStop() {
+        UUID violationId = UUID.randomUUID();
+
+        Recording recording =
+                service.start(
+                        startCommand(violationId)
+                );
+
+        service.handleCallback(
+                errorCallback(
+                        recording.id(),
+                        violationId,
+                        "CLIP_UPLOAD_FAILED",
+                        0
+                )
+        );
+
+        assertThat(
+                repository.findById(
+                        recording.id()
+                ).orElseThrow().status()
+        ).isEqualTo(
+                RecordingStatus.ERROR
+        );
+
+        assertThat(
+                callbackPort.publishCount()
+        ).isEqualTo(1);
+
+        service.stop(
+                stopCommand(violationId)
+        );
+
+        assertThat(
+                gatewayCommandPort.stopCommandCount()
+        ).isEqualTo(0);
+
+        assertThat(
+                callbackPort.publishCount()
+        ).isEqualTo(2);
+    }
+
     private Recording moveToProcessing(
             UUID violationId
     ) {

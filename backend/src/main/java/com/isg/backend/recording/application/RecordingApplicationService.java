@@ -85,7 +85,8 @@ public class RecordingApplicationService {
                 .orElseThrow(() -> new RecordingNotFoundForViolationException(command.violationId()));
 
         if (recording.stopAlreadyHandled()) {
-            if (recording.status() == RecordingStatus.READY) {
+            if (recording.status() == RecordingStatus.READY
+                    || recording.status() == RecordingStatus.ERROR) {
                 recordingStatusCallbackPort.publish(
                         toStatusCallback(recording)
                 );

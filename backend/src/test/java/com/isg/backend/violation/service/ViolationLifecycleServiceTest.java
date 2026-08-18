@@ -816,7 +816,7 @@ class ViolationLifecycleServiceTest {
     }
 
     @Test
-    void recordingErrorCanTransitionActiveViolationToErrorBeforeViolationEnds() {
+    void recordingErrorDoesNotTransitionActiveViolationBeforeItEnds() {
         UUID violationId = UUID.randomUUID();
 
         Instant errorAt =
@@ -827,11 +827,6 @@ class ViolationLifecycleServiceTest {
 
         when(violation.getEndedAt())
                 .thenReturn(null);
-
-        when(violation.getLifecycleStatus())
-                .thenReturn(
-                        ViolationLifecycleStatus.ACTIVE
-                );
 
         when(violationRepository.findById(
                 violationId
@@ -845,15 +840,33 @@ class ViolationLifecycleServiceTest {
                 "CLIP_UPLOAD_FAILED"
         );
 
-        verify(violation)
-                .changeLifecycleStatus(
-                        ViolationLifecycleStatus.ERROR
-                );
+        verify(
+                violation,
+                never()
+        ).changeLifecycleStatus(
+                any()
+        );
 
-        verify(violationRepository)
-                .save(
-                        violation
-                );
+        verify(
+                violationRepository,
+                never()
+        ).save(
+                violation
+        );
+
+        verify(
+                statusHistoryRepository,
+                never()
+        ).save(
+                any()
+        );
+
+        verify(
+                eventPublisher,
+                never()
+        ).publishEvent(
+                any()
+        );
     }
 
     private ConfirmedViolation confirmedViolation(
