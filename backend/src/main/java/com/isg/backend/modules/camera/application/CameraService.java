@@ -176,6 +176,11 @@ public class CameraService {
     }
 
     private CameraResponse mapToResponse(Camera camera) {
+        String rawStatus = camera.getStatus() != null ? camera.getStatus().name() : "OFFLINE";
+
+        // Domain'deki DEGRADED durumunu dış contract gereği WEAK olarak mapliyoruz
+        String connectionStatus = "DEGRADED".equals(rawStatus) ? "WEAK" : rawStatus;
+
         return CameraResponse.builder()
                 .id(camera.getId())
                 .name(camera.getName())
@@ -183,7 +188,7 @@ public class CameraService {
                 .departmentId(camera.getDepartment() != null ? camera.getDepartment().getId() : null)
                 .departmentName(camera.getDepartment() != null ? camera.getDepartment().getName() : null)
                 .active(camera.isActive())
-                .connectionStatus(camera.getStatus() != null ? camera.getStatus().name() : "OFFLINE")
+                .connectionStatus(connectionStatus)
                 .lastSeenAt(camera.getLastSeenAt())
                 .build();
     }
