@@ -8,12 +8,14 @@ import com.isg.backend.modules.auth.infrastructure.RefreshTokenRepository;
 import com.isg.backend.modules.user.entity.User;
 import com.isg.backend.modules.user.infrastructure.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -67,16 +69,18 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse refreshToken(String plainRefreshToken) {
         String hashedToken = hashToken(plainRefreshToken);
 
+        // Geçersiz token durumunda 401 UNAUTHORIZED dönmesi için ResponseStatusException eklendi
         RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(hashedToken)
-                .orElseThrow(() -> new RuntimeException("Geçersiz Refresh Token"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Geçersiz Refresh Token"));
 
+        // İptal edilmiş (revoked) oturum durumunda 401 UNAUTHORIZED dönmesi sağlandı
         if (refreshToken.isRevoked()) {
-            throw new RuntimeException("Bu oturum iptal edilmiş. Lütfen tekrar giriş yapın.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Bu oturum iptal edilmiş. Lütfen tekrar giriş yapın.");
         }
 
-        // Clock kullanılarak güncellendi
+        // Süresi dolmuş token durumunda 401 UNAUTHORIZED dönmesi sağlandı
         if (refreshToken.getExpiresAt().isBefore(OffsetDateTime.now(clock))) {
-            throw new RuntimeException("Oturum süresi dolmuş. Lütfen tekrar giriş yapın.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Oturum süresi dolmuş. Lütfen tekrar giriş yapın.");
         }
 
         User user = refreshToken.getUser();
