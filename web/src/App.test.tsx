@@ -58,7 +58,7 @@ describe('App auth routing', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'Dashboard',
+        name: 'Operasyon Dashboardu',
       }),
     ).toBeInTheDocument()
   })
@@ -70,7 +70,7 @@ describe('App auth routing', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'Dashboard',
+        name: 'Operasyon Dashboardu',
       }),
     ).toBeInTheDocument()
   })
@@ -88,7 +88,7 @@ describe('App auth routing', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'Dashboard',
+        name: 'Operasyon Dashboardu',
       }),
     ).toBeInTheDocument()
   })

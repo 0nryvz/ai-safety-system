@@ -109,6 +109,33 @@ Realtime transport ham mesaj aboneliğini korurken, geçerli alert ve violation 
 - `VITE_ENABLE_DEBUG_LOGGING=true` olduğunda geçersiz mesajlar ve bilinmeyen enum değerleri için yalnızca güvenli diagnostic kodu yazılır; payload, bilinmeyen enum’un gerçek değeri, JWT ve STOMP header bilgileri loglanmaz.
 - Reconnect sonrasında REST recovery abonelik sözleşmesi hazırdır. Backend recovery endpoint’i kesinleşmeden sahte endpoint veya DTO kullanılmaz.
 
+## Operasyon Dashboard'u
+
+Operasyon dashboard'u ilk açılış verilerini doğrulanmış REST endpoint'lerinden yükler:
+
+- `GET /api/v1/dashboard/summary`
+- `GET /api/v1/dashboard/recent-violations`
+- `GET /api/v1/cameras`
+
+Summary, son ihlaller ve kameralar tek bir kontrollü yükleme akışında istenir. Dashboard bağımsız polling döngüleri oluşturmaz.
+
+Kamera bağlantı durumu frontend tarafından hesaplanmaz. Backend'in döndürdüğü `connectionStatus` değeri kullanıcıya güvenli bir status etiketiyle gösterilir. Bilinmeyen kamera durumları neutral fallback ile karşılanır.
+
+Son ihlaller REST verisiyle başlatılır ve merkezi realtime event store üzerinden gelen WebSocket kayıtlarıyla birleştirilir:
+
+- Kayıtlar `violationId` üzerinden birleştirilir.
+- Aynı ihlal REST ve realtime kaynaklarında bulunuyorsa realtime kayıt önceliklidir.
+- Dismiss edilmiş realtime ihlaller dashboard listesinden çıkarılır.
+- Dismiss işlemi yalnızca istemci state'ini değiştirir; backend kaydını silmez.
+- Bilinmeyen lifecycle ve recording status değerleri güvenli fallback ile gösterilir.
+- REST response içinde `departmentName` bulunmuyorsa frontend bölüm adı tahmin etmez.
+
+Backend summary sorgusu kullanıcı departmanlarına göre sınırlandırılana kadar `/api/v1/dashboard/summary` yalnızca `ADMIN` rolü için çağrılır. `OHS_SPECIALIST` ve `SHIFT_SUPERVISOR` rolleri kamera ve son ihlal verilerini backend'in uyguladığı yetki kapsamıyla görüntüler.
+
+Dashboard loading, empty, unauthorized, forbidden, network ve server error durumlarını destekler. Yeniden deneme işlemi REST başlangıç isteklerini birlikte tekrarlar.
+
+Web dashboard'u canlı kamera görüntüsü veya stream bileşeni içermez.
+
 ## Feature Flag Yapısı
 
 Feature flag’ler `src/config/featureFlags.ts` dosyasında merkezi olarak yönetilir.
