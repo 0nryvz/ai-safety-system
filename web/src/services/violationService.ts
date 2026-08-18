@@ -35,6 +35,11 @@ export interface ViolationListItem {
   reviewStatus: ViolationReviewStatus
 }
 
+export interface ViolationClipUrl {
+  url: string
+  expiresAt: string
+}
+
 export interface PageResponse<T> {
   content: T[]
   page: number
@@ -92,6 +97,12 @@ export async function getViolationHistory(
   const response = await apiClient.get<PageResponse<ViolationListItem>>('/violations', {
     params: buildViolationQueryParams(query),
   })
+
+  return response.data
+}
+
+export async function getViolationClipUrl(violationId: string): Promise<ViolationClipUrl> {
+  const response = await apiClient.get<ViolationClipUrl>(`/violations/${violationId}/clip-url`)
 
   return response.data
 }
