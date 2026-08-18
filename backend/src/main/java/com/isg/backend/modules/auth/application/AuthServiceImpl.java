@@ -8,16 +8,19 @@ import com.isg.backend.modules.auth.infrastructure.RefreshTokenRepository;
 import com.isg.backend.modules.user.entity.User;
 import com.isg.backend.modules.user.infrastructure.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.UUID;
@@ -30,20 +33,18 @@ public class AuthServiceImpl implements AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final Clock clock; // Merkezi saat bean'i eklendi
 
     @Override
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        // 1. Önce kullanıcıyı e-posta ile veritabanından buluyoruz
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new BadCredentialsException("Geçersiz e-posta veya şifre"));
 
-        // 2. Şifre kontrolünden ÖNCE hesabın aktif olup olmadığını denetliyoruz
         if (!user.isActive()) {
             throw new DisabledException("Hesabınız pasif duruma alınmıştır, giriş yapılamaz.");
         }
 
-        // 3. Kullanıcı aktifse şifre doğrulama adımını çalıştırıyoruz
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
@@ -57,7 +58,6 @@ public class AuthServiceImpl implements AuthService {
             throw e;
         }
 
-        // 4. Her şey yolundaysa Token'ları üretiyoruz
         String jwtToken = jwtService.generateToken(user);
         String plainRefreshToken = createAndSaveRefreshToken(user);
 
@@ -69,15 +69,18 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse refreshToken(String plainRefreshToken) {
         String hashedToken = hashToken(plainRefreshToken);
 
+        // Geçersiz token durumunda 401 UNAUTHORIZED dönmesi için ResponseStatusException eklendi
         RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(hashedToken)
-                .orElseThrow(() -> new RuntimeException("Geçersiz Refresh Token"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Geçersiz Refresh Token"));
 
+        // İptal edilmiş (revoked) oturum durumunda 401 UNAUTHORIZED dönmesi sağlandı
         if (refreshToken.isRevoked()) {
-            throw new RuntimeException("Bu oturum iptal edilmiş. Lütfen tekrar giriş yapın.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Bu oturum iptal edilmiş. Lütfen tekrar giriş yapın.");
         }
 
-        if (refreshToken.getExpiresAt().isBefore(OffsetDateTime.now())) {
-            throw new RuntimeException("Oturum süresi dolmuş. Lütfen tekrar giriş yapın.");
+        // Süresi dolmuş token durumunda 401 UNAUTHORIZED dönmesi sağlandı
+        if (refreshToken.getExpiresAt().isBefore(OffsetDateTime.now(clock))) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Oturum süresi dolmuş. Lütfen tekrar giriş yapın.");
         }
 
         User user = refreshToken.getUser();
@@ -109,7 +112,7 @@ public class AuthServiceImpl implements AuthService {
         RefreshToken refreshToken = RefreshToken.builder()
                 .tokenHash(hashedToken)
                 .user(user)
-                .expiresAt(OffsetDateTime.now().plusDays(7))
+                .expiresAt(OffsetDateTime.now(clock).plusDays(7)) // Clock kullanılarak güncellendi
                 .revoked(false)
                 .build();
 

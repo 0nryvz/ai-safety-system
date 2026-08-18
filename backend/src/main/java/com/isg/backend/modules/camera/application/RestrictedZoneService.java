@@ -10,9 +10,11 @@ import com.isg.backend.modules.user.entity.User;
 import com.isg.backend.modules.user.infrastructure.UserRepository;
 import com.isg.backend.modules.user.service.AuthorizationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus; // Eklendi
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException; // Eklendi
 
 import java.util.List;
 import java.util.UUID;
@@ -31,15 +33,15 @@ public class RestrictedZoneService implements RestrictedZoneProvider {
         // 1. Giriş yapan kullanıcıyı bul
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı!"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kullanıcı bulunamadı!"));
 
-        // 2. İlgili kamerayı bul
+        // 2. İlgili kamerayı bul (404 Not Found)
         Camera camera = cameraRepository.findById(cameraId)
-                .orElseThrow(() -> new IllegalArgumentException("Kamera bulunamadı!"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kamera bulunamadı!"));
 
-        // 3. Yetki Kontrolü: Kullanıcının bu kameranın departmanına erişimi var mı?
+        // 3. Yetki Kontrolü: 403 Forbidden standardına uyarlandı
         if (!authorizationService.canAccessDepartment(user.getId(), camera.getDepartment().getId())) {
-            throw new RuntimeException("Bu kameranın yasaklı alanını güncelleme yetkiniz yok!");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bu kameranın yasaklı alanını güncelleme yetkiniz yok!");
         }
 
         // 4. Upsert (Varsa getir, yoksa yeni oluştur)
@@ -65,8 +67,9 @@ public class RestrictedZoneService implements RestrictedZoneProvider {
     }
 
     public RestrictedZoneUpdateReq getRestrictedZoneDto(UUID cameraId) {
+        // Aktif yasaklı alan bulunamadığında 404 Not Found dönmesi sağlandı
         RestrictedZone zone = restrictedZoneRepository.findByCameraIdAndActiveTrue(cameraId)
-                .orElseThrow(() -> new IllegalArgumentException("Aktif yasaklı alan bulunamadı."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Aktif yasaklı alan bulunamadı."));
 
         RestrictedZoneUpdateReq response = new RestrictedZoneUpdateReq();
         response.setName(zone.getName());
