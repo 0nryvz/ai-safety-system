@@ -7,6 +7,7 @@ import com.isg.backend.reporting.dto.RecentViolationResponse;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Repository;
+import com.isg.backend.recording.domain.RecordingStatus;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -41,6 +42,20 @@ public class DashboardRepository {
         }
 
         return Instant.parse(value.toString());
+    }
+
+    private String toRecordingStatus(
+            Object value
+    ) {
+        if (value == null) {
+            return null;
+        }
+
+        return RecordingStatus
+                .fromDatabaseValue(
+                        value.toString()
+                )
+                .name();
     }
 
 
@@ -267,7 +282,7 @@ public class DashboardRepository {
                             data[7] != null ? data[7].toString() : null,
                             data[8] != null ? data[8].toString() : null,
                             data[9] != null ? data[9].toString() : null,
-                            data[10] != null ? data[10].toString() : null,
+                            toRecordingStatus(data[10]),
                             toInstant(data[11]),
                             data[12] != null ? data[12].toString() : null,
                             data[13] != null ? data[13].toString() : null,
