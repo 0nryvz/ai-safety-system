@@ -57,6 +57,6 @@ public class Camera {
     private Instant updatedAt;
 
     public enum Status {
-        ONLINE, DEGRADED, OFFLINE
+        ONLINE, WEAK , OFFLINE
     }
 }

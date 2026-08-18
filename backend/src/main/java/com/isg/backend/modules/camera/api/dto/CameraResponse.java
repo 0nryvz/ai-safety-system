@@ -9,12 +9,13 @@ import java.util.UUID;
 @Data
 @Builder
 public class CameraResponse {
-    private UUID id; // Kameranın kendi ID'si UUID olarak kalıyor
+    private UUID id;
     private String name;
     private String code;
     private UUID departmentId;
+    private String departmentName; // FE1 talebi doğrultusunda eklendi
     private boolean active;
-    private String connectionStatus; // ONLINE, WEAK, OFFLINE
+    private String connectionStatus; // ONLINE, WEAK, OFFLINE (Artık uyumlu)
     private Instant lastSeenAt;
     private String activeSessionId;
 }
