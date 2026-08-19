@@ -30,7 +30,31 @@ public class MissingGlovesRule implements ViolationRule {
                         DetectionLabel.GLOVES
                 );
 
-        if (!isWelding || hasGloves) {
+        boolean hasNonGloves =
+                person.hasDetection(
+                        DetectionLabel.NON_GLOVES
+                );
+
+        /*
+         * Welding context yoksa PPE ihlali değerlendirilmez.
+         */
+        if (!isWelding) {
+            return Optional.empty();
+        }
+
+        /*
+         * Aynı frame'de gloves varsa güvenli kabul ediyoruz.
+         * Positive class, negative class'a göre önceliklidir.
+         */
+        if (hasGloves) {
+            return Optional.empty();
+        }
+
+        /*
+         * Yeni AI contract ile non_gloves açıkça geldiğinde
+         * MISSING_GLOVES adayı oluşturulur.
+         */
+        if (!hasNonGloves) {
             return Optional.empty();
         }
 
