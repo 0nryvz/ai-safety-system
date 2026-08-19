@@ -11,10 +11,11 @@ import EmptyState from '../shared/ui/EmptyState/EmptyState'
 import { useRealtimeViolations } from '../core/realtime/useRealtimeViolations'
 import { mergeDashboardViolations } from '../features/dashboard/dashboardViolationModel'
 import ViolationCard from '../features/dashboard/ViolationCard'
+import { hasRouteAccess } from '../features/auth/roleAccess'
 
 function DashboardPage() {
   const { session } = useAuthSession()
-  const includeSummary = session?.user?.roles.includes('ADMIN') ?? false
+  const includeSummary = hasRouteAccess('authenticated', session?.user?.roles ?? [])
   const { summary, recentViolations, cameras, isLoading, error, retry } = useDashboardData({
     includeSummary,
   })

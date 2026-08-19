@@ -153,21 +153,19 @@ describe('DashboardPage', () => {
     expect(screen.getByText('NO_HELMET')).toBeInTheDocument()
   })
 
-  it('does not request global summary metrics for a restricted role', () => {
-    setAuthenticatedRole('OHS_SPECIALIST')
-    mockedUseDashboardData.mockReturnValue(createDashboardState())
-
-    renderDashboard()
-
-    expect(mockedUseDashboardData).toHaveBeenCalledWith({
-      includeSummary: false,
-    })
-    expect(
-      screen.getByRole('heading', {
-        name: 'Özet metrikler kullanıma hazır değil',
-      }),
-    ).toBeInTheDocument()
-  })
+  it.each(['OHS_SPECIALIST', 'SHIFT_SUPERVISOR'] as const)(
+    'loads and displays scoped summary metrics for %s',
+    (role) => {
+      setAuthenticatedRole(role)
+      mockedUseDashboardData.mockReturnValue(createDashboardState({ summary }))
+      renderDashboard()
+      expect(mockedUseDashboardData).toHaveBeenCalledWith({
+        includeSummary: true,
+      })
+      expect(screen.getByRole('heading', { name: 'Genel durum' })).toBeInTheDocument()
+      expect(screen.getByText('Bugünkü ihlaller')).toBeInTheDocument()
+    },
+  )
 
   it('renders the loading state', () => {
     setAuthenticatedRole('ADMIN')
