@@ -3,6 +3,7 @@ export const ROUTE_PATHS = {
   login: '/login',
   dashboard: '/dashboard',
   violations: '/violations',
+  violationDetail: '/violations/:id',
   adminCameras: '/admin/cameras',
   adminUsers: '/admin/users',
 } as const
@@ -23,6 +24,12 @@ export const appRouteConfig: AppRouteConfig[] = [
     path: ROUTE_PATHS.home,
     owner: 'FE1',
     access: 'public',
+  },
+  {
+    id: 'violationDetail',
+    path: ROUTE_PATHS.violationDetail,
+    owner: 'FE2',
+    access: 'authenticated',
   },
   {
     id: 'login',

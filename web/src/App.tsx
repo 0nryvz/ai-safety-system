@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import NotFoundPage from './pages/NotFoundPage'
 import ViolationHistoryPage from './pages/ViolationHistoryPage'
+import ViolationDetailPage from './pages/ViolationDetailPage'
 import RequireRole from './app/RequireRole'
 import CameraManagementPage from './pages/CameraManagementPage'
 import UserManagementPage from './pages/UserManagementPage'
@@ -52,6 +53,7 @@ function App() {
       <Route element={<RequireAuth />}>
         <Route path={ROUTE_PATHS.dashboard} element={<DashboardPage />} />
         <Route path={ROUTE_PATHS.violations} element={<ViolationHistoryPage />} />
+        <Route path={ROUTE_PATHS.violationDetail} element={<ViolationDetailPage />} />
       </Route>
 
       <Route element={<RequireRole access="admin" />}>

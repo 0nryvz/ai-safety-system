@@ -1,4 +1,5 @@
 import { apiClient } from '../core/api/apiClient'
+import type { RealtimeRecordingStatus } from '../core/realtime/realtimeTypes'
 
 export const violationTypes = [
   'MISSING_WELDING_MASK',
@@ -23,6 +24,8 @@ export type ViolationLifecycleStatus = (typeof violationLifecycleStatuses)[numbe
 
 export type ViolationReviewStatus = (typeof violationReviewStatuses)[number]
 
+export type ViolationRecordingStatus = Exclude<RealtimeRecordingStatus, 'UNKNOWN'>
+
 export interface ViolationListItem {
   violationId: string
   cameraId: string
@@ -33,6 +36,41 @@ export interface ViolationListItem {
   confidence: number
   lifecycleStatus: ViolationLifecycleStatus
   reviewStatus: ViolationReviewStatus
+}
+
+export interface ViolationDetailResponse {
+  violationId: string
+  cameraId: string
+  cameraName: string
+  cameraCode: string
+  departmentId: string
+  departmentName: string
+  sessionId: string
+  type: ViolationType
+  confidence: number
+  modelVersion: string
+  detectedAt: string
+  startedAt: string
+  endedAt: string | null
+  lifecycleStatus: ViolationLifecycleStatus
+  reviewStatus: ViolationReviewStatus
+  reviewedBy: string | null
+  reviewedAt: string | null
+  recordingStatus: ViolationRecordingStatus
+  clipReady: boolean
+  playbackUrl: string | null
+  coverImageKey: string | null
+  coverImageReady: boolean
+}
+
+export const editableViolationReviewStatuses = ['REVIEWED', 'CONFIRMED', 'FALSE_ALARM'] as const
+
+export type EditableViolationReviewStatus = (typeof editableViolationReviewStatuses)[number]
+export interface ViolationReviewResponse {
+  violationId: string
+  reviewStatus: ViolationReviewStatus
+  reviewedBy: string
+  reviewedAt: string
 }
 
 export interface ViolationClipUrl {
@@ -103,6 +141,26 @@ export async function getViolationHistory(
 
 export async function getViolationClipUrl(violationId: string): Promise<ViolationClipUrl> {
   const response = await apiClient.get<ViolationClipUrl>(`/violations/${violationId}/clip-url`)
+
+  return response.data
+}
+
+export async function getViolationDetail(violationId: string): Promise<ViolationDetailResponse> {
+  const response = await apiClient.get<ViolationDetailResponse>(`/violations/${violationId}`)
+
+  return response.data
+}
+
+export async function reviewViolation(
+  violationId: string,
+  reviewStatus: EditableViolationReviewStatus,
+): Promise<ViolationReviewResponse> {
+  const response = await apiClient.patch<ViolationReviewResponse>(
+    `/violations/${violationId}/review`,
+    {
+      reviewStatus,
+    },
+  )
 
   return response.data
 }
