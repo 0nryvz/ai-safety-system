@@ -4,6 +4,8 @@ export const ROUTE_PATHS = {
   dashboard: '/dashboard',
   violations: '/violations',
   violationDetail: '/violations/:id',
+  adminCameras: '/admin/cameras',
+  adminUsers: '/admin/users',
 } as const
 
 export type RouteOwner = 'FE1' | 'FE2'
@@ -47,6 +49,18 @@ export const appRouteConfig: AppRouteConfig[] = [
     path: ROUTE_PATHS.violations,
     owner: 'FE2',
     access: 'authenticated',
+  },
+  {
+    id: 'adminCameras',
+    path: ROUTE_PATHS.adminCameras,
+    owner: 'FE2',
+    access: 'admin',
+  },
+  {
+    id: 'adminUsers',
+    path: ROUTE_PATHS.adminUsers,
+    owner: 'FE2',
+    access: 'admin',
   },
   {
     id: 'notFound',

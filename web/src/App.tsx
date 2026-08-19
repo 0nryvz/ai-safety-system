@@ -7,6 +7,9 @@ import LoginPage from './pages/LoginPage'
 import NotFoundPage from './pages/NotFoundPage'
 import ViolationHistoryPage from './pages/ViolationHistoryPage'
 import ViolationDetailPage from './pages/ViolationDetailPage'
+import RequireRole from './app/RequireRole'
+import CameraManagementPage from './pages/CameraManagementPage'
+import UserManagementPage from './pages/UserManagementPage'
 
 interface LoginLocationState {
   from?: {
@@ -51,6 +54,11 @@ function App() {
         <Route path={ROUTE_PATHS.dashboard} element={<DashboardPage />} />
         <Route path={ROUTE_PATHS.violations} element={<ViolationHistoryPage />} />
         <Route path={ROUTE_PATHS.violationDetail} element={<ViolationDetailPage />} />
+      </Route>
+
+      <Route element={<RequireRole access="admin" />}>
+        <Route path={ROUTE_PATHS.adminCameras} element={<CameraManagementPage />} />
+        <Route path={ROUTE_PATHS.adminUsers} element={<UserManagementPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

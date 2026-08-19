@@ -1,0 +1,45 @@
+.user-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.user-form__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.user-form__group legend {
+  padding: 0 var(--space-2);
+  font-weight: 600;
+}
+
+.user-form__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.user-form__checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.user-form__error {
+  margin: 0;
+  color: var(--color-critical);
+  font-size: 0.875rem;
+}
+
+.user-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

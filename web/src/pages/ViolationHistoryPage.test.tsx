@@ -32,6 +32,7 @@ beforeEach(() => {
         connectionStatus: 'ONLINE',
         lastSeenAt: '2026-08-18T12:00:00Z',
         activeSessionId: null,
+        departmentName: 'Kaynak',
       },
     ],
     isLoading: false,

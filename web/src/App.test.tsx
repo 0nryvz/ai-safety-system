@@ -19,6 +19,16 @@ const session: AuthSession = {
   },
 }
 
+const adminSession: AuthSession = {
+  ...session,
+  user: {
+    ...session.user!,
+    email: 'admin@example.com',
+    fullName: 'Admin User',
+    roles: ['ADMIN'],
+  },
+}
+
 beforeEach(() => {
   window.sessionStorage.clear()
   clearSession('logout')
@@ -110,5 +120,35 @@ describe('App auth routing', () => {
     renderApp('/login')
 
     expect(screen.getByText('Yönetim paneline giriş yapın')).toBeInTheDocument()
+  })
+
+  it('allows an admin to open the user management page', () => {
+    setAuthenticatedSession(adminSession)
+
+    renderApp('/admin/users')
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'Kullanıcı Yönetimi',
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('redirects a non-admin user away from admin management routes', () => {
+    setAuthenticatedSession(session)
+
+    renderApp('/admin/users')
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'Operasyon Dashboardu',
+      }),
+    ).toBeInTheDocument()
+
+    expect(
+      screen.queryByRole('heading', {
+        name: 'Kullanıcı Yönetimi',
+      }),
+    ).not.toBeInTheDocument()
   })
 })

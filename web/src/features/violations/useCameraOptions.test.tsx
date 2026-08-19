@@ -14,6 +14,7 @@ const cameras: CameraResponse[] = [
     connectionStatus: 'ONLINE',
     lastSeenAt: '2026-08-18T18:00:00Z',
     activeSessionId: null,
+    departmentName: 'Kaynak',
   },
 ]
 
