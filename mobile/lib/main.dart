@@ -22,7 +22,7 @@ Future<void> main() async {
 
   try {
     cameras = await availableCameras();
-  } catch (e) {
+  } catch (_) {
     cameras = [];
   }
 
@@ -58,12 +58,12 @@ class CameraPage extends StatefulWidget {
 class _CameraPageState extends State<CameraPage>
     with WidgetsBindingObserver {
   final CameraSessionService _sessionService =
-    CameraSessionService();
+      CameraSessionService();
 
   final CameraFrameService _frameService =
-    CameraFrameService();
+      CameraFrameService();
 
-CameraController? _controller;
+  CameraController? _controller;
 
   String? _sessionId;
 
@@ -71,20 +71,42 @@ CameraController? _controller;
   bool _isStreaming = false;
   bool _isBusy = false;
 
-  ConnectionState _connectionState = ConnectionState.stopped;
+  ConnectionState _connectionState =
+      ConnectionState.stopped;
+
   Timer? _heartbeatTimer;
+  Timer? _reconnectTimer;
 
-  void _setConnectionState(ConnectionState state) {
-  if (!mounted) return;
+  int _reconnectAttempt = 0;
+  int _consecutiveFrameFailures = 0;
 
-  setState(() {
-    _connectionState = state;
-  });
-}
+  bool _manualStop = false;
+  bool _isReconnecting = false;
+  bool _isAppInBackground = false;
+
+  static const int _maxReconnectAttempts = 3;
 
   int _selectedCameraIndex = 0;
 
   String? _errorMessage;
+
+  // ------------------------------------------------------------
+  // CONNECTION STATE
+  // ------------------------------------------------------------
+
+  void _setConnectionState(ConnectionState state) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _connectionState = state;
+    });
+  }
+
+  // ------------------------------------------------------------
+  // INIT
+  // ------------------------------------------------------------
 
   @override
   void initState() {
@@ -99,19 +121,25 @@ CameraController? _controller;
   // CAMERA INITIALIZATION
   // ------------------------------------------------------------
 
-  Future<void> _initializeCamera([int cameraIndex = 0]) async {
+  Future<void> _initializeCamera([
+    int cameraIndex = 0,
+  ]) async {
     if (cameras.isEmpty) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isCameraReady = false;
-        _errorMessage = 'Cihazda kullanılabilir kamera bulunamadı.';
+        _errorMessage =
+            'Cihazda kullanılabilir kamera bulunamadı.';
       });
 
       return;
     }
 
-    if (cameraIndex < 0 || cameraIndex >= cameras.length) {
+    if (cameraIndex < 0 ||
+        cameraIndex >= cameras.length) {
       return;
     }
 
@@ -124,7 +152,9 @@ CameraController? _controller;
     try {
       await _disposeCameraController();
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isCameraReady = false;
@@ -152,7 +182,9 @@ CameraController? _controller;
         _errorMessage = null;
       });
     } on CameraException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       String message;
 
@@ -168,16 +200,19 @@ CameraController? _controller;
           break;
 
         case 'CameraAccessRestricted':
-          message = 'Kamera erişimi bu cihazda kısıtlanmış.';
+          message =
+              'Kamera erişimi bu cihazda kısıtlanmış.';
           break;
 
         case 'CameraDisconnected':
-          message = 'Kamera bağlantısı kesildi.';
+          message =
+              'Kamera bağlantısı kesildi.';
           break;
 
         default:
           message =
-              'Kamera başlatılamadı: ${e.description ?? e.code}';
+              'Kamera başlatılamadı: '
+              '${e.description ?? e.code}';
       }
 
       setState(() {
@@ -185,8 +220,12 @@ CameraController? _controller;
         _isStreaming = false;
         _errorMessage = message;
       });
+
+      _setConnectionState(ConnectionState.offline);
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isCameraReady = false;
@@ -194,6 +233,8 @@ CameraController? _controller;
         _errorMessage =
             'Kamera başlatılırken beklenmeyen bir hata oluştu.';
       });
+
+      _setConnectionState(ConnectionState.offline);
     } finally {
       _isBusy = false;
     }
@@ -237,7 +278,9 @@ CameraController? _controller;
       return;
     }
 
-    if (!_isCameraReady || _isBusy) {
+    if (!_isCameraReady ||
+        _isBusy ||
+        _isStreaming) {
       return;
     }
 
@@ -248,7 +291,7 @@ CameraController? _controller;
   }
 
   // ------------------------------------------------------------
-  // START / STOP STREAM
+  // START / STOP TOGGLE
   // ------------------------------------------------------------
 
   Future<void> _toggleStreaming() async {
@@ -267,7 +310,13 @@ CameraController? _controller;
     }
   }
 
-  Future<void> _startStreaming() async {
+  // ------------------------------------------------------------
+  // START STREAMING
+  // ------------------------------------------------------------
+
+  Future<void> _startStreaming({
+    bool automaticReconnect = false,
+  }) async {
     final controller = _controller;
 
     if (controller == null ||
@@ -277,11 +326,33 @@ CameraController? _controller;
       return;
     }
 
+    if (_isAppInBackground) {
+      return;
+    }
+
+    if (!automaticReconnect) {
+      _manualStop = false;
+      _reconnectAttempt = 0;
+      _consecutiveFrameFailures = 0;
+      _isReconnecting = false;
+      _reconnectTimer?.cancel();
+      _reconnectTimer = null;
+    }
+
     _isBusy = true;
-    _setConnectionState(ConnectionState.connecting);
+
+    if (automaticReconnect) {
+      _setConnectionState(
+        ConnectionState.reconnecting,
+      );
+    } else {
+      _setConnectionState(
+        ConnectionState.connecting,
+      );
+    }
 
     try {
-      // Her yayın başlangıcında yeni bir session ID oluştur.
+      // Her yayın başlangıcında yeni session ID oluşturulur.
       final sessionId =
           DateTime.now().millisecondsSinceEpoch.toString();
 
@@ -293,62 +364,128 @@ CameraController? _controller;
       );
 
       if (!sessionOpened) {
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         setState(() {
+          _isStreaming = false;
           _errorMessage =
               'Gateway session açılamadı.';
-          _isStreaming = false;
         });
+
+        _setConnectionState(
+          automaticReconnect
+              ? ConnectionState.reconnecting
+              : ConnectionState.offline,
+        );
+
+        if (automaticReconnect) {
+          _scheduleReconnect();
+        }
 
         return;
       }
-      _setConnectionState(ConnectionState.connected);
-      // Gateway session başarılı şekilde açıldı.
+
       _sessionId = sessionId;
+
       _heartbeatTimer?.cancel();
 
-_heartbeatTimer = Timer.periodic(
-  const Duration(seconds: 10),
-  (_) async {
-    final currentSessionId = _sessionId;
+      _heartbeatTimer = Timer.periodic(
+        const Duration(seconds: 10),
+        (_) async {
+          final currentSessionId = _sessionId;
 
-    if (currentSessionId == null) {
-      return;
-    }
+          if (currentSessionId == null ||
+              _manualStop ||
+              _isAppInBackground) {
+            return;
+          }
 
-    await _sessionService.sendHeartbeat(
-      cameraId: 'camera-1',
-      sessionId: currentSessionId,
-    );
-  },
-);
+          try {
+            final heartbeatOk =
+                await _sessionService.sendHeartbeat(
+              cameraId: 'camera-1',
+              sessionId: currentSessionId,
+            );
+
+            if (!heartbeatOk) {
+              _handleConnectionFailure(
+                'Gateway heartbeat başarısız.',
+              );
+            }
+          } catch (_) {
+            _handleConnectionFailure(
+              'Gateway heartbeat gönderilemedi.',
+            );
+          }
+        },
+      );
 
       await controller.startImageStream(
-  (CameraImage image) async {
-    final sessionId = _sessionId;
+        (CameraImage image) async {
+          if (_manualStop ||
+              _isAppInBackground ||
+              _isReconnecting) {
+            return;
+          }
 
-    if (sessionId == null) {
-      return;
-    }
+          final currentSessionId = _sessionId;
 
-    await _frameService.uploadFrame(
-      cameraId: 'camera-1',
-      sessionId: sessionId,
-      frameTimestamp: DateTime.now().toUtc(),
-      image: image,
-    );
-  },
-);
+          if (currentSessionId == null) {
+            return;
+          }
 
-      if (!mounted) return;
+          try {
+            final uploaded =
+                await _frameService.uploadFrame(
+              cameraId: 'camera-1',
+              sessionId: currentSessionId,
+              frameTimestamp:
+                  DateTime.now().toUtc(),
+              image: image,
+            );
+
+            if (uploaded) {
+              _consecutiveFrameFailures = 0;
+
+              if (_connectionState !=
+                      ConnectionState.connected &&
+                  !_isReconnecting &&
+                  mounted) {
+                _setConnectionState(
+                  ConnectionState.connected,
+                );
+              }
+            } else {
+              _handleFrameFailure();
+            }
+          } catch (_) {
+            _handleFrameFailure();
+          }
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      _reconnectAttempt = 0;
+      _consecutiveFrameFailures = 0;
+      _isReconnecting = false;
 
       setState(() {
         _isStreaming = true;
         _errorMessage = null;
       });
+
+      _setConnectionState(
+        ConnectionState.connected,
+      );
     } on CameraException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isStreaming = false;
@@ -356,20 +493,220 @@ _heartbeatTimer = Timer.periodic(
             'Görüntü aktarımı başlatılamadı: '
             '${e.description ?? e.code}';
       });
+
+      if (automaticReconnect) {
+        _scheduleReconnect();
+      } else {
+        _setConnectionState(
+          ConnectionState.offline,
+        );
+      }
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isStreaming = false;
         _errorMessage =
             'Yayın başlatılırken hata oluştu: $e';
       });
+
+      if (automaticReconnect) {
+        _scheduleReconnect();
+      } else {
+        _setConnectionState(
+          ConnectionState.offline,
+        );
+      }
     } finally {
       _isBusy = false;
     }
   }
 
-  Future<void> _stopStreaming() async {
+  // ------------------------------------------------------------
+  // FRAME FAILURE
+  // ------------------------------------------------------------
+
+  void _handleFrameFailure() {
+    if (_manualStop ||
+        _isAppInBackground ||
+        _isReconnecting) {
+      return;
+    }
+
+    _consecutiveFrameFailures++;
+
+    if (_consecutiveFrameFailures == 1) {
+      _setConnectionState(
+        ConnectionState.weak,
+      );
+    }
+
+    if (_consecutiveFrameFailures >= 3) {
+      _handleConnectionFailure(
+        'Arka arkaya frame gönderim hatası oluştu.',
+      );
+    }
+  }
+
+  // ------------------------------------------------------------
+  // CONNECTION FAILURE
+  // ------------------------------------------------------------
+
+  void _handleConnectionFailure(
+    String message,
+  ) {
+    if (_manualStop ||
+        _isAppInBackground ||
+        _isReconnecting) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _errorMessage = message;
+      });
+    }
+
+    _scheduleReconnect();
+  }
+
+  // ------------------------------------------------------------
+  // RECONNECT
+  // ------------------------------------------------------------
+
+  void _scheduleReconnect() {
+    if (_manualStop ||
+        _isAppInBackground ||
+        _isReconnecting) {
+      return;
+    }
+
+    if (_reconnectAttempt >=
+        _maxReconnectAttempts) {
+      _isReconnecting = false;
+
+      _setConnectionState(
+        ConnectionState.offline,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isStreaming = false;
+          _errorMessage =
+              'Bağlantı kurulamadı. '
+              'Lütfen tekrar deneyin.';
+        });
+      }
+
+      return;
+    }
+
+    _isReconnecting = true;
+
+    _setConnectionState(
+      ConnectionState.reconnecting,
+    );
+
+    _reconnectTimer?.cancel();
+
+    final delaySeconds =
+        1 << _reconnectAttempt;
+
+    _reconnectAttempt++;
+
+    final delay = Duration(
+      seconds: delaySeconds.clamp(1, 8),
+    );
+
+    _reconnectTimer = Timer(
+      delay,
+      _performReconnect,
+    );
+  }
+
+  Future<void> _performReconnect() async {
+    if (_manualStop ||
+        _isAppInBackground) {
+      _isReconnecting = false;
+      return;
+    }
+
+    _reconnectTimer = null;
+
+    final controller = _controller;
+
+    if (controller == null ||
+        !controller.value.isInitialized) {
+      _isReconnecting = false;
+
+      _setConnectionState(
+        ConnectionState.offline,
+      );
+
+      return;
+    }
+
+    _isBusy = true;
+
+    try {
+      final oldSessionId = _sessionId;
+
+      // Önce session ID'yi temizle.
+      // Böylece kapanmakta olan eski stream
+      // yeni frame gönderemez.
+      _sessionId = null;
+
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = null;
+
+      try {
+        if (controller.value.isStreamingImages) {
+          await controller.stopImageStream();
+        }
+      } catch (_) {}
+
+      if (oldSessionId != null) {
+        try {
+          await _sessionService.closeSession(
+            cameraId: 'camera-1',
+            sessionId: oldSessionId,
+          );
+        } catch (_) {
+          // Eski session zaten kapanmış olabilir.
+        }
+      }
+
+      _isStreaming = false;
+      _consecutiveFrameFailures = 0;
+    } finally {
+      _isBusy = false;
+    }
+
+    _isReconnecting = false;
+
+    if (_manualStop ||
+        _isAppInBackground) {
+      _setConnectionState(
+        ConnectionState.stopped,
+      );
+
+      return;
+    }
+
+    await _startStreaming(
+      automaticReconnect: true,
+    );
+  }
+
+  // ------------------------------------------------------------
+  // STOP STREAMING
+  // ------------------------------------------------------------
+
+  Future<void> _stopStreaming({
+    bool fromLifecycle = false,
+  }) async {
     final controller = _controller;
 
     if (controller == null || _isBusy) {
@@ -378,46 +715,87 @@ _heartbeatTimer = Timer.periodic(
 
     _isBusy = true;
 
+    // Manuel stop ise reconnect tamamen yasak.
+    if (!fromLifecycle) {
+      _manualStop = true;
+    }
+
+    _isReconnecting = false;
+
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+
+    final sessionId = _sessionId;
+
+    // Eski frame callback'lerinin artık
+    // session kullanmasını engelle.
+    _sessionId = null;
+
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+
     try {
-  final sessionId = _sessionId;
+      if (controller.value.isStreamingImages) {
+        await controller.stopImageStream();
+      }
 
-  _sessionId = null;
+      if (sessionId != null) {
+        try {
+          await _sessionService.closeSession(
+            cameraId: 'camera-1',
+            sessionId: sessionId,
+          );
+        } catch (_) {
+          // Session zaten kapanmış olabilir.
+        }
+      }
 
-  _heartbeatTimer?.cancel();
-  _heartbeatTimer = null;
-
-  if (controller.value.isStreamingImages) {
-    await controller.stopImageStream();
-  }
-
-  if (sessionId != null) {
-    await _sessionService.closeSession(
-      cameraId: 'camera-1',
-      sessionId: sessionId,
-    );
-  }
-
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isStreaming = false;
+
+        if (!fromLifecycle) {
+          _errorMessage = null;
+        }
       });
-      
+
+      if (!fromLifecycle) {
+        _setConnectionState(
+          ConnectionState.stopped,
+        );
+      }
     } on CameraException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
+        _isStreaming = false;
         _errorMessage =
             'Görüntü aktarımı durdurulamadı: '
             '${e.description ?? e.code}';
       });
+
+      _setConnectionState(
+        ConnectionState.stopped,
+      );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
+        _isStreaming = false;
         _errorMessage =
             'Yayın durdurulurken hata oluştu: $e';
       });
+
+      _setConnectionState(
+        ConnectionState.stopped,
+      );
     } finally {
       _isBusy = false;
     }
@@ -431,15 +809,20 @@ _heartbeatTimer = Timer.periodic(
   void didChangeAppLifecycleState(
     AppLifecycleState state,
   ) {
-    final controller = _controller;
+    final isBackground =
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden;
 
-    if (controller == null ||
-        !controller.value.isInitialized) {
-      return;
-    }
+    if (isBackground) {
+      _isAppInBackground = true;
 
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused) {
+      if (_isStreaming) {
+        _stopStreaming(
+          fromLifecycle: true,
+        );
+      }
+
       _disposeCameraController();
 
       if (mounted) {
@@ -448,8 +831,23 @@ _heartbeatTimer = Timer.periodic(
           _isStreaming = false;
         });
       }
-    } else if (state == AppLifecycleState.resumed) {
-      _initializeCamera(_selectedCameraIndex);
+
+      _setConnectionState(
+        ConnectionState.stopped,
+      );
+
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed) {
+      _isAppInBackground = false;
+
+      // Önceden aktif olan session'ı sessizce
+      // tekrar kullanmıyoruz.
+      // Kamera yeniden hazırlanıyor.
+      _initializeCamera(
+        _selectedCameraIndex,
+      );
     }
   }
 
@@ -459,11 +857,69 @@ _heartbeatTimer = Timer.periodic(
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    WidgetsBinding.instance.removeObserver(
+      this,
+    );
+
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+
+    _manualStop = true;
+    _isReconnecting = false;
+    _sessionId = null;
 
     _disposeCameraController();
 
     super.dispose();
+  }
+
+  // ------------------------------------------------------------
+  // CONNECTION TEXT
+  // ------------------------------------------------------------
+
+  String _connectionText() {
+    switch (_connectionState) {
+      case ConnectionState.connecting:
+        return 'Bağlanıyor...';
+
+      case ConnectionState.connected:
+        return 'Bağlı';
+
+      case ConnectionState.weak:
+        return 'Bağlantı zayıf';
+
+      case ConnectionState.reconnecting:
+        return 'Yeniden bağlanıyor...';
+
+      case ConnectionState.offline:
+        return 'Çevrimdışı';
+
+      case ConnectionState.stopped:
+        return 'Hazır';
+    }
+  }
+
+  Color _connectionColor() {
+    switch (_connectionState) {
+      case ConnectionState.connected:
+        return Colors.green;
+
+      case ConnectionState.weak:
+        return Colors.orange;
+
+      case ConnectionState.connecting:
+      case ConnectionState.reconnecting:
+        return Colors.amber;
+
+      case ConnectionState.offline:
+        return Colors.red;
+
+      case ConnectionState.stopped:
+        return Colors.white;
+    }
   }
 
   // ------------------------------------------------------------
@@ -534,7 +990,9 @@ _heartbeatTimer = Timer.periodic(
                         : () => _initializeCamera(
                               _selectedCameraIndex,
                             ),
-                    child: const Text('Tekrar Dene'),
+                    child: const Text(
+                      'Tekrar Dene',
+                    ),
                   ),
                 ],
               ],
@@ -549,24 +1007,35 @@ _heartbeatTimer = Timer.periodic(
         title: const Text('Camera Stream'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.cameraswitch),
+            icon: const Icon(
+              Icons.cameraswitch,
+            ),
             tooltip: 'Kamerayı değiştir',
             onPressed:
-                _isBusy ? null : _switchCamera,
+                (_isBusy || _isStreaming)
+                    ? null
+                    : _switchCamera,
           ),
         ],
       ),
       body: Stack(
         children: [
           Positioned.fill(
-            child: CameraPreview(_controller!),
+            child: CameraPreview(
+              _controller!,
+            ),
           ),
+
+          // ----------------------------------------------------
+          // CONNECTION STATUS
+          // ----------------------------------------------------
 
           Positioned(
             top: 16,
             left: 16,
             child: Container(
-              padding: const EdgeInsets.symmetric(
+              padding:
+                  const EdgeInsets.symmetric(
                 horizontal: 12,
                 vertical: 8,
               ),
@@ -580,26 +1049,14 @@ _heartbeatTimer = Timer.periodic(
                     MainAxisSize.min,
                 children: [
                   Icon(
-                    _isStreaming
-                        ? Icons.circle
-                        : Icons.pause_circle,
+                    Icons.circle,
                     size: 12,
-                    color: _connectionState == ConnectionState.connected
-                         ? Colors.green
-                        : Colors.white,
+                    color: _connectionColor(),
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    _connectionState == ConnectionState.connected
-                         ? 'Bağlı'
-                         : _connectionState == ConnectionState.connecting
-                         ? 'Bağlanıyor...'
-                         : _connectionState == ConnectionState.reconnecting
-                         ? 'Yeniden bağlanıyor...'
-                         : _connectionState == ConnectionState.offline
-                         ? 'Çevrimdışı'
-                         : 'Hazır',
-                      style: const TextStyle(
+                    _connectionText(),
+                    style: const TextStyle(
                       color: Colors.white,
                     ),
                   ),
@@ -607,6 +1064,10 @@ _heartbeatTimer = Timer.periodic(
               ),
             ),
           ),
+
+          // ----------------------------------------------------
+          // ERROR
+          // ----------------------------------------------------
 
           if (_errorMessage != null)
             Positioned(
@@ -630,6 +1091,10 @@ _heartbeatTimer = Timer.periodic(
                 ),
               ),
             ),
+
+          // ----------------------------------------------------
+          // START / STOP
+          // ----------------------------------------------------
 
           Positioned(
             bottom: 30,
