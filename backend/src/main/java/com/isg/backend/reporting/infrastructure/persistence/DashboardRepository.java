@@ -44,18 +44,14 @@ public class DashboardRepository {
         return Instant.parse(value.toString());
     }
 
-    private String toRecordingStatus(
+    private RecordingStatus toRecordingStatus(
             Object value
     ) {
         if (value == null) {
             return null;
         }
 
-        return RecordingStatus
-                .fromDatabaseValue(
-                        value.toString()
-                )
-                .name();
+        return RecordingStatus.fromDatabaseValue(value.toString());
     }
 
 
@@ -240,19 +236,20 @@ public class DashboardRepository {
                 v.violation_type,
                 v.camera_id,
                 v.department_id,
+                d.name,
                 c.name,
                 c.code,
                 v.lifecycle_status,
                 v.review_status,
                 r.status,
                 r.ready_at,
-                r.object_key,
-                v.cover_image_key,
                 v.confidence,
                 v.model_version
             FROM violations v
             LEFT JOIN cameras c
                 ON c.id = v.camera_id
+            LEFT JOIN departments d
+                ON d.id = v.department_id
             LEFT JOIN recordings r
                 ON r.violation_id = v.id
             WHERE v.department_id IN (:departmentIds)
@@ -282,14 +279,13 @@ public class DashboardRepository {
                             data[7] != null ? data[7].toString() : null,
                             data[8] != null ? data[8].toString() : null,
                             data[9] != null ? data[9].toString() : null,
-                            toRecordingStatus(data[10]),
-                            toInstant(data[11]),
-                            data[12] != null ? data[12].toString() : null,
-                            data[13] != null ? data[13].toString() : null,
-                            data[14] != null
-                                    ? ((Number) data[14]).doubleValue()
+                            data[10] != null ? data[10].toString() : null,
+                            toRecordingStatus(data[11]),
+                            toInstant(data[12]),
+                            data[13] != null
+                                    ? ((Number) data[13]).doubleValue()
                                     : null,
-                            data[15] != null ? data[15].toString() : null
+                            data[14] != null ? data[14].toString() : null
                     );
                 })
                 .toList();

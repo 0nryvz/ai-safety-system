@@ -153,6 +153,55 @@ class DashboardServiceImplTest {
     }
 
     @Test
+    void passesAllAccessibleDepartmentsToSummaryAndRecentViolations() {
+        UUID userId = UUID.randomUUID();
+
+        UUID departmentId1 = UUID.randomUUID();
+        UUID departmentId2 = UUID.randomUUID();
+
+        List<UUID> departmentIds =
+                List.of(
+                        departmentId1,
+                        departmentId2
+                );
+
+        when(authorizationService.accessibleDepartmentIds(userId))
+                .thenReturn(departmentIds);
+
+        DashboardSummaryResponse expected =
+                new DashboardSummaryResponse(
+                        5,
+                        12,
+                        "NO_HELMET",
+                        4,
+                        1,
+                        2
+                );
+
+        when(dashboardRepository.getSummary(departmentIds))
+                .thenReturn(expected);
+
+        when(dashboardRepository.getRecentViolations(
+                departmentIds,
+                20
+        )).thenReturn(List.of());
+
+        assertThat(
+                dashboardService.getSummary(userId)
+        ).isEqualTo(expected);
+
+        dashboardService.getRecentViolations(userId);
+
+        verify(dashboardRepository)
+                .getSummary(departmentIds);
+
+        verify(dashboardRepository)
+                .getRecentViolations(
+                        departmentIds,
+                        20
+                );
+    }
+    @Test
     void emptyDepartmentAccessReturnsEmptyDashboardWithoutRepositoryCalls() {
         UUID userId = UUID.randomUUID();
 
