@@ -6,6 +6,9 @@ from app.core.config import get_settings
 from app.infrastructure.local_session_lifecycle_notifier import (
     LocalCameraSessionLifecycleNotifier,
 )
+from app.infrastructure.http_session_lifecycle_notifier import (
+    HttpCameraSessionLifecycleNotifier,
+)
 from app.infrastructure.local_session_validator import (
     LocalCameraSessionValidator,
 )
@@ -71,11 +74,22 @@ def get_camera_session_validator() -> CameraSessionValidator:
         expected_token=settings.local_session_token,
     )
 
-
 @lru_cache
 def get_camera_session_lifecycle_notifier(
 ) -> CameraSessionLifecycleNotifier:
-    return LocalCameraSessionLifecycleNotifier()
+    settings = get_settings()
+
+    if not settings.session_lifecycle_http_enabled:
+        return LocalCameraSessionLifecycleNotifier()
+
+    return HttpCameraSessionLifecycleNotifier(
+        backend_base_url=(
+            settings.session_lifecycle_backend_base_url
+        ),
+        internal_api_key=(
+            settings.session_lifecycle_internal_api_key
+        ),
+    )
 
 @lru_cache
 def get_session_frame_queue_manager() -> SessionFrameQueueManager:
