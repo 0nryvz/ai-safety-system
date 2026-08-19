@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 6
+names: ['Person', 'gloves', 'welding', 'welding_apron', 'welding_jacket', 'welding_mask']
+
+roboflow:
+  workspace: dilara-ozturk-p4iqf
+  project: dina_ekleyecek_nonless
+  version: 2
+  license: Private
+  url: https://app.roboflow.com/dilara-ozturk-p4iqf/dina_ekleyecek_nonless/2
