@@ -1,5 +1,7 @@
 package com.isg.backend.reporting.dto;
 
+import com.isg.backend.recording.domain.RecordingStatus;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -10,14 +12,13 @@ public record RecentViolationResponse(
         String violationType,
         UUID cameraId,
         UUID departmentId,
+        String departmentName,
         String cameraName,
         String cameraCode,
         String lifecycleStatus,
         String reviewStatus,
-        String recordingStatus,
+        RecordingStatus recordingStatus,
         Instant recordingReadyAt,
-        String recordingObjectKey,
-        String coverImageKey,
         Double confidence,
         String modelVersion
 ) {
