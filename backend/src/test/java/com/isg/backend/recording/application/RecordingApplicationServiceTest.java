@@ -565,6 +565,35 @@ class RecordingApplicationServiceTest {
         }
 
         @Override
+        public Map<UUID, Recording> findByViolationIds(
+                Collection<UUID> violationIds
+        ) {
+            return violationIds.stream()
+                    .filter(byViolationId::containsKey)
+                    .collect(
+                            java.util.stream.Collectors.toMap(
+                                    violationId -> violationId,
+                                    byViolationId::get
+                            )
+                    );
+        }
+
+        @Override
+        public Set<UUID> findViolationIdsByStatus(
+                RecordingStatus status
+        ) {
+            return byViolationId.values().stream()
+                    .filter(
+                            recording ->
+                                    recording.status() == status
+                    )
+                    .map(Recording::violationId)
+                    .collect(
+                            java.util.stream.Collectors.toSet()
+                    );
+        }
+
+        @Override
         public Recording save(
                 Recording recording
         ) {
@@ -670,6 +699,35 @@ class RecordingApplicationServiceTest {
             return byViolationId.values().stream()
                     .filter(recording -> recording.id().equals(recordingId))
                     .findFirst();
+        }
+
+        @Override
+        public Map<UUID, Recording> findByViolationIds(
+                Collection<UUID> violationIds
+        ) {
+            return violationIds.stream()
+                    .filter(byViolationId::containsKey)
+                    .collect(
+                            java.util.stream.Collectors.toMap(
+                                    violationId -> violationId,
+                                    byViolationId::get
+                            )
+                    );
+        }
+
+        @Override
+        public Set<UUID> findViolationIdsByStatus(
+                RecordingStatus status
+        ) {
+            return byViolationId.values().stream()
+                    .filter(
+                            recording ->
+                                    recording.status() == status
+                    )
+                    .map(Recording::violationId)
+                    .collect(
+                            java.util.stream.Collectors.toSet()
+                    );
         }
 
         @Override

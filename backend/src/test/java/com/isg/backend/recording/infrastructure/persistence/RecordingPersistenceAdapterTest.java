@@ -8,6 +8,9 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -181,4 +184,104 @@ class RecordingPersistenceAdapterTest {
         assertThat(loaded.stopCommandId()).isEqualTo(stopCommandId);
         assertThat(loaded.readyAt()).isEqualTo(Instant.parse("2026-01-01T10:02:00Z"));
     }
+
+    @Test
+    void findsRecordingsInBulkByViolationIds() {
+        UUID violationId1 = UUID.randomUUID();
+        UUID violationId2 = UUID.randomUUID();
+
+        RecordingJpaEntity pendingEntity = RecordingJpaEntity.builder()
+                .id(UUID.randomUUID())
+                .violationId(violationId1)
+                .status("PENDING")
+                .startCommandId(UUID.randomUUID())
+                .build();
+
+        RecordingJpaEntity readyEntity = RecordingJpaEntity.builder()
+                .id(UUID.randomUUID())
+                .violationId(violationId2)
+                .status("READY")
+                .startCommandId(UUID.randomUUID())
+                .build();
+
+        when(
+                springDataRepository.findByViolationIdIn(
+                        List.of(
+                                violationId1,
+                                violationId2
+                        )
+                )
+        ).thenReturn(
+                List.of(
+                        pendingEntity,
+                        readyEntity
+                )
+        );
+
+        Map<UUID, Recording> recordings =
+                adapter.findByViolationIds(
+                        List.of(
+                                violationId1,
+                                violationId2
+                        )
+                );
+
+        assertThat(recordings).hasSize(2);
+
+        assertThat(
+                recordings.get(violationId1).status()
+        ).isEqualTo(
+                RecordingStatus.REQUESTED
+        );
+
+        assertThat(
+                recordings.get(violationId2).status()
+        ).isEqualTo(
+                RecordingStatus.READY
+        );
+
+        verify(
+                springDataRepository
+        ).findByViolationIdIn(
+                List.of(
+                        violationId1,
+                        violationId2
+                )
+        );
+    }
+
+    @Test
+    void mapsRequestedStatusToPendingWhenFilteringViolationIds() {
+        UUID violationId1 = UUID.randomUUID();
+        UUID violationId2 = UUID.randomUUID();
+
+        when(
+                springDataRepository.findViolationIdsByStatus(
+                        "PENDING"
+                )
+        ).thenReturn(
+                Set.of(
+                        violationId1,
+                        violationId2
+                )
+        );
+
+        Set<UUID> violationIds =
+                adapter.findViolationIdsByStatus(
+                        RecordingStatus.REQUESTED
+                );
+
+        assertThat(violationIds)
+                .containsExactlyInAnyOrder(
+                        violationId1,
+                        violationId2
+                );
+
+        verify(
+                springDataRepository
+        ).findViolationIdsByStatus(
+                "PENDING"
+        );
+    }
+
 }
