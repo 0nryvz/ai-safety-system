@@ -19,6 +19,38 @@ class ApiClient {
       body: jsonEncode(body),
     );
   }
+  Future<http.Response> postHeartbeat({
+  required String path,
+  required String cameraId,
+}) async {
+  final uri = Uri.parse('$baseUrl$path');
+
+  return http.post(
+    uri,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'camera_id': cameraId,
+    }),
+  );
+}
+Future<http.Response> postClose({
+  required String path,
+  required String cameraId,
+}) async {
+  final uri = Uri.parse('$baseUrl$path');
+
+  return http.post(
+    uri,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode({
+      'camera_id': cameraId,
+    }),
+  );
+}
 
   Future<http.Response> postJpeg({
     required String path,
