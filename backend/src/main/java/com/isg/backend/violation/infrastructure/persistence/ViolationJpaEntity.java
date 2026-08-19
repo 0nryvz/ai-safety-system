@@ -80,6 +80,9 @@ public class ViolationJpaEntity {
     @Column(name = "source_session_id")
     private UUID sourceSessionId;
 
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
     @Version
     @Column(name = "version", nullable = false)
     private long version;
@@ -113,6 +116,7 @@ public class ViolationJpaEntity {
         this.lifecycleStatus = lifecycleStatus;
         this.reviewStatus = reviewStatus;
         this.detectedAt = detectedAt;
+        this.updatedAt = startedAt;
 
         /*
          * Compatibility constructor for existing tests/legacy call sites.
@@ -151,6 +155,7 @@ public class ViolationJpaEntity {
         this.lifecycleStatus = lifecycleStatus;
         this.reviewStatus = reviewStatus;
         this.detectedAt = detectedAt;
+        this.updatedAt = startedAt;
 
         this.subjectKey =
                 Objects.requireNonNull(
@@ -241,6 +246,10 @@ public class ViolationJpaEntity {
 
     public UUID getReviewedBy() {
         return reviewedBy;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
     }
 
     public Instant getReviewedAt() {

@@ -211,7 +211,8 @@ public class ViolationQueryService {
                         .doubleValue(),
                 violation.getLifecycleStatus(),
                 violation.getReviewStatus(),
-                resolvedRecording.recordingStatus()
+                resolvedRecording.recordingStatus(),
+                violation.getUpdatedAt()
         );
     }
 

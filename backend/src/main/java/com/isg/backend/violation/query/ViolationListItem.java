@@ -17,6 +17,7 @@ public record ViolationListItem(
         double confidence,
         ViolationLifecycleStatus lifecycleStatus,
         ViolationReviewStatus reviewStatus,
-        String recordingStatus
+        String recordingStatus,
+        Instant updatedAt
 ) {
 }
