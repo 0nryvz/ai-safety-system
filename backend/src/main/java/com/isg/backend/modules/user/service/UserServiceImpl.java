@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -41,7 +40,10 @@ public class UserServiceImpl implements UserService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bu email adresi zaten kullanımda.");
         }
 
-        Set<Role> roles = request.getRoleNames().stream()
+        // Güvenlik önlemi olarak null kontrolü (NullPointerException riskine karşı koruma)
+        Set<String> rolesToAssign = (request.getRoleNames() != null) ? request.getRoleNames() : Set.of();
+
+        Set<Role> roles = rolesToAssign.stream()
                 .map(name -> roleRepository.findByName(name)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Rol bulunamadı: " + name)))
                 .collect(Collectors.toSet());
@@ -73,18 +75,26 @@ public class UserServiceImpl implements UserService {
             checkIfLastAdmin();
         }
 
-        user.setFullName(request.getFullName());
+        // Sadece fullName dolu geldiyse güncelle (Partial Update desteği)
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            user.setFullName(request.getFullName());
+        }
 
+        // Sadece active durumu gönderildiyse güncelle
         if (request.getActive() != null) {
             user.setActive(request.getActive());
         }
 
-        user.getDepartments().clear();
-        if (request.getDepartmentIds() != null && !request.getDepartmentIds().isEmpty()) {
-            List<Department> depts = departmentRepository.findAllById(request.getDepartmentIds());
-            user.getDepartments().addAll(depts);
+        // Departman ID listesi gönderildiyse güncelle
+        if (request.getDepartmentIds() != null) {
+            user.getDepartments().clear();
+            if (!request.getDepartmentIds().isEmpty()) {
+                List<Department> depts = departmentRepository.findAllById(request.getDepartmentIds());
+                user.getDepartments().addAll(depts);
+            }
         }
 
+        // Rol isimleri gönderildiyse güncelle
         if (request.getRoleNames() != null && !request.getRoleNames().isEmpty()) {
             Set<Role> roles = request.getRoleNames().stream()
                     .map(name -> roleRepository.findByName(name)
