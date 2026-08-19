@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.time.Clock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -43,6 +44,7 @@ class ViolationNotificationServiceTest {
     private SpringDataViolationRepository violationRepository;
     private CameraService cameraService;
     private SimpleMeterRegistry meterRegistry;
+    private Clock clock;
 
     private ViolationNotificationService service;
 
@@ -66,6 +68,9 @@ class ViolationNotificationServiceTest {
         meterRegistry =
                 new SimpleMeterRegistry();
 
+        clock =
+                Clock.systemUTC();
+
         service =
                 new ViolationNotificationService(
                         messagingTemplate,
@@ -73,7 +78,8 @@ class ViolationNotificationServiceTest {
                         departmentNameResolver,
                         violationRepository,
                         cameraService,
-                        meterRegistry
+                        meterRegistry,
+                        clock
                 );
     }
 

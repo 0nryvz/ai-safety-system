@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../core/api/apiError'
 import type {
@@ -43,6 +44,7 @@ const camera: Camera = {
   name: 'Montaj Kamera 1',
   code: 'CAM-001',
   departmentId: '33333333-3333-3333-3333-333333333333',
+  departmentName: 'Montaj',
   active: true,
   connectionStatus: 'ONLINE',
   lastSeenAt: null,
@@ -56,14 +58,13 @@ const recentViolation: RecentViolation = {
   violationType: 'MISSING_GLOVES',
   cameraId: 'camera-1',
   departmentId: 'department-1',
+  departmentName: 'Montaj',
   cameraName: 'Kamera 1',
   cameraCode: 'CAM-001',
   lifecycleStatus: 'ACTIVE',
   reviewStatus: null,
   recordingStatus: 'REQUESTED',
   recordingReadyAt: null,
-  recordingObjectKey: null,
-  coverImageKey: null,
   confidence: 0.88,
   modelVersion: null,
 }
@@ -129,12 +130,20 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+function renderDashboard() {
+  return render(
+    <MemoryRouter>
+      <DashboardPage />
+    </MemoryRouter>,
+  )
+}
+
 describe('DashboardPage', () => {
   it('loads and displays summary metrics for an admin', () => {
     setAuthenticatedRole('ADMIN')
     mockedUseDashboardData.mockReturnValue(createDashboardState({ summary }))
 
-    render(<DashboardPage />)
+    renderDashboard()
 
     expect(mockedUseDashboardData).toHaveBeenCalledWith({
       includeSummary: true,
@@ -148,7 +157,7 @@ describe('DashboardPage', () => {
     setAuthenticatedRole('OHS_SPECIALIST')
     mockedUseDashboardData.mockReturnValue(createDashboardState())
 
-    render(<DashboardPage />)
+    renderDashboard()
 
     expect(mockedUseDashboardData).toHaveBeenCalledWith({
       includeSummary: false,
@@ -168,7 +177,7 @@ describe('DashboardPage', () => {
       }),
     )
 
-    render(<DashboardPage />)
+    renderDashboard()
 
     expect(screen.getByRole('status')).toHaveTextContent('Dashboard verileri yükleniyor...')
   })
@@ -184,7 +193,7 @@ describe('DashboardPage', () => {
       }),
     )
 
-    render(<DashboardPage />)
+    renderDashboard()
 
     expect(
       screen.getByRole('heading', {
@@ -204,7 +213,7 @@ describe('DashboardPage', () => {
       }),
     )
 
-    render(<DashboardPage />)
+    renderDashboard()
 
     expect(screen.getByRole('heading', { name: 'Kamera durumları' })).toBeInTheDocument()
     expect(screen.getByText('1 kamera')).toBeInTheDocument()
@@ -221,7 +230,7 @@ describe('DashboardPage', () => {
       }),
     )
 
-    render(<DashboardPage />)
+    renderDashboard()
 
     expect(screen.getByRole('heading', { name: 'Kamera bulunamadı' })).toBeInTheDocument()
     expect(
@@ -240,7 +249,7 @@ describe('DashboardPage', () => {
       dismissViolation: vi.fn(),
     })
 
-    render(<DashboardPage />)
+    renderDashboard()
 
     expect(screen.getByText('1 ihlal')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Eldiven eksik' })).toBeInTheDocument()
@@ -260,7 +269,7 @@ describe('DashboardPage', () => {
       dismissViolation,
     })
 
-    render(<DashboardPage />)
+    renderDashboard()
 
     fireEvent.click(screen.getByRole('button', { name: 'Uyarıyı kapat' }))
 
@@ -275,7 +284,7 @@ describe('DashboardPage', () => {
       }),
     )
 
-    render(<DashboardPage />)
+    renderDashboard()
 
     expect(screen.getByRole('heading', { name: 'İhlal bulunamadı' })).toBeInTheDocument()
     expect(

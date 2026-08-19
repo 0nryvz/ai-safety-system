@@ -62,9 +62,63 @@ class Settings(BaseSettings):
 
     recorder_output_dir: str = "var/recordings"
 
+    recorder_spool_max_bytes: int = Field(
+        default=536_870_912,
+        ge=1,
+    )
+
+    recorder_spool_ttl_seconds: int = Field(
+        default=86_400,
+        ge=0,
+    )
+
     recorder_ffmpeg_path: str = "ffmpeg"
 
     recorder_ffprobe_path: str = "ffprobe"
+
+    recorder_storage_minio_endpoint: str = "localhost:9000"
+
+    recorder_storage_minio_access_key: str = ""
+
+    recorder_storage_minio_secret_key: str = ""
+
+    recorder_storage_minio_bucket: str = ""
+
+    recorder_storage_minio_secure: bool = False
+
+    recorder_upload_max_retries: int = Field(
+        default=2,
+        ge=0,
+    )
+
+    recorder_upload_initial_backoff_seconds: float = Field(
+        default=0.25,
+        ge=0,
+    )
+
+    recorder_upload_max_backoff_seconds: float = Field(
+        default=2.0,
+        ge=0,
+    )
+
+    recording_callback_backend_base_url: str = "http://localhost:8080"
+
+    recording_callback_internal_api_key: str = ""
+
+    recording_callback_max_retries: int = Field(
+        default=3,
+        ge=0,
+    )
+
+    recording_callback_initial_backoff_seconds: float = Field(
+        default=0.5,
+        ge=0,
+    )
+
+    recording_callback_max_backoff_seconds: float = Field(
+        default=5.0,
+        ge=0,
+    )
 
     model_config = SettingsConfigDict(
         env_prefix="GATEWAY_",

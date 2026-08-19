@@ -10,14 +10,13 @@ const recentViolation: RecentViolation = {
   violationType: 'MISSING_GLOVES',
   cameraId: 'camera-1',
   departmentId: 'department-1',
+  departmentName: 'Montaj',
   cameraName: 'Kamera 1',
   cameraCode: 'CAM-001',
   lifecycleStatus: 'ACTIVE',
   reviewStatus: null,
   recordingStatus: 'REQUESTED',
   recordingReadyAt: null,
-  recordingObjectKey: null,
-  coverImageKey: null,
   confidence: 0.88,
   modelVersion: null,
 }
@@ -82,9 +81,24 @@ describe('mergeDashboardViolations', () => {
     expect(result).toEqual([])
   })
 
-  it('keeps missing REST department names empty instead of guessing them', () => {
+  it('uses the department name returned by REST', () => {
     const result = mergeDashboardViolations([recentViolation], [])
+    expect(result[0]).toMatchObject({
+      departmentName: 'Montaj',
+      source: 'REST',
+    })
+  })
 
+  it('keeps a missing REST department name empty without guessing', () => {
+    const result = mergeDashboardViolations(
+      [
+        {
+          ...recentViolation,
+          departmentName: null,
+        },
+      ],
+      [],
+    )
     expect(result[0]).toMatchObject({
       departmentName: null,
       source: 'REST',

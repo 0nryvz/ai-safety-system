@@ -23,12 +23,14 @@ def _open_session(
 def _start_payload(
         *,
         command_id: str,
+        recording_id: str,
         violation_id: str,
         camera_id: str,
         session_id: str,
 ) -> dict:
     return {
         "commandId": command_id,
+        "recordingId": recording_id,
         "violationId": violation_id,
         "cameraId": camera_id,
         "sessionId": session_id,
@@ -63,6 +65,7 @@ def test_accepts_first_start_command() -> None:
                 "/internal/v1/recordings/commands/start",
                 json=_start_payload(
                     command_id="start-1",
+                    recording_id="recording-1",
                     violation_id="violation-1",
                     camera_id="camera-1",
                     session_id="session-1",
@@ -87,6 +90,7 @@ def test_duplicate_start_with_same_command_id_is_idempotent() -> None:
 
     payload = _start_payload(
         command_id="start-1",
+        recording_id="recording-1",
         violation_id="violation-1",
         camera_id="camera-1",
         session_id="session-1",
@@ -112,6 +116,42 @@ def test_duplicate_start_with_same_command_id_is_idempotent() -> None:
     assert second_response.json()["idempotent"] is True
 
 
+def test_duplicate_start_with_same_command_id_but_different_recording_id_conflicts() -> None:
+    session_manager = SessionManager()
+    _open_session(session_manager, "camera-1", "session-1")
+
+    app.dependency_overrides[get_session_manager] = lambda: session_manager
+
+    try:
+        with TestClient(app) as client:
+            first_response = client.post(
+                "/internal/v1/recordings/commands/start",
+                json=_start_payload(
+                    command_id="start-1",
+                    recording_id="recording-1",
+                    violation_id="violation-1",
+                    camera_id="camera-1",
+                    session_id="session-1",
+                ),
+            )
+            conflict_response = client.post(
+                "/internal/v1/recordings/commands/start",
+                json=_start_payload(
+                    command_id="start-1",
+                    recording_id="recording-2",
+                    violation_id="violation-1",
+                    camera_id="camera-1",
+                    session_id="session-1",
+                ),
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first_response.status_code == 202
+    assert conflict_response.status_code == 409
+    assert conflict_response.json()["detail"] == "RECORDING_START_CONFLICT"
+
+
 def test_start_conflicts_for_same_violation_with_different_command_id() -> None:
     session_manager = SessionManager()
     _open_session(session_manager, "camera-1", "session-1")
@@ -124,6 +164,7 @@ def test_start_conflicts_for_same_violation_with_different_command_id() -> None:
                 "/internal/v1/recordings/commands/start",
                 json=_start_payload(
                     command_id="start-1",
+                    recording_id="recording-1",
                     violation_id="violation-1",
                     camera_id="camera-1",
                     session_id="session-1",
@@ -133,6 +174,7 @@ def test_start_conflicts_for_same_violation_with_different_command_id() -> None:
                 "/internal/v1/recordings/commands/start",
                 json=_start_payload(
                     command_id="start-2",
+                    recording_id="recording-2",
                     violation_id="violation-1",
                     camera_id="camera-1",
                     session_id="session-1",
@@ -159,6 +201,7 @@ def test_state_isolated_across_different_violations_and_sessions() -> None:
                 "/internal/v1/recordings/commands/start",
                 json=_start_payload(
                     command_id="start-1",
+                    recording_id="recording-1",
                     violation_id="violation-1",
                     camera_id="camera-1",
                     session_id="session-1",
@@ -168,6 +211,7 @@ def test_state_isolated_across_different_violations_and_sessions() -> None:
                 "/internal/v1/recordings/commands/start",
                 json=_start_payload(
                     command_id="start-2",
+                    recording_id="recording-2",
                     violation_id="violation-2",
                     camera_id="camera-2",
                     session_id="session-2",
@@ -189,6 +233,7 @@ def test_start_returns_not_found_when_session_missing() -> None:
                 "/internal/v1/recordings/commands/start",
                 json=_start_payload(
                     command_id="start-1",
+                    recording_id="recording-1",
                     violation_id="violation-1",
                     camera_id="camera-1",
                     session_id="session-missing",
@@ -213,6 +258,7 @@ def test_start_returns_conflict_when_camera_session_mismatch() -> None:
                 "/internal/v1/recordings/commands/start",
                 json=_start_payload(
                     command_id="start-1",
+                    recording_id="recording-1",
                     violation_id="violation-1",
                     camera_id="camera-2",
                     session_id="session-1",
@@ -237,6 +283,7 @@ def test_accepts_stop_command_after_start() -> None:
                 "/internal/v1/recordings/commands/start",
                 json=_start_payload(
                     command_id="start-1",
+                    recording_id="recording-1",
                     violation_id="violation-1",
                     camera_id="camera-1",
                     session_id="session-1",
@@ -273,6 +320,7 @@ def test_duplicate_stop_with_same_command_id_is_idempotent() -> None:
                 "/internal/v1/recordings/commands/start",
                 json=_start_payload(
                     command_id="start-1",
+                    recording_id="recording-1",
                     violation_id="violation-1",
                     camera_id="camera-1",
                     session_id="session-1",
@@ -328,6 +376,7 @@ def test_endpoint_rejects_non_utc_timestamp_payload() -> None:
                 "/internal/v1/recordings/commands/start",
                 json={
                     "commandId": "start-1",
+                    "recordingId": "recording-1",
                     "violationId": "violation-1",
                     "cameraId": "camera-1",
                     "sessionId": "session-1",

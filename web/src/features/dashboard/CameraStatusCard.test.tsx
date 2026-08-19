@@ -12,6 +12,7 @@ const camera: Camera = {
   name: 'Montaj Kamera 1',
   code: 'CAM-001',
   departmentId: '22222222-2222-2222-2222-222222222222',
+  departmentName: 'Montaj',
   active: true,
   connectionStatus: 'ONLINE',
   lastSeenAt: '2026-08-18T14:00:00Z',
@@ -32,6 +33,7 @@ describe('CameraStatusCard', () => {
     expect(screen.getByText('Çevrimiçi')).toHaveClass('ui-status-badge--success')
     expect(screen.getByText('18.08.2026 17:00')).toBeInTheDocument()
     expect(screen.getByText('Aktif')).toBeInTheDocument()
+    expect(screen.getByText('Montaj')).toBeInTheDocument()
   })
 
   it('renders safe fallbacks for an inactive camera without last seen data', () => {
@@ -42,6 +44,7 @@ describe('CameraStatusCard', () => {
           active: false,
           connectionStatus: 'FUTURE_STATUS',
           lastSeenAt: null,
+          departmentName: null,
         }}
       />,
     )
@@ -49,5 +52,6 @@ describe('CameraStatusCard', () => {
     expect(screen.getByText('Bilinmiyor')).toHaveClass('ui-status-badge--neutral')
     expect(screen.getByText('Pasif')).toBeInTheDocument()
     expect(screen.getByText('Henüz görülmedi')).toBeInTheDocument()
+    expect(screen.getByText('Departman bilgisi bekleniyor')).toBeInTheDocument()
   })
 })

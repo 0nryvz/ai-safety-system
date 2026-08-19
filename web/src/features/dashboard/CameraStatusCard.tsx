@@ -30,6 +30,11 @@ function CameraStatusCard({ camera }: CameraStatusCardProps) {
         </div>
 
         <div>
+  <dt>Departman</dt>
+  <dd>{camera.departmentName ?? 'Departman bilgisi bekleniyor'}</dd>
+</div>
+
+        <div>
           <dt>Son görülme</dt>
           <dd>{camera.lastSeenAt ? formatUtcToLocal(camera.lastSeenAt) : 'Henüz görülmedi'}</dd>
         </div>

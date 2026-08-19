@@ -52,10 +52,12 @@ public class GatewayRecordingHttpAdapter implements GatewayRecordingCommandPort 
 
     @Override
     public void sendStart(
+            UUID recordingId,
             StartRecordingCommand command
     ) {
         StartGatewayRecordingRequest payload = new StartGatewayRecordingRequest(
                 command.commandId(),
+                recordingId,
                 command.violationId(),
                 command.cameraId(),
                 command.sessionId(),
@@ -147,6 +149,7 @@ public class GatewayRecordingHttpAdapter implements GatewayRecordingCommandPort 
 
     private record StartGatewayRecordingRequest(
             UUID commandId,
+            UUID recordingId,
             UUID violationId,
             UUID cameraId,
             UUID sessionId,

@@ -14,14 +14,13 @@ export interface RecentViolation {
   violationType: string | null
   cameraId: string | null
   departmentId: string | null
+  departmentName: string | null
   cameraName: string | null
   cameraCode: string | null
   lifecycleStatus: string | null
   reviewStatus: string | null
   recordingStatus: string | null
   recordingReadyAt: string | null
-  recordingObjectKey: string | null
-  coverImageKey: string | null
   confidence: number | null
   modelVersion: string | null
 }
@@ -31,6 +30,7 @@ export interface Camera {
   name: string
   code: string
   departmentId: string
+  departmentName: string | null
   active: boolean
   connectionStatus: string
   lastSeenAt: string | null

@@ -6,6 +6,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface RecordingRepository {
+    Optional<Recording> findById(UUID recordingId);
+
     Optional<Recording> findByViolationId(UUID violationId);
 
     Recording save(Recording recording);

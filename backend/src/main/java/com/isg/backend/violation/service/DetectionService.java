@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -42,6 +43,7 @@ public class DetectionService {
     private final TemporalConfirmationService temporalConfirmationService;
     private final ViolationLifecycleService violationLifecycleService;
     private final ActiveViolationRegistry activeViolationRegistry;
+    private final Clock clock;
 
     public DetectionService(
             CameraQueryService cameraQueryService,
@@ -50,13 +52,17 @@ public class DetectionService {
             CandidateViolationEvaluator candidateViolationEvaluator,
             TemporalConfirmationService temporalConfirmationService,
             ViolationLifecycleService violationLifecycleService,
-            ActiveViolationRegistry activeViolationRegistry
+            ActiveViolationRegistry activeViolationRegistry,
+            Clock clock
     ) {
         this.cameraQueryService =
                 cameraQueryService;
 
         this.detectionMapper =
                 detectionMapper;
+
+        this.clock =
+                clock;
 
         this.duplicateEventGuard =
                 duplicateEventGuard;
@@ -116,19 +122,43 @@ public class DetectionService {
                         candidates
                 );
 
-        for (ConfirmedViolation confirmation
-                : transitions.started()) {
+        List<ConfirmedViolation> startedViolations =
+                transitions.started();
 
-            activeViolationRegistry.getOrCreate(
-                    confirmation.stateKey(),
-                    () ->
-                            violationLifecycleService
-                                    .startViolation(
-                                            confirmation,
-                                            frame.modelVersion()
-                                    )
-                                    .getId()
-            );
+        for (int index = 0;
+             index < startedViolations.size();
+             index++) {
+
+            ConfirmedViolation confirmation =
+                    startedViolations.get(
+                            index
+                    );
+
+            try {
+                activeViolationRegistry.getOrCreate(
+                        confirmation.stateKey(),
+                        () ->
+                                violationLifecycleService
+                                        .startViolation(
+                                                confirmation,
+                                                frame.modelVersion()
+                                        )
+                                        .getId()
+                );
+            } catch (RuntimeException exception) {
+                for (int rollbackIndex = index;
+                     rollbackIndex < startedViolations.size();
+                     rollbackIndex++) {
+
+                    temporalConfirmationService.rollbackConfirmation(
+                            startedViolations
+                                    .get(rollbackIndex)
+                                    .stateKey()
+                    );
+                }
+
+                throw exception;
+            }
         }
 
         for (EndedViolation endedViolation
@@ -173,7 +203,9 @@ public class DetectionService {
             Instant frameTimestamp
     ) {
         Instant now =
-                Instant.now();
+                Instant.now(
+                        clock
+                );
 
         if (frameTimestamp.isAfter(
                 now.plus(

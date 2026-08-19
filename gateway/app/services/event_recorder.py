@@ -8,6 +8,11 @@ from app.services.video_encoder import (
     VideoEncoder,
     VideoEncodingResult,
 )
+from app.services.clip_delivery_coordinator import (
+    ClipDeliveryCommand,
+    ClipDeliveryCoordinator,
+    ClipDeliveryError,
+)
 from app.services.session_frame_ring_buffer_manager import (
     FrameRingBufferNotFoundError,
     SessionFrameRingBufferManager,
@@ -26,6 +31,7 @@ class EventRecordingStatus(StrEnum):
     RECORDING = "RECORDING"
     POST_ROLL = "POST_ROLL"
     FINALIZING = "FINALIZING"
+    UPLOADING = "UPLOADING"
     READY = "READY"
     ERROR = "ERROR"
 
@@ -33,6 +39,7 @@ class EventRecordingStatus(StrEnum):
 @dataclass(frozen=True, slots=True)
 class EventRecordingSnapshot:
     violation_id: str
+    recording_id: str
     camera_id: str
     session_id: str
 
@@ -56,6 +63,7 @@ class EventRecordingSnapshot:
 @dataclass(slots=True)
 class _EventRecordingContext:
     violation_id: str
+    recording_id: str
     camera_id: str
     session_id: str
 
@@ -94,8 +102,14 @@ class EventRecorderCoordinator:
     def __init__(
             self,
             video_encoder: VideoEncoder,
+            clip_delivery_coordinator: (
+                    ClipDeliveryCoordinator | None
+            ) = None,
     ) -> None:
         self._video_encoder = video_encoder
+        self._clip_delivery_coordinator = (
+            clip_delivery_coordinator
+        )
 
         self._contexts_by_violation: dict[
             str,
@@ -112,6 +126,7 @@ class EventRecorderCoordinator:
     async def start_recording(
             self,
             *,
+            recording_id: str,
             violation_id: str,
             camera_id: str,
             session_id: str,
@@ -148,6 +163,7 @@ class EventRecorderCoordinator:
 
             context = _EventRecordingContext(
                 violation_id=violation_id,
+                recording_id=recording_id,
                 camera_id=camera_id,
                 session_id=session_id,
                 started_at=started_at,
@@ -361,6 +377,7 @@ class EventRecorderCoordinator:
 
             if context.status in {
                 EventRecordingStatus.FINALIZING,
+                EventRecordingStatus.UPLOADING,
                 EventRecordingStatus.READY,
                 EventRecordingStatus.ERROR,
             }:
@@ -496,6 +513,7 @@ class EventRecorderCoordinator:
 
         if context.status in {
             EventRecordingStatus.FINALIZING,
+            EventRecordingStatus.UPLOADING,
             EventRecordingStatus.READY,
             EventRecordingStatus.ERROR,
         }:
@@ -619,10 +637,6 @@ class EventRecorderCoordinator:
             if context is None:
                 return
 
-            context.status = (
-                EventRecordingStatus.READY
-            )
-
             context.result = result
 
             context.error = None
@@ -632,6 +646,69 @@ class EventRecorderCoordinator:
             )
 
             context.frames.clear()
+
+            clip_delivery_coordinator = (
+                self._clip_delivery_coordinator
+            )
+
+            if clip_delivery_coordinator is None:
+                context.status = (
+                    EventRecordingStatus.READY
+                )
+                return
+
+            context.status = (
+                EventRecordingStatus.UPLOADING
+            )
+
+            delivery_command = ClipDeliveryCommand(
+                recording_id=context.recording_id,
+                violation_id=context.violation_id,
+                started_at=context.started_at,
+                output_path=result.output_path,
+                duration_ms=result.duration_ms,
+                size_bytes=result.size_bytes,
+            )
+
+        try:
+            await clip_delivery_coordinator.deliver_ready(
+                delivery_command
+            )
+        except asyncio.CancelledError:
+            raise
+        except ClipDeliveryError as exc:
+            async with self._lock:
+                context = (
+                    self._contexts_by_violation.get(
+                        violation_id
+                    )
+                )
+
+                if context is None:
+                    return
+
+                context.status = (
+                    EventRecordingStatus.ERROR
+                )
+                context.error = (
+                    f"{type(exc).__name__}: {exc}"
+                )
+            return
+
+        async with self._lock:
+            context = (
+                self._contexts_by_violation.get(
+                    violation_id
+                )
+            )
+
+            if context is None:
+                return
+
+            context.status = (
+                EventRecordingStatus.READY
+            )
+            context.error = None
 
     async def get_snapshot(
             self,
@@ -811,12 +888,14 @@ class EventRecorderCoordinator:
 
         return EventRecordingSnapshot(
             violation_id=context.violation_id,
+            recording_id=context.recording_id,
             camera_id=context.camera_id,
             session_id=context.session_id,
             status=context.status,
             frame_count=(
                 context.finalized_frame_count
                 if context.status in {
+                    EventRecordingStatus.UPLOADING,
                     EventRecordingStatus.READY,
                     EventRecordingStatus.ERROR,
                 }

@@ -5,6 +5,7 @@ import { useAuthSession } from './features/auth/useAuthSession'
 import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import NotFoundPage from './pages/NotFoundPage'
+import ViolationHistoryPage from './pages/ViolationHistoryPage'
 
 interface LoginLocationState {
   from?: {
@@ -47,6 +48,7 @@ function App() {
 
       <Route element={<RequireAuth />}>
         <Route path={ROUTE_PATHS.dashboard} element={<DashboardPage />} />
+        <Route path={ROUTE_PATHS.violations} element={<ViolationHistoryPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

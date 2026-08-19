@@ -36,7 +36,7 @@ function mapRecentViolation(violation: RecentViolation): SortableDashboardViolat
       violationId: violation.violationId,
       violationType: violation.violationType ?? 'UNKNOWN',
       cameraName: violation.cameraName,
-      departmentName: null,
+      departmentName: violation.departmentName,
       occurredAt,
       lifecycleStatus: violation.lifecycleStatus ?? 'UNKNOWN',
       recordingStatus: violation.recordingStatus ?? 'UNKNOWN',
