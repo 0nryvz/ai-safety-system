@@ -5,6 +5,7 @@ import org.springframework.data.jpa.domain.Specification;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 public final class ViolationSpecifications {
@@ -16,6 +17,18 @@ public final class ViolationSpecifications {
             ViolationQueryFilter filter,
             Collection<UUID> accessibleDepartmentIds
     ) {
+        return fromFilter(
+                filter,
+                accessibleDepartmentIds,
+                Set.of()
+        );
+    }
+
+    public static Specification<ViolationJpaEntity> fromFilter(
+            ViolationQueryFilter filter,
+            Collection<UUID> accessibleDepartmentIds,
+            Collection<UUID> recordingViolationIds
+    ) {
         Objects.requireNonNull(
                 filter,
                 "filter must not be null"
@@ -24,6 +37,11 @@ public final class ViolationSpecifications {
         Objects.requireNonNull(
                 accessibleDepartmentIds,
                 "accessibleDepartmentIds must not be null"
+        );
+
+        Objects.requireNonNull(
+                recordingViolationIds,
+                "recordingViolationIds must not be null"
         );
 
         return Specification.allOf(
@@ -50,6 +68,10 @@ public final class ViolationSpecifications {
                 ),
                 hasReviewStatus(
                         filter
+                ),
+                hasRecordingStatus(
+                        filter,
+                        recordingViolationIds
                 )
         );
     }
@@ -206,6 +228,33 @@ public final class ViolationSpecifications {
                         "reviewStatus"
                 ),
                 filter.reviewStatus()
+        );
+    }
+
+    private static Specification<ViolationJpaEntity> hasRecordingStatus(
+            ViolationQueryFilter filter,
+            Collection<UUID> recordingViolationIds
+    ) {
+        if (filter.recordingStatus() == null) {
+            return Specification.unrestricted();
+        }
+
+        if (recordingViolationIds.isEmpty()) {
+            return (
+                    root,
+                    query,
+                    criteriaBuilder
+            ) -> criteriaBuilder.disjunction();
+        }
+
+        return (
+                root,
+                query,
+                criteriaBuilder
+        ) -> root.get(
+                "id"
+        ).in(
+                recordingViolationIds
         );
     }
 }

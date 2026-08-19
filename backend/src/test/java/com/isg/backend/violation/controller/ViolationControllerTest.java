@@ -134,6 +134,7 @@ class ViolationControllerTest {
                         departmentId,
                         ViolationLifecycleStatus.COMPLETED,
                         ViolationReviewStatus.CONFIRMED,
+                        null,
                         pageable
                 );
 

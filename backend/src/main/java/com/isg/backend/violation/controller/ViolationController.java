@@ -85,6 +85,9 @@ public class ViolationController {
             @RequestParam(required = false)
             ViolationReviewStatus reviewStatus,
 
+            @RequestParam(required = false)
+            String recordingStatus,
+
             @PageableDefault(
                     size = 20,
                     sort = {
@@ -108,7 +111,8 @@ public class ViolationController {
                         cameraId,
                         departmentId,
                         lifecycleStatus,
-                        reviewStatus
+                        reviewStatus,
+                        recordingStatus
                 );
 
         Page<ViolationListItem> result =
