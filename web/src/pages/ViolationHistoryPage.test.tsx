@@ -110,6 +110,12 @@ describe('ViolationHistoryPage', () => {
     expect(within(table).getByText('Kaynak Kamera 1 (CAM-001)')).toBeInTheDocument()
     expect(within(table).getByText('Kaynak')).toBeInTheDocument()
     expect(within(table).getByText('%92')).toBeInTheDocument()
+
+    const detailLink = screen.getByRole('link', {
+      name: 'Görüntüle',
+    })
+
+    expect(detailLink).toHaveAttribute('href', `/violations/${violation.violationId}`)
   })
 
   it('renders the empty state when no violations exist', () => {

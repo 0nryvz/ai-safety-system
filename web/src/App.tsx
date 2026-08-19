@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import NotFoundPage from './pages/NotFoundPage'
 import ViolationHistoryPage from './pages/ViolationHistoryPage'
+import ViolationDetailPage from './pages/ViolationDetailPage'
 
 interface LoginLocationState {
   from?: {
@@ -49,6 +50,7 @@ function App() {
       <Route element={<RequireAuth />}>
         <Route path={ROUTE_PATHS.dashboard} element={<DashboardPage />} />
         <Route path={ROUTE_PATHS.violations} element={<ViolationHistoryPage />} />
+        <Route path={ROUTE_PATHS.violationDetail} element={<ViolationDetailPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />
