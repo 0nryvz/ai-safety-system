@@ -8,6 +8,7 @@ from app.api.dependencies import (
     get_session_frame_queue_manager,
     get_session_frame_ring_buffer_manager,
     get_session_manager,
+    get_event_recorder_coordinator,
 )
 from app.core.config import Settings, get_settings
 from app.services.session_frame_ingestion_worker import (
@@ -20,6 +21,9 @@ from app.services.session_frame_ring_buffer_manager import (
     SessionFrameRingBufferManager,
 )
 from app.services.session_manager import SessionManager
+from app.services.event_recorder import (
+    EventRecorderCoordinator,
+)
 
 
 router = APIRouter(tags=["Metrics"])
@@ -27,6 +31,7 @@ router = APIRouter(tags=["Metrics"])
 
 class GatewayMetricsResponse(BaseModel):
     active_sessions: int
+    active_recordings: int
     active_frame_queues: int
     queued_frames: int
     frame_queue_capacity_per_session: int
@@ -61,6 +66,9 @@ async def gateway_metrics(
         session_manager: SessionManager = Depends(
             get_session_manager,
         ),
+        event_recorder_coordinator: EventRecorderCoordinator = Depends(
+            get_event_recorder_coordinator,
+        ),
         session_frame_queue_manager: SessionFrameQueueManager = Depends(
             get_session_frame_queue_manager,
         ),
@@ -81,6 +89,9 @@ async def gateway_metrics(
     return GatewayMetricsResponse(
         active_sessions=(
             await session_manager.active_session_count()
+        ),
+        active_recordings=(
+            await event_recorder_coordinator.active_recording_count()
         ),
         active_frame_queues=(
             await session_frame_queue_manager.active_queue_count()

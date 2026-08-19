@@ -130,6 +130,25 @@ class ClipDeliveryCoordinator:
             self._mark_spool_failure(command)
             raise
 
+    async def deliver_error(
+            self,
+            *,
+            recording_id: str,
+            violation_id: str,
+            error_code: str,
+    ) -> None:
+        callback_payload = RecordingCallbackPayload(
+            recording_id=recording_id,
+            violation_id=violation_id,
+            status="ERROR",
+            retry_count=0,
+            error_code=error_code,
+        )
+
+        await self._send_error_callback_with_retry(
+            callback_payload=callback_payload,
+        )
+
     def _prepare_spool(
             self,
             command: ClipDeliveryCommand,

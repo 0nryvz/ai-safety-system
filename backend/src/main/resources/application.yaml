@@ -41,7 +41,7 @@ logging:
 recording:
   command:
     pre-buffer-seconds: ${RECORDING_COMMAND_PRE_BUFFER_SECONDS:5}
-    post-buffer-seconds: ${RECORDING_COMMAND_POST_BUFFER_SECONDS:5}
+    post-buffer-seconds: ${RECORDING_COMMAND_POST_BUFFER_SECONDS:3}
     max-clip-seconds: ${RECORDING_COMMAND_MAX_CLIP_SECONDS:30}
   gateway:
     base-url: ${RECORDING_GATEWAY_BASE_URL:http://localhost:8081}
