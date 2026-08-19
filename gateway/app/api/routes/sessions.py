@@ -31,6 +31,7 @@ from app.services.session_frame_ring_buffer_manager import (
     SessionFrameRingBufferManager,
 )
 from app.services.session_lifecycle_notifier import (
+    CameraSessionLifecycleNotificationError,
     CameraSessionLifecycleNotifier,
 )
 from app.services.session_manager import (
@@ -179,11 +180,36 @@ async def open_session(
         ) from exc
 
     if created:
-        await session_lifecycle_notifier.notify_open(
-            camera_id=session.camera_id,
-            session_id=session.session_id,
-            opened_at=session.opened_at,
-        )
+        try:
+            await session_lifecycle_notifier.notify_open(
+                camera_id=session.camera_id,
+                session_id=session.session_id,
+                opened_at=session.opened_at,
+            )
+        except CameraSessionLifecycleNotificationError as exc:
+            await _rollback_open_session_resources(
+                camera_id=session.camera_id,
+                session_id=session.session_id,
+                session_created=created,
+                queue_created=queue_created,
+                buffer_created=buffer_created,
+                worker_started=worker_started,
+                session_manager=session_manager,
+                session_frame_queue_manager=(
+                    session_frame_queue_manager
+                ),
+                session_frame_ring_buffer_manager=(
+                    session_frame_ring_buffer_manager
+                ),
+                ingestion_worker_coordinator=(
+                    ingestion_worker_coordinator
+                ),
+            )
+
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="SESSION_LIFECYCLE_UNAVAILABLE",
+            ) from exc
 
     response.status_code = (
         status.HTTP_201_CREATED
