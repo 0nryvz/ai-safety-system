@@ -54,9 +54,9 @@ export interface CreateUserRequest {
 }
 
 export interface UpdateUserRequest {
-  fullName: string
-  departmentIds: string[]
-  roleNames: UserRole[]
+  fullName?: string
+  departmentIds?: string[]
+  roleNames?: UserRole[]
   active?: boolean
 }
 

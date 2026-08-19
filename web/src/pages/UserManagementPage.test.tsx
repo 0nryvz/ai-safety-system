@@ -407,9 +407,6 @@ describe('UserManagementPage', () => {
 
     await waitFor(() => {
       expect(updateSpy).toHaveBeenCalledWith('11111111-1111-1111-1111-111111111111', {
-        fullName: 'Test User',
-        departmentIds: ['22222222-2222-2222-2222-222222222222'],
-        roleNames: ['OHS_SPECIALIST'],
         active: true,
       })
     })
