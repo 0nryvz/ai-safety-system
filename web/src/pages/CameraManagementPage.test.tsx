@@ -142,9 +142,7 @@ describe('CameraManagementPage', () => {
       lastSeenAt: null,
       activeSessionId: null,
     })
-
     renderPage()
-
     fireEvent.click(
       screen.getByRole('button', {
         name: 'Yeni Kamera',
@@ -398,5 +396,32 @@ describe('CameraManagementPage', () => {
     await waitFor(() => {
       expect(retry).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('renders the restricted zone action for a camera', () => {
+    vi.spyOn(cameraManagementHook, 'useCameraManagement').mockReturnValue({
+      data: [
+        {
+          id: '11111111-1111-1111-1111-111111111111',
+          name: 'Kamera 1',
+          code: 'CAM-001',
+          departmentId: '22222222-2222-2222-2222-222222222222',
+          departmentName: 'Kaynak',
+          active: true,
+          connectionStatus: 'ONLINE',
+          lastSeenAt: null,
+          activeSessionId: null,
+        },
+      ],
+      isLoading: false,
+      error: null,
+      retry: vi.fn(),
+    })
+    renderPage()
+    expect(
+      screen.getByRole('button', {
+        name: 'Yasaklı Alan',
+      }),
+    ).toBeInTheDocument()
   })
 })
