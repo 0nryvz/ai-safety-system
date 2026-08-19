@@ -144,6 +144,19 @@ public class RecordingApplicationService {
     ) {
         if (recording.status() == RecordingStatus.READY) {
             if (sameReadyMetadata(recording, callback)) {
+
+                if (
+                        callback.coverImageKey() != null
+                                && !callback.coverImageKey().isBlank()
+                ) {
+                    recordingStatusCallbackPort.publish(
+                            toStatusCallback(
+                                    recording,
+                                    callback.coverImageKey()
+                            )
+                    );
+                }
+
                 return;
             }
 
@@ -174,8 +187,17 @@ public class RecordingApplicationService {
             );
         }
 
-        Recording saved = recordingRepository.save(recording);
-        recordingStatusCallbackPort.publish(toStatusCallback(saved));
+        Recording saved =
+                recordingRepository.save(
+                        recording
+                );
+
+        recordingStatusCallbackPort.publish(
+                toStatusCallback(
+                        saved,
+                        callback.coverImageKey()
+                )
+        );
     }
 
     private void handleErrorCallback(
@@ -254,12 +276,25 @@ public class RecordingApplicationService {
     private RecordingStatusCallback toStatusCallback(
             Recording recording
     ) {
+        return toStatusCallback(
+                recording,
+                null
+        );
+    }
+
+    private RecordingStatusCallback toStatusCallback(
+            Recording recording,
+            String coverImageKey
+    ) {
         return new RecordingStatusCallback(
                 recording.id(),
                 recording.violationId(),
                 recording.status(),
                 recording.objectKey(),
-                recording.durationMs() == null ? null : recording.durationMs().longValue(),
+                coverImageKey,
+                recording.durationMs() == null
+                        ? null
+                        : recording.durationMs().longValue(),
                 recording.sizeBytes(),
                 recording.checksum(),
                 recording.errorCode()

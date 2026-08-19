@@ -544,10 +544,40 @@ class EventRecorderCoordinator:
             context.frames
         )
 
+        cover_candidates = tuple(
+            frame
+            for frame in frames
+            if frame.content_type.lower()
+            in {
+                "image/jpeg",
+                "image/jpg",
+            }
+        )
+
+        cover_image_bytes: bytes | None = None
+
+        if cover_candidates:
+            cover_frame = min(
+                cover_candidates,
+                key=lambda frame: abs(
+                    (
+                            frame.captured_at
+                            - context.started_at
+                    ).total_seconds()
+                ),
+            )
+
+            cover_image_bytes = (
+                cover_frame.data
+            )
+
         task = asyncio.create_task(
             self._finalize_context(
                 violation_id=context.violation_id,
                 frames=frames,
+                cover_image_bytes=(
+                    cover_image_bytes
+                ),
             )
         )
 
@@ -563,6 +593,7 @@ class EventRecorderCoordinator:
                 FramePacket,
                 ...
             ],
+            cover_image_bytes: bytes | None,
     ) -> None:
 
         if not frames:
@@ -697,6 +728,9 @@ class EventRecorderCoordinator:
                 output_path=result.output_path,
                 duration_ms=result.duration_ms,
                 size_bytes=result.size_bytes,
+                cover_image_bytes=(
+                    cover_image_bytes
+                ),
             )
 
         try:

@@ -1,0 +1,3 @@
+{
+  "_comment": "Model class id/name -> backend label. Gerçek liste (Adım 0 handoff) geldiğinde bu dosyayı doldur. Backend'in kabul ettiği label'lar: person, welding, welding_mask, welding_apron, gloves, welding_jacket. Vizör EKLENMEZ."
+}

@@ -9,9 +9,33 @@ public record RecordingStatusCallback(
         UUID violationId,
         RecordingStatus status,
         String objectKey,
+        String coverImageKey,
         Long durationMs,
         Long sizeBytes,
         String checksum,
         String errorCode
 ) {
+
+    public RecordingStatusCallback(
+            UUID recordingId,
+            UUID violationId,
+            RecordingStatus status,
+            String objectKey,
+            Long durationMs,
+            Long sizeBytes,
+            String checksum,
+            String errorCode
+    ) {
+        this(
+                recordingId,
+                violationId,
+                status,
+                objectKey,
+                null,
+                durationMs,
+                sizeBytes,
+                checksum,
+                errorCode
+        );
+    }
 }
