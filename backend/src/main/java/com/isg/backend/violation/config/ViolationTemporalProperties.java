@@ -18,6 +18,9 @@ public class ViolationTemporalProperties {
     private Duration cooldownDuration =
             Duration.ofSeconds(10);
 
+    private Duration silenceTimeout =
+            Duration.ofSeconds(5);
+
     public Duration getConfirmationDuration() {
         return confirmationDuration;
     }
@@ -64,6 +67,22 @@ public class ViolationTemporalProperties {
 
         this.cooldownDuration =
                 cooldownDuration;
+    }
+
+    public Duration getSilenceTimeout() {
+        return silenceTimeout;
+    }
+
+    public void setSilenceTimeout(
+            Duration silenceTimeout
+    ) {
+        validatePositive(
+                silenceTimeout,
+                "silenceTimeout"
+        );
+
+        this.silenceTimeout =
+                silenceTimeout;
     }
 
     private static void validatePositive(

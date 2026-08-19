@@ -2,6 +2,18 @@ from datetime import datetime
 from typing import Protocol
 
 
+class CameraSessionLifecycleNotificationError(
+    RuntimeError
+):
+    def __init__(
+            self,
+            message: str,
+            *,
+            retryable: bool,
+    ) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+
 class CameraSessionLifecycleNotifier(Protocol):
     async def notify_open(
             self,

@@ -313,8 +313,9 @@ class SessionAIFrameDispatchWorkerCoordinator:
                 raise
             except TimeoutError:
                 self._timeout_error_count += 1
-            except Exception:
-                pass
+            except Exception as exc:
+                if getattr(exc, "retryable", True) is False:
+                    return False
 
             if attempt_index >= (max_attempts - 1):
                 break

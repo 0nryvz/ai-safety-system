@@ -1,0 +1,232 @@
+package com.isg.backend.violation.service;
+
+import com.isg.backend.modules.user.service.AuthorizationService;
+import com.isg.backend.violation.application.port.RecordingQueryPort;
+import com.isg.backend.violation.application.port.RecordingQueryResult;
+import com.isg.backend.violation.domain.ViolationLifecycleStatus;
+import com.isg.backend.violation.domain.ViolationReviewStatus;
+import com.isg.backend.violation.domain.ViolationType;
+import com.isg.backend.violation.exception.ViolationNotFoundException;
+import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
+import com.isg.backend.violation.infrastructure.persistence.ViolationDetailProjection;
+import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
+import com.isg.backend.violation.infrastructure.persistence.ViolationSpecifications;
+import com.isg.backend.violation.query.ViolationDetailResponse;
+import com.isg.backend.violation.query.ViolationListItem;
+import com.isg.backend.violation.query.ViolationQueryFilter;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+@Transactional(readOnly = true)
+public class ViolationQueryService {
+
+    private final SpringDataViolationRepository violationRepository;
+    private final AuthorizationService authorizationService;
+    private final ObjectProvider<RecordingQueryPort> recordingQueryPortProvider;
+
+    public ViolationQueryService(
+            SpringDataViolationRepository violationRepository,
+            AuthorizationService authorizationService,
+            ObjectProvider<RecordingQueryPort> recordingQueryPortProvider
+    ) {
+        this.violationRepository =
+                violationRepository;
+
+        this.authorizationService =
+                authorizationService;
+
+        this.recordingQueryPortProvider =
+                recordingQueryPortProvider;
+    }
+
+    public Page<ViolationListItem> findViolations(
+            UUID userId,
+            ViolationQueryFilter filter,
+            Pageable pageable
+    ) {
+        Objects.requireNonNull(
+                userId,
+                "userId must not be null"
+        );
+
+        Objects.requireNonNull(
+                filter,
+                "filter must not be null"
+        );
+
+        Objects.requireNonNull(
+                pageable,
+                "pageable must not be null"
+        );
+
+        List<UUID> accessibleDepartmentIds =
+                authorizationService.accessibleDepartmentIds(
+                        userId
+                );
+
+        return violationRepository.findAll(
+                        ViolationSpecifications.fromFilter(
+                                filter,
+                                accessibleDepartmentIds
+                        ),
+                        pageable
+                )
+                .map(
+                        this::toListItem
+                );
+    }
+
+    public ViolationDetailResponse findDetail(
+            UUID userId,
+            UUID violationId
+    ) {
+        Objects.requireNonNull(
+                userId,
+                "userId must not be null"
+        );
+
+        Objects.requireNonNull(
+                violationId,
+                "violationId must not be null"
+        );
+
+        ViolationDetailProjection projection =
+                violationRepository.findDetailProjectionById(
+                        violationId
+                ).orElseThrow(
+                        () -> new ViolationNotFoundException(
+                                violationId
+                        )
+                );
+
+        boolean authorized =
+                authorizationService.canAccessDepartment(
+                        userId,
+                        projection.getDepartmentId()
+                );
+
+        if (!authorized) {
+            throw new ViolationNotFoundException(
+                    violationId
+            );
+        }
+
+        ViolationLifecycleStatus lifecycleStatus =
+                ViolationLifecycleStatus.valueOf(
+                        projection.getLifecycleStatus()
+                );
+
+        RecordingQueryResult recording =
+                resolveRecording(
+                        violationId,
+                        lifecycleStatus
+                );
+
+        String coverImageKey =
+                projection.getCoverImageKey();
+
+        boolean coverImageReady =
+                coverImageKey != null
+                        && !coverImageKey.isBlank();
+
+        return new ViolationDetailResponse(
+                projection.getViolationId(),
+                projection.getCameraId(),
+                projection.getCameraName(),
+                projection.getCameraCode(),
+                projection.getDepartmentId(),
+                projection.getDepartmentName(),
+                projection.getSessionId(),
+                ViolationType.valueOf(
+                        projection.getType()
+                ),
+                projection.getConfidence()
+                        .doubleValue(),
+                projection.getModelVersion(),
+                projection.getDetectedAt(),
+                projection.getStartedAt(),
+                projection.getEndedAt(),
+                lifecycleStatus,
+                ViolationReviewStatus.valueOf(
+                        projection.getReviewStatus()
+                ),
+                projection.getReviewedBy(),
+                projection.getReviewedAt(),
+                recording.recordingStatus(),
+                recording.clipReady(),
+                recording.playbackUrl(),
+                coverImageKey,
+                coverImageReady
+        );
+    }
+
+    private ViolationListItem toListItem(
+            ViolationJpaEntity violation
+    ) {
+        return new ViolationListItem(
+                violation.getId(),
+                violation.getCameraId(),
+                violation.getDepartmentId(),
+                violation.getViolationType(),
+                violation.getStartedAt(),
+                violation.getEndedAt(),
+                violation.getConfidence()
+                        .doubleValue(),
+                violation.getLifecycleStatus(),
+                violation.getReviewStatus()
+        );
+    }
+
+    private RecordingQueryResult resolveRecording(
+            UUID violationId,
+            ViolationLifecycleStatus lifecycleStatus
+    ) {
+        RecordingQueryPort recordingQueryPort =
+                recordingQueryPortProvider.getIfAvailable();
+
+        if (recordingQueryPort != null) {
+            Optional<RecordingQueryResult> result =
+                    recordingQueryPort.findByViolationId(
+                            violationId
+                    );
+
+            if (result.isPresent()) {
+                return result.get();
+            }
+        }
+
+        /*
+         * BE-4 query adapter henüz bağlı değilse yalnızca
+         * lifecycle durumundan güvenli bir durum bilgisi
+         * türetilir. Playback URL BE-3 tarafından üretilmez.
+         */
+        if (lifecycleStatus
+                == ViolationLifecycleStatus.COMPLETED) {
+            return new RecordingQueryResult(
+                    "READY",
+                    true,
+                    null
+            );
+        }
+
+        if (lifecycleStatus
+                == ViolationLifecycleStatus.ERROR) {
+            return RecordingQueryResult.notReady(
+                    "ERROR"
+            );
+        }
+
+        return RecordingQueryResult.notReady(
+                "REQUESTED"
+        );
+    }
+}

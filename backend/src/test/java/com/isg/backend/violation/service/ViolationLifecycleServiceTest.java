@@ -1,8 +1,6 @@
 package com.isg.backend.violation.service;
 
 import com.isg.backend.camera.service.CameraQueryService;
-import com.isg.backend.modules.camera.api.dto.CameraResponse;
-import com.isg.backend.modules.camera.application.CameraService;
 import com.isg.backend.violation.application.event.ViolationEndedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
@@ -33,11 +31,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ViolationLifecycleServiceTest {
-
     private CameraQueryService cameraQueryService;
     private SpringDataViolationRepository violationRepository;
     private SpringDataViolationStatusHistoryRepository statusHistoryRepository;
-    private CameraService cameraService;
     private ApplicationEventPublisher eventPublisher;
     private ViolationLifecycleService lifecycleService;
 
@@ -52,9 +48,6 @@ class ViolationLifecycleServiceTest {
         statusHistoryRepository =
                 mock(SpringDataViolationStatusHistoryRepository.class);
 
-        cameraService =
-                mock(CameraService.class);
-
         eventPublisher =
                 mock(ApplicationEventPublisher.class);
 
@@ -62,7 +55,6 @@ class ViolationLifecycleServiceTest {
                 new ViolationLifecycleService(
                         violationRepository,
                         statusHistoryRepository,
-                        cameraService,
                         cameraQueryService,
                         eventPublisher
                 );
@@ -98,22 +90,18 @@ class ViolationLifecycleServiceTest {
                         confirmedAt
                 );
 
-        CameraResponse cameraResponse =
-                CameraResponse.builder()
-                        .id(cameraId)
-                        .departmentId(departmentId)
-                        .active(true)
-                        .build();
 
-        when(cameraService.getCameraById(cameraId))
-                .thenReturn(cameraResponse);
-
-        when(violationRepository.save(
-                any(ViolationJpaEntity.class)
-        )).thenAnswer(
-                invocation ->
-                        invocation.getArgument(0)
+        when(
+                cameraQueryService.findDepartmentId(
+                        cameraId
+                )
+        ).thenReturn(
+                Optional.of(
+                        departmentId
+                )
         );
+
+
 
         when(
                 cameraQueryService.findSessionRecordId(
@@ -124,22 +112,20 @@ class ViolationLifecycleServiceTest {
                 Optional.of(
                         cameraSessionRecordId
                 )
+        );
+
+        when(
+                violationRepository.save(
+                        any(ViolationJpaEntity.class)
+                )
+        ).thenAnswer(
+                invocation ->
+                        invocation.getArgument(0)
         );
 
         lifecycleService.startViolation(
                 confirmedViolation,
                 "welding-ppe-v1"
-        );
-
-        when(
-                cameraQueryService.findSessionRecordId(
-                        cameraId,
-                        sessionId
-                )
-        ).thenReturn(
-                Optional.of(
-                        cameraSessionRecordId
-                )
         );
 
         ArgumentCaptor<ViolationJpaEntity> violationCaptor =
@@ -175,12 +161,6 @@ class ViolationLifecycleServiceTest {
                 .isEqualTo(
                         ViolationReviewStatus.UNREVIEWED
                 );
-
-        assertThat(
-                savedViolation.getCameraSessionId()
-        ).isEqualTo(
-                cameraSessionRecordId
-        );
 
         ArgumentCaptor<ViolationStatusHistoryJpaEntity> historyCaptor =
                 ArgumentCaptor.forClass(
@@ -270,14 +250,15 @@ class ViolationLifecycleServiceTest {
                         startedAt.plusSeconds(2)
                 );
 
-        when(cameraService.getCameraById(cameraId))
-                .thenReturn(
-                        CameraResponse.builder()
-                                .id(cameraId)
-                                .departmentId(departmentId)
-                                .active(true)
-                                .build()
-                );
+        when(
+                cameraQueryService.findDepartmentId(
+                        cameraId
+                )
+        ).thenReturn(
+                Optional.of(
+                        departmentId
+                )
+        );
 
         when(
                 cameraQueryService.findSessionRecordId(
@@ -393,13 +374,13 @@ class ViolationLifecycleServiceTest {
                         startedAt.plusSeconds(2)
                 );
 
-        when(cameraService.getCameraById(cameraId))
-                .thenReturn(
-                        CameraResponse.builder()
-                                .id(cameraId)
-                                .departmentId(null)
-                                .build()
-                );
+        when(
+                cameraQueryService.findDepartmentId(
+                        cameraId
+                )
+        ).thenReturn(
+                Optional.empty()
+        );
 
         assertThatThrownBy(
                 () -> lifecycleService.startViolation(
@@ -409,6 +390,9 @@ class ViolationLifecycleServiceTest {
         )
                 .isInstanceOf(
                         IllegalStateException.class
+                )
+                .hasMessageContaining(
+                        "Camera department not found"
                 );
 
         verify(
@@ -434,7 +418,7 @@ class ViolationLifecycleServiceTest {
     }
 
     @Test
-    void endsViolationAndPublishesSingleStopEvent() {
+    void endsViolationAndTransitionsToPreparing() {
         UUID violationId =
                 UUID.randomUUID();
 
@@ -448,6 +432,11 @@ class ViolationLifecycleServiceTest {
 
         when(violation.getEndedAt())
                 .thenReturn(null);
+
+        when(violation.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.ACTIVE
+                );
 
         when(violationRepository.findById(
                 violationId
@@ -465,9 +454,50 @@ class ViolationLifecycleServiceTest {
                         endedAt
                 );
 
+        verify(violation)
+                .changeLifecycleStatus(
+                        ViolationLifecycleStatus.PREPARING
+                );
+
         verify(violationRepository)
                 .save(
                         violation
+                );
+
+        ArgumentCaptor<ViolationStatusHistoryJpaEntity> historyCaptor =
+                ArgumentCaptor.forClass(
+                        ViolationStatusHistoryJpaEntity.class
+                );
+
+        verify(statusHistoryRepository)
+                .save(
+                        historyCaptor.capture()
+                );
+
+        ViolationStatusHistoryJpaEntity history =
+                historyCaptor.getValue();
+
+        assertThat(history.getViolationId())
+                .isEqualTo(
+                        violationId
+                );
+        assertThat(history.getStatusKind())
+                .isEqualTo(
+                        ViolationStatusKind.LIFECYCLE
+                );
+        assertThat(history.getFromStatus())
+                .isEqualTo(
+                        ViolationLifecycleStatus.ACTIVE.name()
+                );
+
+        assertThat(history.getToStatus())
+                .isEqualTo(
+                        ViolationLifecycleStatus.PREPARING.name()
+                );
+
+        assertThat(history.getChangedAt())
+                .isEqualTo(
+                        endedAt
                 );
 
         ArgumentCaptor<ViolationEndedEvent> eventCaptor =
@@ -534,10 +564,24 @@ class ViolationLifecycleServiceTest {
         );
 
         verify(
+                violation,
+                never()
+        ).changeLifecycleStatus(
+                any()
+        );
+
+        verify(
                 violationRepository,
                 never()
         ).save(
                 violation
+        );
+
+        verify(
+                statusHistoryRepository,
+                never()
+        ).save(
+                any()
         );
 
         verify(
@@ -549,12 +593,14 @@ class ViolationLifecycleServiceTest {
     }
 
     @Test
-    void recordingReadyTransitionsEndedViolationToCompletedWithHistory() {
+    void recordingReadyTransitionsPreparingViolationToCompletedWithHistory() {
         UUID violationId =
                 UUID.randomUUID();
 
         Instant endedAt =
-                Instant.parse("2026-08-10T20:00:05Z");
+                Instant.parse(
+                        "2026-08-10T20:00:05Z"
+                );
 
         Instant readyAt =
                 endedAt.plusSeconds(2);
@@ -563,11 +609,13 @@ class ViolationLifecycleServiceTest {
                 mock(ViolationJpaEntity.class);
 
         when(violation.getEndedAt())
-                .thenReturn(endedAt);
+                .thenReturn(
+                        endedAt
+                );
 
         when(violation.getLifecycleStatus())
                 .thenReturn(
-                        ViolationLifecycleStatus.ACTIVE
+                        ViolationLifecycleStatus.PREPARING
                 );
 
         when(violationRepository.findById(
@@ -605,11 +653,13 @@ class ViolationLifecycleServiceTest {
                 historyCaptor.getValue();
 
         assertThat(history.getViolationId())
-                .isEqualTo(violationId);
+                .isEqualTo(
+                        violationId
+                );
 
         assertThat(history.getFromStatus())
                 .isEqualTo(
-                        ViolationLifecycleStatus.ACTIVE.name()
+                        ViolationLifecycleStatus.PREPARING.name()
                 );
 
         assertThat(history.getToStatus())
@@ -618,16 +668,20 @@ class ViolationLifecycleServiceTest {
                 );
 
         assertThat(history.getChangedAt())
-                .isEqualTo(readyAt);
+                .isEqualTo(
+                        readyAt
+                );
     }
 
     @Test
-    void recordingErrorTransitionsEndedViolationToErrorWithHistory() {
+    void recordingErrorTransitionsPreparingViolationToErrorWithHistory() {
         UUID violationId =
                 UUID.randomUUID();
 
         Instant endedAt =
-                Instant.parse("2026-08-10T20:00:05Z");
+                Instant.parse(
+                        "2026-08-10T20:00:05Z"
+                );
 
         Instant errorAt =
                 endedAt.plusSeconds(1);
@@ -636,11 +690,13 @@ class ViolationLifecycleServiceTest {
                 mock(ViolationJpaEntity.class);
 
         when(violation.getEndedAt())
-                .thenReturn(endedAt);
+                .thenReturn(
+                        endedAt
+                );
 
         when(violation.getLifecycleStatus())
                 .thenReturn(
-                        ViolationLifecycleStatus.ACTIVE
+                        ViolationLifecycleStatus.PREPARING
                 );
 
         when(violationRepository.findById(
@@ -680,7 +736,7 @@ class ViolationLifecycleServiceTest {
 
         assertThat(history.getFromStatus())
                 .isEqualTo(
-                        ViolationLifecycleStatus.ACTIVE.name()
+                        ViolationLifecycleStatus.PREPARING.name()
                 );
 
         assertThat(history.getToStatus())
@@ -743,9 +799,14 @@ class ViolationLifecycleServiceTest {
     }
 
     @Test
-    void rejectsTerminalRecordingStatusBeforeViolationEnds() {
+    void recordingReadyDoesNotCompleteActiveViolationBeforeItEnds() {
         UUID violationId =
                 UUID.randomUUID();
+
+        Instant readyAt =
+                Instant.parse(
+                        "2026-08-10T20:00:07Z"
+                );
 
         ViolationJpaEntity violation =
                 mock(ViolationJpaEntity.class);
@@ -753,32 +814,41 @@ class ViolationLifecycleServiceTest {
         when(violation.getEndedAt())
                 .thenReturn(null);
 
+        when(violation.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.ACTIVE
+                );
+
         when(violationRepository.findById(
                 violationId
         )).thenReturn(
                 Optional.of(violation)
         );
 
-        assertThatThrownBy(
-                () -> lifecycleService.recordingReady(
-                        violationId,
-                        Instant.parse(
-                                "2026-08-10T20:00:07Z"
-                        )
-                )
-        )
-                .isInstanceOf(
-                        IllegalStateException.class
-                )
-                .hasMessageContaining(
-                        "must be ended"
-                );
+        lifecycleService.recordingReady(
+                violationId,
+                readyAt
+        );
+
+        verify(
+                violation,
+                never()
+        ).changeLifecycleStatus(
+                any()
+        );
 
         verify(
                 violationRepository,
                 never()
         ).save(
                 violation
+        );
+
+        verify(
+                statusHistoryRepository,
+                never()
+        ).save(
+                any()
         );
     }
 
@@ -807,6 +877,60 @@ class ViolationLifecycleServiceTest {
                 .hasMessageContaining(
                         violationId.toString()
                 );
+
+        verify(
+                eventPublisher,
+                never()
+        ).publishEvent(
+                any()
+        );
+    }
+
+    @Test
+    void recordingErrorDoesNotTransitionActiveViolationBeforeItEnds() {
+        UUID violationId = UUID.randomUUID();
+
+        Instant errorAt =
+                Instant.parse("2026-08-17T04:00:30Z");
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getEndedAt())
+                .thenReturn(null);
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(violation)
+        );
+
+        lifecycleService.recordingError(
+                violationId,
+                errorAt,
+                "CLIP_UPLOAD_FAILED"
+        );
+
+        verify(
+                violation,
+                never()
+        ).changeLifecycleStatus(
+                any()
+        );
+
+        verify(
+                violationRepository,
+                never()
+        ).save(
+                violation
+        );
+
+        verify(
+                statusHistoryRepository,
+                never()
+        ).save(
+                any()
+        );
 
         verify(
                 eventPublisher,

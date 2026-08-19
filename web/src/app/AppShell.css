@@ -25,6 +25,13 @@
   color: var(--color-text-secondary);
 }
 
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
 .app-header__logout {
   flex-shrink: 0;
 }
@@ -47,13 +54,15 @@
   gap: var(--space-2);
 }
 
-.app-sidebar nav span {
+.app-sidebar nav span,
+.app-sidebar nav a {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
   color: #475569;
+  text-decoration: none;
 }
 
-.app-sidebar nav span:first-child {
+.app-sidebar nav a.active {
   color: var(--color-text-on-primary);
   background-color: var(--color-primary);
 }
@@ -68,6 +77,9 @@
     min-height: auto;
     gap: var(--space-4);
     padding: 20px;
+  }
+  .app-header__actions {
+    gap: var(--space-2);
   }
 
   .app-layout {

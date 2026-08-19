@@ -1,0 +1,102 @@
+.violation-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.violation-detail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.violation-detail__header h2,
+.violation-detail__header p {
+  margin: 0;
+}
+
+.violation-detail__header p {
+  margin-top: var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+.violation-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.violation-detail__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-subtle);
+}
+
+.violation-detail__item span:first-child {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.violation-detail__item strong {
+  color: var(--color-text-primary);
+}
+
+@media (max-width: 768px) {
+  .violation-detail__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .violation-detail__header {
+    flex-direction: column;
+  }
+}
+
+.violation-detail__media {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.violation-detail__media h3,
+.violation-detail__media p {
+  margin: 0;
+}
+
+.violation-detail__media p {
+  margin-top: var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+.violation-detail__review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.violation-detail__review h3,
+.violation-detail__review p {
+  margin: 0;
+}
+
+.violation-detail__review > div > p {
+  margin-top: var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+.violation-detail__review select {
+  width: min(100%, 320px);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.violation-detail__review-error {
+  color: var(--color-critical);
+}

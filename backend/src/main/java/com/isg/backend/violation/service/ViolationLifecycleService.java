@@ -1,8 +1,6 @@
 package com.isg.backend.violation.service;
 
 import com.isg.backend.camera.service.CameraQueryService;
-import com.isg.backend.modules.camera.api.dto.CameraResponse;
-import com.isg.backend.modules.camera.application.CameraService;
 import com.isg.backend.violation.application.event.ViolationEndedEvent;
 import com.isg.backend.violation.application.event.ViolationRecordingUpdatedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
@@ -24,6 +22,27 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * Owns the logical violation lifecycle independently from physical recording
+ * clip or segment boundaries.
+ *
+ * <p>A continuously confirmed violation keeps the same violationId until the
+ * temporal/grace logic determines that the violation has actually ended.
+ * Reaching Backend 4's max clip duration must not by itself end the violation
+ * or create another violation record.</p>
+ *
+ * <p>If Backend 4 segments a long recording, all physical segments belong to
+ * the same logical violation. A segment boundary does not produce a
+ * ViolationEndedEvent and does not move the lifecycle out of ACTIVE.</p>
+ *
+ * <p>BE3 transitions ACTIVE to PREPARING only when the violation itself ends.
+ * The lifecycle becomes COMPLETED after Backend 4 reports READY, or ERROR after
+ * a terminal recording failure.</p>
+ *
+ * <p>Physical segmentation, segment object keys and segment metadata are owned
+ * by Backend 4.</p>
+ */
+
 @Service
 public class ViolationLifecycleService
         implements RecordingStatusCallbackPort {
@@ -31,13 +50,11 @@ public class ViolationLifecycleService
     private final CameraQueryService cameraQueryService;
     private final SpringDataViolationRepository violationRepository;
     private final SpringDataViolationStatusHistoryRepository statusHistoryRepository;
-    private final CameraService cameraService;
     private final ApplicationEventPublisher eventPublisher;
 
     public ViolationLifecycleService(
             SpringDataViolationRepository violationRepository,
             SpringDataViolationStatusHistoryRepository statusHistoryRepository,
-            CameraService cameraService,
             CameraQueryService cameraQueryService,
             ApplicationEventPublisher eventPublisher
     ) {
@@ -46,9 +63,6 @@ public class ViolationLifecycleService
 
         this.statusHistoryRepository =
                 statusHistoryRepository;
-
-        this.cameraService =
-                cameraService;
 
         this.cameraQueryService =
                 cameraQueryService;
@@ -72,16 +86,15 @@ public class ViolationLifecycleService
                 "modelVersion must not be null"
         );
 
-        CameraResponse camera =
-                cameraService.getCameraById(
+        UUID departmentId =
+                cameraQueryService.findDepartmentId(
                         confirmedViolation.cameraId()
+                ).orElseThrow(
+                        () -> new IllegalStateException(
+                                "Camera department not found. cameraId="
+                                        + confirmedViolation.cameraId()
+                        )
                 );
-
-        if (camera.getDepartmentId() == null) {
-            throw new IllegalStateException(
-                    "Camera department must not be null."
-            );
-        }
 
         UUID cameraSessionRecordId =
                 cameraQueryService.findSessionRecordId(
@@ -109,7 +122,7 @@ public class ViolationLifecycleService
                 new ViolationJpaEntity(
                         violationId,
                         confirmedViolation.cameraId(),
-                        camera.getDepartmentId(),
+                        departmentId,
                         cameraSessionRecordId,
                         null,
                         confirmedViolation.violationType(),
@@ -175,12 +188,34 @@ public class ViolationLifecycleService
             return;
         }
 
+        ViolationLifecycleStatus currentStatus =
+                violation.getLifecycleStatus();
+
+        if (currentStatus != ViolationLifecycleStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "Only ACTIVE violation can be ended. Current status="
+                            + currentStatus
+            );
+        }
+
         violation.markEnded(
                 endedAt
         );
 
+        violation.changeLifecycleStatus(
+                ViolationLifecycleStatus.PREPARING
+        );
+
         violationRepository.save(
                 violation
+        );
+
+        saveLifecycleHistory(
+                violationId,
+                ViolationLifecycleStatus.ACTIVE,
+                ViolationLifecycleStatus.PREPARING,
+                endedAt,
+                "Violation ended; recording finalization pending"
         );
 
         eventPublisher.publishEvent(
@@ -213,9 +248,9 @@ public class ViolationLifecycleService
                         violationId
                 );
 
-        requireEnded(
-                violation
-        );
+        if (violation.getEndedAt() == null) {
+            return;
+        }
 
         ViolationLifecycleStatus currentStatus =
                 violation.getLifecycleStatus();
@@ -286,9 +321,9 @@ public class ViolationLifecycleService
                         violationId
                 );
 
-        requireEnded(
-                violation
-        );
+        if (violation.getEndedAt() == null) {
+            return;
+        }
 
         ViolationLifecycleStatus currentStatus =
                 violation.getLifecycleStatus();

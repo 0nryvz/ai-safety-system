@@ -31,6 +31,8 @@ application:
       api-key: "benim-gizli-anahtarim-123"
 
 logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{correlationId}] %-5level %logger{36} - %msg%n"
   level:
     org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
@@ -39,10 +41,24 @@ logging:
 recording:
   command:
     pre-buffer-seconds: ${RECORDING_COMMAND_PRE_BUFFER_SECONDS:5}
-    post-buffer-seconds: ${RECORDING_COMMAND_POST_BUFFER_SECONDS:5}
+    post-buffer-seconds: ${RECORDING_COMMAND_POST_BUFFER_SECONDS:3}
     max-clip-seconds: ${RECORDING_COMMAND_MAX_CLIP_SECONDS:30}
   gateway:
     base-url: ${RECORDING_GATEWAY_BASE_URL:http://localhost:8081}
     connect-timeout: ${RECORDING_GATEWAY_CONNECT_TIMEOUT:1s}
     read-timeout: ${RECORDING_GATEWAY_READ_TIMEOUT:2s}
     max-retries: ${RECORDING_GATEWAY_MAX_RETRIES:2}
+
+violation:
+  temporal:
+    silence-timeout: ${VIOLATION_TEMPORAL_SILENCE_TIMEOUT:5s}
+    silence-sweep-interval: ${VIOLATION_TEMPORAL_SILENCE_SWEEP_INTERVAL:1s}
+
+  playback:
+    minio:
+      endpoint: ${RECORDING_PLAYBACK_MINIO_ENDPOINT:http://localhost:9000}
+      access-key: ${RECORDING_PLAYBACK_MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${RECORDING_PLAYBACK_MINIO_SECRET_KEY:minioadmin}
+      bucket: ${RECORDING_PLAYBACK_MINIO_BUCKET:violation-media}
+      expiry: ${RECORDING_PLAYBACK_MINIO_EXPIRY:5m}
+
