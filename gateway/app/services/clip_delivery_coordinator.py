@@ -41,6 +41,7 @@ class ClipDeliveryCommand:
     output_path: Path
     duration_ms: int
     size_bytes: int
+    cover_image_bytes: bytes | None = None
 
 
 class ClipDeliveryCoordinator:
@@ -91,6 +92,11 @@ class ClipDeliveryCoordinator:
                 storage_result = await self._store_with_retry(
                     command
                 )
+                cover_image_key = (
+                    await self._store_cover_with_retry(
+                        command
+                    )
+                )
             except ClipDeliveryError:
                 error_callback_payload = RecordingCallbackPayload(
                     recording_id=command.recording_id,
@@ -111,6 +117,7 @@ class ClipDeliveryCoordinator:
                 violation_id=command.violation_id,
                 status="READY",
                 object_key=storage_result.object_key,
+                cover_image_key=cover_image_key,
                 duration_ms=command.duration_ms,
                 size_bytes=storage_result.size_bytes,
                 checksum=storage_result.checksum,
@@ -226,6 +233,50 @@ class ClipDeliveryCoordinator:
                     ),
                     max_backoff_seconds=(
                         self._upload_max_backoff_seconds
+                    ),
+                )
+
+                attempt += 1
+
+
+    async def _store_cover_with_retry(
+            self,
+            command: ClipDeliveryCommand,
+    ) -> str | None:
+        if command.cover_image_bytes is None:
+            return None
+
+        attempt = 0
+
+        while True:
+            try:
+                return self._clip_storage.store_cover_image(
+                    violation_id=command.violation_id,
+                    recording_id=command.recording_id,
+                    image_bytes=command.cover_image_bytes,
+                    captured_at=command.started_at,
+                )
+
+            except ClipStorageError as ex:
+                if (
+                        not ex.retryable
+                        or attempt
+                        >= self._upload_max_retries
+                ):
+                    # Cover yardımcı medyadır.
+                    # Cover başarısız diye sağlam MP4'ü
+                    # ERROR durumuna düşürmüyoruz.
+                    return None
+
+                await self._sleep_with_backoff(
+                    retry_index=attempt,
+                    initial_backoff_seconds=(
+                        self
+                        ._upload_initial_backoff_seconds
+                    ),
+                    max_backoff_seconds=(
+                        self
+                        ._upload_max_backoff_seconds
                     ),
                 )
 
