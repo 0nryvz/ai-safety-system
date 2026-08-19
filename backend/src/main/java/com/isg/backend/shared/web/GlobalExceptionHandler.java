@@ -12,7 +12,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
+
 import org.springframework.dao.DataIntegrityViolationException;
+import com.isg.backend.recording.application.RecordingNotFoundForViolationException;
+import com.isg.backend.recording.application.RecordingNotReadyException;
+
 
 import java.time.Clock;
 import java.time.Instant;
@@ -140,6 +144,33 @@ public ResponseEntity<ApiErrorResponse> dataIntegrityViolation(
     );
 }
 
+    @ExceptionHandler(RecordingNotFoundForViolationException.class)
+    public ResponseEntity<ApiErrorResponse> recordingNotFound(
+            RecordingNotFoundForViolationException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.NOT_FOUND,
+                "RECORDING_NOT_FOUND",
+                "Recording not found.",
+                req,
+                Map.of()
+        );
+    }
+
+    @ExceptionHandler(RecordingNotReadyException.class)
+    public ResponseEntity<ApiErrorResponse> recordingNotReady(
+            RecordingNotReadyException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.CONFLICT,
+                "RECORDING_NOT_READY",
+                "Recording is not ready.",
+                req,
+                Map.of()
+        );
+    }
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiErrorResponse> responseStatus(

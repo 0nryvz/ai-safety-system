@@ -53,3 +53,12 @@ violation:
   temporal:
     silence-timeout: ${VIOLATION_TEMPORAL_SILENCE_TIMEOUT:5s}
     silence-sweep-interval: ${VIOLATION_TEMPORAL_SILENCE_SWEEP_INTERVAL:1s}
+
+  playback:
+    minio:
+      endpoint: ${RECORDING_PLAYBACK_MINIO_ENDPOINT:http://localhost:9000}
+      access-key: ${RECORDING_PLAYBACK_MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${RECORDING_PLAYBACK_MINIO_SECRET_KEY:minioadmin}
+      bucket: ${RECORDING_PLAYBACK_MINIO_BUCKET:violation-media}
+      expiry: ${RECORDING_PLAYBACK_MINIO_EXPIRY:5m}
+

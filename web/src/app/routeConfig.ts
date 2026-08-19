@@ -2,6 +2,7 @@ export const ROUTE_PATHS = {
   home: '/',
   login: '/login',
   dashboard: '/dashboard',
+  violations: '/violations',
 } as const
 
 export type RouteOwner = 'FE1' | 'FE2'
@@ -31,6 +32,13 @@ export const appRouteConfig: AppRouteConfig[] = [
     id: 'dashboard',
     path: ROUTE_PATHS.dashboard,
     owner: 'FE1',
+    access: 'authenticated',
+  },
+
+  {
+    id: 'violations',
+    path: ROUTE_PATHS.violations,
+    owner: 'FE2',
     access: 'authenticated',
   },
   {

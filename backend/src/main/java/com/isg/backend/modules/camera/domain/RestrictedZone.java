@@ -1,6 +1,7 @@
-package com.isg.backend.modules.camera.domain;
+package com.isg.backend.modules.camera.domain; // Paket yolunuzu kendi projenize göre doğrulayın
 
 import com.isg.backend.modules.camera.api.dto.PointDto;
+import com.isg.backend.modules.camera.infrastructure.RestrictedZoneListener;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -13,6 +14,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "restricted_zones")
+@EntityListeners(RestrictedZoneListener.class) // Listener bağlandı
 @Getter
 @Setter
 public class RestrictedZone {
@@ -27,7 +29,6 @@ public class RestrictedZone {
     @Column(nullable = false, length = 120)
     private String name;
 
-    // Hibernate'in JSONB desteği sayesinde List<PointDto> doğrudan PostgreSQL'deki jsonb kolonuna map edilir!
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)
     private List<PointDto> polygon;
@@ -44,14 +45,5 @@ public class RestrictedZone {
     @Version
     private Long version;
 
-    @PrePersist
-    protected void onCreate() {
-        createdAt = ZonedDateTime.now();
-        updatedAt = ZonedDateTime.now();
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = ZonedDateTime.now();
-    }
+    // Doğrudan now() kullanan metotlar RestrictedZoneListener sınıfına taşındı.
 }

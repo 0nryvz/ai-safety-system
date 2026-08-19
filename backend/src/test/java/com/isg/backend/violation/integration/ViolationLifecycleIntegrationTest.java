@@ -563,7 +563,7 @@ class ViolationLifecycleIntegrationTest {
                     assertThat(
                             item.getFromStatus()
                     ).isEqualTo(
-                            ViolationLifecycleStatus.PREPARING.name()
+                            ViolationLifecycleStatus.ACTIVE.name()
                     );
 
                     assertThat(

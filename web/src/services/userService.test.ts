@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '../core/api/apiClient'
-import { getCurrentUser, mapUserResponseToAuthUser, type UserResponse } from './userService'
+import {
+  getCurrentUser,
+  getMyDepartments,
+  mapUserResponseToAuthUser,
+  type DepartmentResponse,
+  type UserResponse,
+} from './userService'
 
 const userResponse: UserResponse = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -50,5 +56,26 @@ describe('userService', () => {
     })
 
     expect(result.roles).toEqual(['ADMIN'])
+  })
+  it('loads the current user departments', async () => {
+    const departments: DepartmentResponse[] = [
+      {
+        id: '22222222-2222-2222-2222-222222222222',
+        name: 'Üretim',
+      },
+      {
+        id: '33333333-3333-3333-3333-333333333333',
+        name: 'Kaynak',
+      },
+    ]
+
+    const getSpy = vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: departments,
+    })
+
+    const result = await getMyDepartments()
+
+    expect(getSpy).toHaveBeenCalledWith('/users/me/departments')
+    expect(result).toEqual(departments)
   })
 })

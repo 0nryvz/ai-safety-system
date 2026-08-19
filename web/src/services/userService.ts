@@ -13,6 +13,11 @@ export interface UserResponse {
   createdAt: string
 }
 
+export interface DepartmentResponse {
+  id: string
+  name: string
+}
+
 function isUserRole(role: string): role is UserRole {
   return role === 'ADMIN' || role === 'OHS_SPECIALIST' || role === 'SHIFT_SUPERVISOR'
 }
@@ -30,6 +35,12 @@ export function mapUserResponseToAuthUser(response: UserResponse): AuthUser {
 
 export async function getCurrentUser(): Promise<UserResponse> {
   const response = await apiClient.get<UserResponse>('/users/me')
+
+  return response.data
+}
+
+export async function getMyDepartments(): Promise<DepartmentResponse[]> {
+  const response = await apiClient.get<DepartmentResponse[]>('/users/me/departments')
 
   return response.data
 }
