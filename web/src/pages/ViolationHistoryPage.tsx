@@ -30,6 +30,7 @@ import { useCameraOptions } from '../features/violations/useCameraOptions'
 import { useDepartmentOptions } from '../features/violations/useDepartmentOptions'
 import { ApiError } from '../core/api/apiError'
 import { getApiErrorKind } from '../core/api/apiErrorPolicy'
+import { Link } from 'react-router-dom'
 
 const violationTypeLabels: Record<ViolationListItem['type'], string> = {
   MISSING_WELDING_MASK: 'Kaynak maskesi eksik',
@@ -187,6 +188,15 @@ function ViolationHistoryPage() {
           <StatusBadge variant={getReviewVariant(item.reviewStatus)}>
             {reviewLabels[item.reviewStatus]}
           </StatusBadge>
+        ),
+      },
+      {
+        key: 'detail',
+        header: 'Detay',
+        render: (item) => (
+          <Link className="violation-history__detail-link" to={`/violations/${item.violationId}`}>
+            Görüntüle
+          </Link>
         ),
       },
     ],

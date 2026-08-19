@@ -47,3 +47,34 @@ docker exec isg-postgres psql -U isg_user -d isg_restore_demo -c "\dt"
 ```
 
 > Aktif gelistirme veritabaninin uzerine restore yapilmamalidir. Restore islemi bos bir hedef veritabanina yapilmalidir.
+
+## Local Calistirma
+
+### Gereksinimler
+- Java 21
+- Docker Desktop
+- Docker Compose
+
+### Altyapi servislerini baslat
+docker compose up -d
+docker compose ps
+
+PostgreSQL ve MinIO servislerinin healthy durumda oldugunu kontrol edin.
+- PostgreSQL: localhost:5432
+- MinIO API: localhost:9000
+- MinIO Console: localhost:9001
+
+### Backend'i baslat
+.\backend\mvnw.cmd -f backend\pom.xml spring-boot:run
+
+Backend varsayilan olarak http://localhost:8080 adresinde calisir.
+Flyway migrationlari backend baslarken otomatik uygulanir.
+
+### Demo verisini yukle
+Get-Content backend\src\main\resources\db\seed\demo-seed.sql -Raw | docker exec -i isg-postgres psql -U isg_user -d isg_db
+
+Demo kullanicilari icin ortak sifre: 123456
+Ornek admin kullanicisi: admin@isgvision.local
+
+### Backend testlerini calistir
+.\backend\mvnw.cmd -f backend\pom.xml test

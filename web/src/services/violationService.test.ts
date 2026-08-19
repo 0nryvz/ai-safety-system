@@ -3,6 +3,9 @@ import { apiClient } from '../core/api/apiClient'
 import {
   getViolationClipUrl,
   getViolationHistory,
+  getViolationDetail,
+  reviewViolation,
+  type ViolationDetailResponse,
   type PageResponse,
   type ViolationListItem,
 } from './violationService'
@@ -106,5 +109,66 @@ describe('violationService', () => {
     expect(getSpy.mock.calls[0]).toHaveLength(1)
     expect(result).toEqual(clipUrlResponse)
     expect(result).not.toHaveProperty('objectKey')
+  })
+
+  it('loads violation detail from the confirmed endpoint', async () => {
+    const violationId = '11111111-1111-1111-1111-111111111111'
+
+    const detail: ViolationDetailResponse = {
+      violationId,
+      cameraId: '22222222-2222-2222-2222-222222222222',
+      cameraName: 'Kaynak Kamera 1',
+      cameraCode: 'CAM-001',
+      departmentId: '33333333-3333-3333-3333-333333333333',
+      departmentName: 'Kaynak',
+      sessionId: '44444444-4444-4444-4444-444444444444',
+      type: 'MISSING_GLOVES',
+      confidence: 0.94,
+      modelVersion: 'model-v1',
+      detectedAt: '2026-08-19T10:00:00Z',
+      startedAt: '2026-08-19T10:00:00Z',
+      endedAt: null,
+      lifecycleStatus: 'ACTIVE',
+      reviewStatus: 'UNREVIEWED',
+      reviewedBy: null,
+      reviewedAt: null,
+      recordingStatus: 'PROCESSING',
+      clipReady: false,
+      playbackUrl: null,
+      coverImageKey: null,
+      coverImageReady: false,
+    }
+
+    const getSpy = vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: detail,
+    })
+
+    const result = await getViolationDetail(violationId)
+
+    expect(getSpy).toHaveBeenCalledWith(`/violations/${violationId}`)
+    expect(result).toEqual(detail)
+  })
+
+  it('submits a supported violation review status', async () => {
+    const violationId = '11111111-1111-1111-1111-111111111111'
+
+    const reviewResponse = {
+      violationId,
+      reviewStatus: 'CONFIRMED' as const,
+      reviewedBy: '55555555-5555-5555-5555-555555555555',
+      reviewedAt: '2026-08-19T10:05:00Z',
+    }
+
+    const patchSpy = vi.spyOn(apiClient, 'patch').mockResolvedValue({
+      data: reviewResponse,
+    })
+
+    const result = await reviewViolation(violationId, 'CONFIRMED')
+
+    expect(patchSpy).toHaveBeenCalledWith(`/violations/${violationId}/review`, {
+      reviewStatus: 'CONFIRMED',
+    })
+
+    expect(result).toEqual(reviewResponse)
   })
 })
