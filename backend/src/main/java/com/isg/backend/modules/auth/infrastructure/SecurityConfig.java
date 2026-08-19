@@ -63,6 +63,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
+                        // Eklenen Kural: Health endpoint'ini public yapıyoruz (Database ekibi için)
+                        .requestMatchers("/actuator/health").permitAll()
+
                         // BE-3: WebSocket bağlantısına izin verilir; kimlik doğrulama STOMP CONNECT aşamasında JWT ile yapılır.
                         .requestMatchers("/ws", "/ws/**").permitAll()
 

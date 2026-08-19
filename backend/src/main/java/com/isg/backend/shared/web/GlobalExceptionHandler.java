@@ -14,6 +14,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
 import com.isg.backend.recording.application.RecordingNotFoundForViolationException;
 import com.isg.backend.recording.application.RecordingNotReadyException;
+import org.springframework.security.authentication.BadCredentialsException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -254,4 +255,19 @@ public class GlobalExceptionHandler {
                         body
                 );
     }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiErrorResponse> badCredentials(
+            BadCredentialsException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.UNAUTHORIZED,
+                "UNAUTHORIZED",
+                "Geçersiz e-posta veya şifre.",
+                req,
+                Map.of()
+        );
+    }
+
 }
