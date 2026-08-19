@@ -106,6 +106,28 @@ class DetectionMapperTest {
     }
 
     @Test
+    void acceptsEmptyDetectionList() {
+        DetectionRequest request =
+                new DetectionRequest(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        Instant.now(),
+                        "welding-ppe-v1",
+                        40L,
+                        List.of()
+                );
+
+        DetectionFrame result =
+                mapper.toDomain(
+                        request
+                );
+
+        assertThat(result.detections())
+                .isEmpty();
+    }
+
+    @Test
     void rejectsUnsupportedLabel() {
         DetectionItem item =
                 new DetectionItem(
