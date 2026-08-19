@@ -32,6 +32,10 @@ class Settings(BaseSettings):
         gt=0,
     )
 
+    ai_http_enabled: bool = False
+
+    ai_base_url: str = "http://localhost:8001"
+
     ai_dispatch_timeout_seconds: float = Field(
         default=1.0,
         gt=0,

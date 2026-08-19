@@ -60,6 +60,9 @@ from app.services.clip_storage import (
 from app.services.recording_callback_client import (
     RecordingCallbackClient,
 )
+from app.infrastructure.http_ai_frame_client import (
+    HttpAIFrameClient,
+)
 
 @lru_cache
 def get_session_manager() -> SessionManager:
@@ -227,11 +230,23 @@ def get_session_frame_ingestion_worker_coordinator(
             seconds=(1 / settings.ai_sampling_fps),
         )
     )
+    if settings.ai_http_enabled:
+        ai_frame_client = HttpAIFrameClient(
+            ai_base_url=settings.ai_base_url,
+            timeout_seconds=(
+                settings.ai_dispatch_timeout_seconds
+            ),
+        )
+    else:
+        ai_frame_client = NoOpAIFrameClient()
+
     ai_dispatch_worker_coordinator = (
         SessionAIFrameDispatchWorkerCoordinator(
-            ai_frame_client=NoOpAIFrameClient(),
-            ai_configured=False,
-            send_timeout_seconds=settings.ai_dispatch_timeout_seconds,
+            ai_frame_client=ai_frame_client,
+            ai_configured=settings.ai_http_enabled,
+            send_timeout_seconds=(
+                settings.ai_dispatch_timeout_seconds
+            ),
             max_retries=settings.ai_dispatch_max_retries,
             circuit_failure_threshold=(
                 settings.ai_dispatch_circuit_failure_threshold

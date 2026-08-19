@@ -197,6 +197,37 @@ class ScriptedAIFrameClient:
             await asyncio.wait_for(self._frame_sent.wait(), timeout=1)
             self._frame_sent.clear()
 
+class NonRetryableAIFrameError(RuntimeError):
+    retryable = False
+
+
+class NonRetryableAIFrameClient:
+    def __init__(self) -> None:
+        self.call_count = 0
+        self._called = asyncio.Event()
+
+    async def send_frame(
+            self,
+            frame: FramePacket,
+    ) -> None:
+        self.call_count += 1
+        self._called.set()
+
+        raise NonRetryableAIFrameError(
+            "bad frame contract"
+        )
+
+    async def wait_for_call_count(
+            self,
+            count: int,
+    ) -> None:
+        while self.call_count < count:
+            await asyncio.wait_for(
+                self._called.wait(),
+                timeout=1,
+            )
+            self._called.clear()
+
 
 @pytest.mark.asyncio
 async def test_dispatch_worker_sends_frame_to_ai_client() -> None:
@@ -492,14 +523,14 @@ async def test_dispatch_worker_retries_after_timeout_with_bound_limit() -> None:
         camera_id="camera-1",
         session_id="session-1",
     )
-    await coordinator.offer_frame(
-        create_frame(
-            camera_id="camera-1",
-            session_id="session-1",
-            captured_at=base_time,
-            data=b"frame-1",
-        )
+    frame = create_frame(
+        camera_id="camera-1",
+        session_id="session-1",
+        captured_at=base_time,
+        data=b"frame-1",
     )
+
+    await coordinator.offer_frame(frame)
 
     await client.wait_for_sent_count(1)
     stats = await coordinator.stats()
@@ -515,6 +546,7 @@ async def test_dispatch_worker_retries_after_timeout_with_bound_limit() -> None:
     assert stats.send_error_count == 0
     assert stats.latency_measurement_count == 1
     assert stats.total_send_latency_seconds > 0
+    assert client.sent_frames[0].event_id == frame.event_id
 
 
 @pytest.mark.asyncio
@@ -791,3 +823,50 @@ async def test_dispatch_worker_resets_failure_state_after_success() -> None:
     assert stats_after_success.ai_available is True
     assert stats_after_single_failure.circuit_open is False
     assert final_stats.dispatched_frame_count == 2
+
+@pytest.mark.asyncio
+async def test_dispatch_worker_does_not_retry_non_retryable_error(
+) -> None:
+    client = NonRetryableAIFrameClient()
+
+    coordinator = SessionAIFrameDispatchWorkerCoordinator(
+        ai_frame_client=client,
+        max_retries=3,
+        circuit_failure_threshold=10,
+    )
+
+    base_time = datetime(
+        2026,
+        1,
+        1,
+        tzinfo=timezone.utc,
+    )
+
+    await coordinator.start_worker(
+        camera_id="camera-1",
+        session_id="session-1",
+    )
+
+    await coordinator.offer_frame(
+        create_frame(
+            camera_id="camera-1",
+            session_id="session-1",
+            captured_at=base_time,
+            data=b"bad-frame",
+        )
+    )
+
+    await client.wait_for_call_count(1)
+
+    await asyncio.sleep(0.01)
+
+    stats = await coordinator.stats()
+
+    await coordinator.stop_worker(
+        camera_id="camera-1",
+        session_id="session-1",
+    )
+
+    assert client.call_count == 1
+    assert stats.retry_attempt_count == 0
+    assert stats.send_error_count == 1

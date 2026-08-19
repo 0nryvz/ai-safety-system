@@ -90,6 +90,8 @@ def test_ring_buffer_settings_defaults() -> None:
             == "http://localhost:8080"
     )
     assert settings.session_lifecycle_internal_api_key == ""
+    assert settings.ai_http_enabled is False
+    assert settings.ai_base_url == "http://localhost:8001"
 
 
 def test_recording_callback_settings_environment_override(
@@ -335,4 +337,24 @@ def test_session_lifecycle_settings_environment_override(
     assert (
             settings.session_lifecycle_internal_api_key
             == "test-internal-key"
+    )
+
+def test_ai_http_settings_environment_override(
+        monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "GATEWAY_AI_HTTP_ENABLED",
+        "true",
+    )
+    monkeypatch.setenv(
+        "GATEWAY_AI_BASE_URL",
+        "http://ai.internal:8001",
+    )
+
+    settings = Settings(_env_file=None)
+
+    assert settings.ai_http_enabled is True
+    assert (
+            settings.ai_base_url
+            == "http://ai.internal:8001"
     )
