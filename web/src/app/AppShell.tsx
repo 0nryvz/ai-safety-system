@@ -6,12 +6,17 @@ import './AppShell.css'
 import { NavLink } from 'react-router-dom'
 import { ROUTE_PATHS } from './routeConfig'
 import AlertCenter from '../features/alerts/AlertCenter'
+import { useAuthSession } from '../features/auth/useAuthSession'
+import { hasRouteAccess } from '../features/auth/roleAccess'
 
 interface AppShellProps {
   children: ReactNode
 }
 
 function AppShell({ children }: AppShellProps) {
+  const { session } = useAuthSession()
+
+  const canAccessAdmin = hasRouteAccess('admin', session?.user?.roles ?? [])
   async function handleLogout() {
     try {
       await performLogout()
@@ -49,11 +54,11 @@ function AppShell({ children }: AppShellProps) {
             <nav>
               <NavLink to={ROUTE_PATHS.dashboard}>Dashboard</NavLink>
 
-              <span>Kameralar</span>
+              {canAccessAdmin && <NavLink to={ROUTE_PATHS.adminCameras}>Kameralar</NavLink>}
 
               <NavLink to={ROUTE_PATHS.violations}>İhlaller</NavLink>
 
-              <span>Kullanıcılar</span>
+              {canAccessAdmin && <NavLink to={ROUTE_PATHS.adminUsers}>Kullanıcılar</NavLink>}
             </nav>
           </nav>
         </aside>
