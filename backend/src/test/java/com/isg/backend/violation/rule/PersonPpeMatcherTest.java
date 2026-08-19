@@ -48,6 +48,135 @@ class PersonPpeMatcherTest {
     }
 
     @Test
+    void assignsNonGlovesDetectionToPerson() {
+        DetectedObject person =
+                person(
+                        new BoundingBox(
+                                0.1,
+                                0.1,
+                                0.4,
+                                0.8
+                        ),
+                        "person-1"
+                );
+
+        DetectedObject nonGloves =
+                detection(
+                        DetectionLabel.NON_GLOVES,
+                        new BoundingBox(
+                                0.2,
+                                0.45,
+                                0.1,
+                                0.1
+                        )
+                );
+
+        List<PersonContext> contexts =
+                matcher.buildPersonContexts(
+                        frame(
+                                person,
+                                nonGloves
+                        ),
+                        0.50
+                );
+
+        assertThat(contexts)
+                .hasSize(1);
+
+        assertThat(
+                contexts.get(0)
+                        .hasDetection(
+                                DetectionLabel.NON_GLOVES
+                        )
+        )
+                .isTrue();
+    }
+
+    @Test
+    void assignsNonWeldingMaskDetectionToPerson() {
+        DetectedObject person =
+                person(
+                        new BoundingBox(
+                                0.1,
+                                0.1,
+                                0.4,
+                                0.8
+                        ),
+                        "person-1"
+                );
+
+        DetectedObject nonMask =
+                detection(
+                        DetectionLabel.NON_WELDING_MASK,
+                        new BoundingBox(
+                                0.2,
+                                0.15,
+                                0.1,
+                                0.1
+                        )
+                );
+
+        List<PersonContext> contexts =
+                matcher.buildPersonContexts(
+                        frame(
+                                person,
+                                nonMask
+                        ),
+                        0.50
+                );
+
+        assertThat(
+                contexts.get(0)
+                        .hasDetection(
+                                DetectionLabel.NON_WELDING_MASK
+                        )
+        )
+                .isTrue();
+    }
+
+    @Test
+    void assignsNonWeldingJacketDetectionToPerson() {
+        DetectedObject person =
+                person(
+                        new BoundingBox(
+                                0.1,
+                                0.1,
+                                0.4,
+                                0.8
+                        ),
+                        "person-1"
+                );
+
+        DetectedObject nonJacket =
+                detection(
+                        DetectionLabel.NON_WELDING_JACKET,
+                        new BoundingBox(
+                                0.18,
+                                0.22,
+                                0.2,
+                                0.45
+                        )
+                );
+
+        List<PersonContext> contexts =
+                matcher.buildPersonContexts(
+                        frame(
+                                person,
+                                nonJacket
+                        ),
+                        0.50
+                );
+
+        assertThat(
+                contexts.get(0)
+                        .hasDetection(
+                                DetectionLabel.NON_WELDING_JACKET
+                        )
+        )
+                .isTrue();
+    }
+
+    @Test
     void doesNotAssignDetectionWhenItIsOutsidePerson() {
         DetectedObject person = person(
                 new BoundingBox(0.1, 0.1, 0.3, 0.7),
