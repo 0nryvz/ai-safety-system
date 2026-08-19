@@ -190,12 +190,6 @@ function UserManagementPage() {
         await deactivateUser(statusTarget.id)
       } else {
         await updateUser(statusTarget.id, {
-          fullName: statusTarget.fullName,
-          departmentIds: statusTarget.departmentIds,
-          roleNames: statusTarget.roles.filter(
-            (role): role is UserFormValues['roleNames'][number] =>
-              role === 'ADMIN' || role === 'OHS_SPECIALIST' || role === 'SHIFT_SUPERVISOR',
-          ),
           active: true,
         })
       }
