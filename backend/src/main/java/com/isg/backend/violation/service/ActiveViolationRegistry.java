@@ -68,4 +68,28 @@ public class ActiveViolationRegistry {
                 )
         );
     }
+
+    public boolean removeIfMappedTo(
+            ViolationStateKey stateKey,
+            UUID violationId
+    ) {
+        Objects.requireNonNull(
+                stateKey,
+                "stateKey must not be null"
+        );
+
+        Objects.requireNonNull(
+                violationId,
+                "violationId must not be null"
+        );
+
+        return activeViolations.remove(
+                stateKey,
+                violationId
+        );
+    }
+
+    public int size() {
+        return activeViolations.size();
+    }
 }

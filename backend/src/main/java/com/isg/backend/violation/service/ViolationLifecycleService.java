@@ -22,6 +22,27 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * Owns the logical violation lifecycle independently from physical recording
+ * clip or segment boundaries.
+ *
+ * <p>A continuously confirmed violation keeps the same violationId until the
+ * temporal/grace logic determines that the violation has actually ended.
+ * Reaching Backend 4's max clip duration must not by itself end the violation
+ * or create another violation record.</p>
+ *
+ * <p>If Backend 4 segments a long recording, all physical segments belong to
+ * the same logical violation. A segment boundary does not produce a
+ * ViolationEndedEvent and does not move the lifecycle out of ACTIVE.</p>
+ *
+ * <p>BE3 transitions ACTIVE to PREPARING only when the violation itself ends.
+ * The lifecycle becomes COMPLETED after Backend 4 reports READY, or ERROR after
+ * a terminal recording failure.</p>
+ *
+ * <p>Physical segmentation, segment object keys and segment metadata are owned
+ * by Backend 4.</p>
+ */
+
 @Service
 public class ViolationLifecycleService
         implements RecordingStatusCallbackPort {

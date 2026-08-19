@@ -16,19 +16,19 @@ import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationS
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
 import com.isg.backend.violation.infrastructure.persistence.ViolationStatusHistoryJpaEntity;
 import com.isg.backend.violation.service.ViolationLifecycleService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.junit.jupiter.api.AfterEach;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-import java.util.ArrayList;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.sql.Timestamp;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.times;
@@ -360,6 +360,32 @@ class ViolationLifecycleIntegrationTest {
                 endedAt
         );
 
+        assertThat(
+                ended.getLifecycleStatus()
+        ).isEqualTo(
+                ViolationLifecycleStatus.PREPARING
+        );
+
+        List<ViolationStatusHistoryJpaEntity> preparingHistory =
+                historiesFor(
+                        violationId
+                );
+
+        assertThat(preparingHistory)
+                .anySatisfy(history -> {
+                    assertThat(
+                            history.getFromStatus()
+                    ).isEqualTo(
+                            ViolationLifecycleStatus.ACTIVE.name()
+                    );
+
+                    assertThat(
+                            history.getToStatus()
+                    ).isEqualTo(
+                            ViolationLifecycleStatus.PREPARING.name()
+                    );
+                });
+
         ArgumentCaptor<ViolationEndedEvent> stopCaptor =
                 ArgumentCaptor.forClass(
                         ViolationEndedEvent.class
@@ -497,6 +523,17 @@ class ViolationLifecycleIntegrationTest {
         lifecycleService.endViolation(
                 violationId,
                 endedAt
+        );
+
+        ViolationJpaEntity preparing =
+                violationRepository.findById(
+                        violationId
+                ).orElseThrow();
+
+        assertThat(
+                preparing.getLifecycleStatus()
+        ).isEqualTo(
+                ViolationLifecycleStatus.PREPARING
         );
 
         lifecycleService.recordingError(

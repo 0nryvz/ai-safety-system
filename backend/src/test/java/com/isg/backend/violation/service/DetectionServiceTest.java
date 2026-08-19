@@ -30,6 +30,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+
+import static org.mockito.ArgumentMatchers.anyLong;
+
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -46,6 +49,7 @@ class DetectionServiceTest {
     private TemporalConfirmationService temporalConfirmationService;
     private ViolationLifecycleService violationLifecycleService;
     private ActiveViolationRegistry activeViolationRegistry;
+    private ViolationMetrics violationMetrics;
     private Clock clock;
     private DetectionService detectionService;
 
@@ -72,6 +76,9 @@ class DetectionServiceTest {
         activeViolationRegistry =
                 new ActiveViolationRegistry();
 
+        violationMetrics =
+                mock(ViolationMetrics.class);
+
         clock =
                 Clock.systemUTC();
 
@@ -84,6 +91,7 @@ class DetectionServiceTest {
                         temporalConfirmationService,
                         violationLifecycleService,
                         activeViolationRegistry,
+                        violationMetrics,
                         clock
                 );
     }
@@ -149,6 +157,12 @@ class DetectionServiceTest {
         ).startViolation(
                 any(),
                 any()
+        );
+
+        verify(
+                violationMetrics
+        ).recordValidationDurationNanos(
+                anyLong()
         );
     }
 
@@ -616,6 +630,12 @@ class DetectionServiceTest {
         ).contains(
                 violationId
         );
+
+        verify(
+                violationMetrics
+        ).recordValidationDurationNanos(
+                anyLong()
+        );
     }
 
     @Test
@@ -643,10 +663,16 @@ class DetectionServiceTest {
         ).toDomain(
                 request
         );
+
+        verify(
+                violationMetrics
+        ).recordValidationDurationNanos(
+                anyLong()
+        );
     }
 
     @Test
-    void duplicateEventReturns409BeforeCandidateEvaluation() {
+    void duplicateEventReturns409BeforeCandidateEvaluationAndIncrementsMetric() {
         DetectionRequest request =
                 validRequest(
                         Instant.now(clock)
@@ -685,6 +711,56 @@ class DetectionServiceTest {
         ).evaluate(
                 any()
         );
+
+        verify(
+                violationMetrics
+        ).incrementDuplicateCount();
+
+        verify(
+                violationMetrics
+        ).recordValidationDurationNanos(
+                anyLong()
+        );
+    }
+
+    @Test
+    void acceptedDetectionDoesNotIncrementDuplicateMetric() {
+        DetectionRequest request =
+                validRequest(
+                        Instant.now()
+                );
+
+        DetectionFrame frame =
+                domainFrame(
+                        request
+                );
+
+        prepareValidPipeline(
+                request,
+                frame,
+                List.of()
+        );
+
+        when(
+                temporalConfirmationService.processFrameTransitions(
+                        frame.frameTimestamp(),
+                        List.of()
+                )
+        ).thenReturn(
+                new TemporalViolationTransitions(
+                        List.of(),
+                        List.of()
+                )
+        );
+
+        detectionService.process(
+                request
+        );
+
+        verify(
+                violationMetrics,
+                never()
+        ).incrementDuplicateCount();
     }
 
     @Test
@@ -709,6 +785,12 @@ class DetectionServiceTest {
                 request.cameraId(),
                 request.sessionId()
         );
+
+        verify(
+                violationMetrics
+        ).recordValidationDurationNanos(
+                anyLong()
+        );
     }
 
     @Test
@@ -732,6 +814,12 @@ class DetectionServiceTest {
         ).isValid(
                 request.cameraId(),
                 request.sessionId()
+        );
+
+        verify(
+                violationMetrics
+        ).recordValidationDurationNanos(
+                anyLong()
         );
     }
 
@@ -766,6 +854,7 @@ class DetectionServiceTest {
                         realTemporalConfirmationService,
                         violationLifecycleService,
                         activeViolationRegistry,
+                        violationMetrics,
                         clock
                 );
 

@@ -1,5 +1,6 @@
 package com.isg.backend.violation.infrastructure.persistence;
 
+import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -7,10 +8,16 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Collection;
+import java.util.List;
 
 public interface SpringDataViolationRepository
         extends JpaRepository<ViolationJpaEntity, UUID>,
         JpaSpecificationExecutor<ViolationJpaEntity> {
+
+    List<ViolationJpaEntity> findByLifecycleStatusIn(
+            Collection<ViolationLifecycleStatus> statuses
+    );
 
     @Query(
             value = """
