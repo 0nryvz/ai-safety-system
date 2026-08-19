@@ -6,12 +6,20 @@ import java.util.Arrays;
 
 public enum DetectionLabel {
 
-    PERSON("person"),
-    WELDING("welding"),
-    WELDING_MASK("welding_mask"),
-    WELDING_APRON("welding_apron"),
+    PERSON("Person", "person"),
+
     GLOVES("gloves"),
-    WELDING_JACKET("welding_jacket");
+    NON_GLOVES("non_gloves"),
+
+    WELDING("welding"),
+
+    WELDING_APRON("welding_apron"),
+
+    WELDING_JACKET("welding_jacket"),
+    NON_WELDING_JACKET("non_welding_jacket"),
+
+    WELDING_MASK("welding_mask"),
+    NON_WELDING_MASK("non_welding_mask");
 
     private final String[] rawValues;
 
