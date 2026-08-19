@@ -21,7 +21,30 @@ class CameraSessionService {
       },
     );
 
-    return response.statusCode == 200 ||
+        return response.statusCode == 200 ||
         response.statusCode == 201;
+  }
+
+  Future<bool> sendHeartbeat({
+    required String cameraId,
+    required String sessionId,
+  }) async {
+    final response = await _apiClient.postHeartbeat(
+      path: '/api/v1/sessions/$sessionId/heartbeat',
+      cameraId: cameraId,
+    );
+
+    return response.statusCode == 200;
+  }
+    Future<bool> closeSession({
+    required String cameraId,
+    required String sessionId,
+  }) async {
+    final response = await _apiClient.postClose(
+      path: '/api/v1/sessions/$sessionId/close',
+      cameraId: cameraId,
+    );
+
+    return response.statusCode == 204;
   }
 }

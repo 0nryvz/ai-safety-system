@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
@@ -70,6 +72,7 @@ CameraController? _controller;
   bool _isBusy = false;
 
   ConnectionState _connectionState = ConnectionState.stopped;
+  Timer? _heartbeatTimer;
 
   void _setConnectionState(ConnectionState state) {
   if (!mounted) return;
@@ -275,6 +278,7 @@ CameraController? _controller;
     }
 
     _isBusy = true;
+    _setConnectionState(ConnectionState.connecting);
 
     try {
       // Her yayın başlangıcında yeni bir session ID oluştur.
@@ -299,9 +303,26 @@ CameraController? _controller;
 
         return;
       }
-
+      _setConnectionState(ConnectionState.connected);
       // Gateway session başarılı şekilde açıldı.
       _sessionId = sessionId;
+      _heartbeatTimer?.cancel();
+
+_heartbeatTimer = Timer.periodic(
+  const Duration(seconds: 10),
+  (_) async {
+    final currentSessionId = _sessionId;
+
+    if (currentSessionId == null) {
+      return;
+    }
+
+    await _sessionService.sendHeartbeat(
+      cameraId: 'camera-1',
+      sessionId: currentSessionId,
+    );
+  },
+);
 
       await controller.startImageStream(
   (CameraImage image) async {
@@ -358,20 +379,30 @@ CameraController? _controller;
     _isBusy = true;
 
     try {
-      if (controller.value.isStreamingImages) {
-        await controller.stopImageStream();
-      }
+  final sessionId = _sessionId;
+
+  _sessionId = null;
+
+  _heartbeatTimer?.cancel();
+  _heartbeatTimer = null;
+
+  if (controller.value.isStreamingImages) {
+    await controller.stopImageStream();
+  }
+
+  if (sessionId != null) {
+    await _sessionService.closeSession(
+      cameraId: 'camera-1',
+      sessionId: sessionId,
+    );
+  }
 
       if (!mounted) return;
 
       setState(() {
         _isStreaming = false;
       });
-
-      // Şimdilik session kapatma endpoint'ini burada çağırmıyoruz.
-      // Close endpoint'i bir sonraki session service aşamasında
-      // gerçek şekilde eklenecek.
-      _sessionId = null;
+      
     } on CameraException catch (e) {
       if (!mounted) return;
 
@@ -553,16 +584,22 @@ CameraController? _controller;
                         ? Icons.circle
                         : Icons.pause_circle,
                     size: 12,
-                    color: _isStreaming
-                        ? Colors.green
+                    color: _connectionState == ConnectionState.connected
+                         ? Colors.green
                         : Colors.white,
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    _isStreaming
-                        ? 'Aktarım açık'
-                        : 'Hazır',
-                    style: const TextStyle(
+                    _connectionState == ConnectionState.connected
+                         ? 'Bağlı'
+                         : _connectionState == ConnectionState.connecting
+                         ? 'Bağlanıyor...'
+                         : _connectionState == ConnectionState.reconnecting
+                         ? 'Yeniden bağlanıyor...'
+                         : _connectionState == ConnectionState.offline
+                         ? 'Çevrimdışı'
+                         : 'Hazır',
+                      style: const TextStyle(
                       color: Colors.white,
                     ),
                   ),
