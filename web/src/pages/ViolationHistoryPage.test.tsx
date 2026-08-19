@@ -18,6 +18,8 @@ const violation: ViolationListItem = {
   confidence: 0.92,
   lifecycleStatus: 'COMPLETED',
   reviewStatus: 'UNREVIEWED',
+  recordingStatus: 'REQUESTED',
+  updatedAt: '2026-08-18T10:00:00Z',
 }
 
 beforeEach(() => {

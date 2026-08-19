@@ -22,6 +22,8 @@ const response: PageResponse<ViolationListItem> = {
       confidence: 0.94,
       lifecycleStatus: 'ACTIVE',
       reviewStatus: 'UNREVIEWED',
+      recordingStatus: 'REQUESTED',
+      updatedAt: '2026-08-18T10:00:00Z',
     },
   ],
   page: 0,
