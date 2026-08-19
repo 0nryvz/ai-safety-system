@@ -36,6 +36,7 @@ class MissingWeldingMaskRuleTest {
     private final MissingWeldingMaskRule rule =
             new MissingWeldingMaskRule();
 
+
     @Test
     void supportsMissingWeldingMaskViolationType() {
         assertThat(
@@ -44,6 +45,7 @@ class MissingWeldingMaskRuleTest {
                 ViolationType.MISSING_WELDING_MASK
         );
     }
+
 
     @Test
     void producesCandidateWhenWeldingPersonHasNoMask() {
@@ -105,6 +107,35 @@ class MissingWeldingMaskRuleTest {
                 );
     }
 
+
+    @Test
+    void producesCandidateWhenWeldingPersonHasNonWeldingMask() {
+        PersonContext person =
+                new PersonContext(
+                        "track-worker-1",
+                        person(),
+                        List.of(
+                                welding(),
+                                nonWeldingMask()
+                        )
+                );
+
+        Optional<CandidateViolation> result =
+                rule.evaluate(
+                        person,
+                        frame()
+                );
+
+        assertThat(result)
+                .isPresent();
+
+        assertThat(result.orElseThrow().violationType())
+                .isEqualTo(
+                        ViolationType.MISSING_WELDING_MASK
+                );
+    }
+
+
     @Test
     void doesNotProduceCandidateWhenWeldingPersonHasMask() {
         PersonContext person =
@@ -127,13 +158,18 @@ class MissingWeldingMaskRuleTest {
                 .isEmpty();
     }
 
+
     @Test
-    void doesNotProduceCandidateWhenPersonIsNotWelding() {
+    void doesNotProduceCandidateWhenPositiveAndNegativeMaskLabelsExistTogether() {
         PersonContext person =
                 new PersonContext(
                         "track-worker-1",
                         person(),
-                        List.of()
+                        List.of(
+                                welding(),
+                                weldingMask(),
+                                nonWeldingMask()
+                        )
                 );
 
         Optional<CandidateViolation> result =
@@ -145,6 +181,29 @@ class MissingWeldingMaskRuleTest {
         assertThat(result)
                 .isEmpty();
     }
+
+
+    @Test
+    void doesNotProduceCandidateWhenPersonIsNotWelding() {
+        PersonContext person =
+                new PersonContext(
+                        "track-worker-1",
+                        person(),
+                        List.of(
+                                weldingMask()
+                        )
+                );
+
+        Optional<CandidateViolation> result =
+                rule.evaluate(
+                        person,
+                        frame()
+                );
+
+        assertThat(result)
+                .isEmpty();
+    }
+
 
     private static DetectedObject person() {
         return new DetectedObject(
@@ -161,6 +220,7 @@ class MissingWeldingMaskRuleTest {
         );
     }
 
+
     private static DetectedObject welding() {
         return new DetectedObject(
                 DetectionLabel.WELDING,
@@ -176,6 +236,7 @@ class MissingWeldingMaskRuleTest {
         );
     }
 
+
     private static DetectedObject weldingMask() {
         return new DetectedObject(
                 DetectionLabel.WELDING_MASK,
@@ -190,6 +251,23 @@ class MissingWeldingMaskRuleTest {
                 null
         );
     }
+
+
+    private static DetectedObject nonWeldingMask() {
+        return new DetectedObject(
+                DetectionLabel.NON_WELDING_MASK,
+                "non_welding_mask",
+                0.91,
+                new BoundingBox(
+                        0.2,
+                        0.15,
+                        0.1,
+                        0.1
+                ),
+                null
+        );
+    }
+
 
     private static DetectionFrame frame() {
         return new DetectionFrame(
