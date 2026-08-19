@@ -79,7 +79,7 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- Ekip arkadaşınızın eklediği ancak Maven'da karşılığı olmayan geçersiz test paketleri yorum satırına alındı -->
+        <!-- Diğer geçersiz test paketleri yorum satırında bırakıldı ancak webmvc-test kurtarıldı -->
         <!--
         <dependency>
            <groupId>org.springframework.boot</groupId>
@@ -108,15 +108,17 @@
         </dependency>
         <dependency>
            <groupId>org.springframework.boot</groupId>
-           <artifactId>spring-boot-starter-webmvc-test</artifactId>
-           <scope>test</scope>
-        </dependency>
-        <dependency>
-           <groupId>org.springframework.boot</groupId>
            <artifactId>spring-boot-starter-websocket-test</artifactId>
            <scope>test</scope>
         </dependency>
         -->
+
+        <!-- YORUM SATIRINDAN ÇIKARILAN VE AKTİF EDİLEN BAĞIMLILIK (Ekibin testlerini çözer) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <!-- JJWT Dependencies -->
         <dependency>
