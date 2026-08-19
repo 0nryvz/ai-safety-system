@@ -136,6 +136,7 @@ def test_metrics_returns_gateway_state() -> None:
     assert close_response.status_code == 204
 
     assert metrics_body["active_sessions"] == 1
+    assert metrics_body["active_recordings"] == 0
     assert metrics_body["active_frame_queues"] == 1
     assert metrics_body["queued_frames"] == 0
     assert metrics_body["active_ring_buffers"] == 1

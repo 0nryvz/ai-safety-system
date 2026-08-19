@@ -585,8 +585,22 @@ class EventRecorderCoordinator:
                 )
 
                 context.finalized_frame_count = 0
-
                 context.frames.clear()
+
+                recording_id = context.recording_id
+                clip_delivery_coordinator = (
+                    self._clip_delivery_coordinator
+                )
+
+            if clip_delivery_coordinator is not None:
+                try:
+                    await clip_delivery_coordinator.deliver_error(
+                        recording_id=recording_id,
+                        violation_id=violation_id,
+                        error_code="NO_FRAMES_CAPTURED",
+                    )
+                except ClipDeliveryError:
+                    pass
 
             return
 
@@ -624,6 +638,21 @@ class EventRecorderCoordinator:
                 )
 
                 context.frames.clear()
+
+                recording_id = context.recording_id
+                clip_delivery_coordinator = (
+                    self._clip_delivery_coordinator
+                )
+
+            if clip_delivery_coordinator is not None:
+                try:
+                    await clip_delivery_coordinator.deliver_error(
+                        recording_id=recording_id,
+                        violation_id=violation_id,
+                        error_code="CLIP_ENCODING_FAILED",
+                    )
+                except ClipDeliveryError:
+                    pass
 
             return
 
@@ -818,6 +847,19 @@ class EventRecorderCoordinator:
             )
 
         return len(tasks)
+
+    async def active_recording_count(
+            self,
+    ) -> int:
+        async with self._lock:
+            return sum(
+                1
+                for context in self._contexts_by_violation.values()
+                if context.status not in {
+                    EventRecordingStatus.READY,
+                    EventRecordingStatus.ERROR,
+                }
+            )
 
     async def clear(
             self,

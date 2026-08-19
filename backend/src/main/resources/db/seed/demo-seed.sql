@@ -48,7 +48,7 @@ INSERT INTO user_roles (user_id, role_id)
 SELECT u.id, r.id
 FROM (VALUES
           ('22222222-0000-4000-8000-000000000001'::uuid, 'ADMIN'),
-          ('22222222-0000-4000-8000-000000000002'::uuid, 'ISG_EXPERT'),
+          ('22222222-0000-4000-8000-000000000002'::uuid, 'OHS_SPECIALIST'),
           ('22222222-0000-4000-8000-000000000003'::uuid, 'SHIFT_SUPERVISOR')
      ) AS u(id, role_name)
          JOIN roles r ON r.name = u.role_name

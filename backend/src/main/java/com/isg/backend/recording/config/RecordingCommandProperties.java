@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 public class RecordingCommandProperties {
 
     private int preBufferSeconds = 5;
-    private int postBufferSeconds = 5;
+    private int postBufferSeconds = 3;
     private int maxClipSeconds = 30;
 
     public int getPreBufferSeconds() {

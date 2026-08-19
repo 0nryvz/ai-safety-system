@@ -1,5 +1,6 @@
 package com.isg.backend.reporting.infrastructure.persistence;
 
+import com.isg.backend.recording.domain.RecordingStatus;
 import com.isg.backend.reporting.dto.RecentViolationResponse;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -68,7 +69,7 @@ class DashboardRepositoryTest {
     }
 
     @Test
-    void mapsDatabasePendingRecordingStatusToRequestedContractStatus() {
+    void mapsDepartmentNameAndDatabasePendingStatusToDashboardContract() {
         UUID violationId =
                 UUID.randomUUID();
 
@@ -105,13 +106,12 @@ class DashboardRepositoryTest {
                 "MISSING_WELDING_MASK",
                 cameraId,
                 departmentId,
+                "Production Line A",
                 "Test Camera",
                 "TEST-CAM",
                 "ACTIVE",
                 "UNREVIEWED",
                 "PENDING",
-                null,
-                null,
                 null,
                 0.95,
                 "test-model-v1"
@@ -138,9 +138,16 @@ class DashboardRepositoryTest {
 
         assertThat(
                 result.getFirst()
+                        .departmentName()
+        ).isEqualTo(
+                "Production Line A"
+        );
+
+        assertThat(
+                result.getFirst()
                         .recordingStatus()
         ).isEqualTo(
-                "REQUESTED"
+                RecordingStatus.REQUESTED
         );
     }
 }

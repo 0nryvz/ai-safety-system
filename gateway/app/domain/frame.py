@@ -1,5 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
+from uuid import uuid4
 
 
 @dataclass(frozen=True, slots=True)
@@ -9,6 +10,9 @@ class FramePacket:
     captured_at: datetime
     content_type: str
     data: bytes
+    event_id: str = field(
+        default_factory=lambda: str(uuid4())
+    )
 
     @property
     def size_bytes(self) -> int:

@@ -9,6 +9,14 @@ class Settings(BaseSettings):
     environment: str = "local"
     local_session_token: str = "dev-session-token"
 
+    session_lifecycle_http_enabled: bool = False
+
+    session_lifecycle_backend_base_url: str = (
+        "http://localhost:8080"
+    )
+
+    session_lifecycle_internal_api_key: str = ""
+
     frame_queue_max_frames: int = Field(
         default=30,
         ge=1,
@@ -23,6 +31,10 @@ class Settings(BaseSettings):
         default=3.0,
         gt=0,
     )
+
+    ai_http_enabled: bool = False
+
+    ai_base_url: str = "http://localhost:8001"
 
     ai_dispatch_timeout_seconds: float = Field(
         default=1.0,

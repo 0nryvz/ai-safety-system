@@ -3,10 +3,14 @@ from fastapi.testclient import TestClient
 from app.api.dependencies import (
     get_camera_session_validator,
     get_session_manager,
+    get_camera_session_lifecycle_notifier,
 )
 from app.main import app
 from app.services.session_manager import SessionManager
 from app.services.session_validator import SessionValidationResult
+from app.services.session_lifecycle_notifier import (
+    CameraSessionLifecycleNotificationError,
+)
 
 
 class AcceptingSessionValidator:
@@ -46,6 +50,35 @@ class InactiveCameraSessionValidator:
             camera_active=False,
             reason="CAMERA_INACTIVE",
         )
+
+
+class FailingSessionLifecycleNotifier:
+    async def notify_open(
+            self,
+            camera_id: str,
+            session_id: str,
+            opened_at,
+    ) -> None:
+        raise CameraSessionLifecycleNotificationError(
+            "Backend unavailable",
+            retryable=True,
+        )
+
+    async def notify_heartbeat(
+            self,
+            camera_id: str,
+            session_id: str,
+            heartbeat_at,
+    ) -> None:
+        return None
+
+    async def notify_close(
+            self,
+            camera_id: str,
+            session_id: str,
+            closed_at,
+    ) -> None:
+        return None
 
 def test_open_session_creates_new_session() -> None:
     session_manager = SessionManager()
@@ -250,4 +283,50 @@ def test_open_session_rejects_inactive_camera() -> None:
     assert response.status_code == 403
     assert response.json() == {
         "detail": "CAMERA_INACTIVE",
+    }
+
+def test_open_session_rolls_back_when_lifecycle_notification_fails(
+) -> None:
+    session_manager = SessionManager()
+
+    app.dependency_overrides[
+        get_camera_session_validator
+    ] = lambda: AcceptingSessionValidator()
+
+    app.dependency_overrides[
+        get_session_manager
+    ] = lambda: session_manager
+
+    app.dependency_overrides[
+        get_camera_session_lifecycle_notifier
+    ] = lambda: FailingSessionLifecycleNotifier()
+
+    request_body = {
+        "cameraId": "camera-1",
+        "sessionId": "session-1",
+        "sessionToken": "valid-token",
+    }
+
+    try:
+        with TestClient(app) as client:
+            first_response = client.post(
+                "/api/v1/sessions/open",
+                json=request_body,
+            )
+
+            second_response = client.post(
+                "/api/v1/sessions/open",
+                json=request_body,
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first_response.status_code == 503
+    assert first_response.json() == {
+        "detail": "SESSION_LIFECYCLE_UNAVAILABLE",
+    }
+
+    assert second_response.status_code == 503
+    assert second_response.json() == {
+        "detail": "SESSION_LIFECYCLE_UNAVAILABLE",
     }

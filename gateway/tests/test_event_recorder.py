@@ -106,6 +106,22 @@ class FakeClipDeliveryCoordinator:
         self._release_event = release_event
         self._raise_error = raise_error
         self.calls: list[ClipDeliveryCommand] = []
+        self.error_calls: list[dict[str, str]] = []
+
+    async def deliver_error(
+            self,
+            *,
+            recording_id: str,
+            violation_id: str,
+            error_code: str,
+    ) -> None:
+        self.error_calls.append(
+            {
+                "recording_id": recording_id,
+                "violation_id": violation_id,
+                "error_code": error_code,
+            }
+        )
 
     async def deliver_ready(
             self,
@@ -542,7 +558,7 @@ async def test_delivery_error_marks_recording_error(
 
 
 @pytest.mark.asyncio
-async def test_encoder_error_does_not_call_delivery(
+async def test_encoder_error_sends_terminal_error_callback(
 ) -> None:
     base = datetime.now(
         timezone.utc
@@ -594,3 +610,112 @@ async def test_encoder_error_does_not_call_delivery(
     assert finished.error is not None
     assert "RuntimeError" in finished.error
     assert len(delivery.calls) == 0
+    assert delivery.error_calls == [
+        {
+            "recording_id": "recording-upload-3",
+            "violation_id": "violation-upload-3",
+            "error_code": "CLIP_ENCODING_FAILED",
+        }
+    ]
+
+@pytest.mark.asyncio
+async def test_no_frames_sends_terminal_error_callback() -> None:
+    base = datetime.now(timezone.utc)
+
+    encoder = FakeVideoEncoder()
+    delivery = FakeClipDeliveryCoordinator()
+
+    recorder = EventRecorderCoordinator(
+        video_encoder=encoder,
+        clip_delivery_coordinator=delivery,
+    )
+
+    ring_buffer = StubRingBufferManager(
+        frames=()
+    )
+
+    await recorder.start_recording(
+        recording_id="recording-no-frames",
+        violation_id="violation-no-frames",
+        camera_id="camera-1",
+        session_id="session-1",
+        started_at=base,
+        pre_buffer_seconds=2,
+        post_buffer_seconds=0,
+        max_clip_seconds=20,
+        ring_buffer_manager=ring_buffer,
+    )
+
+    await recorder.request_stop(
+        violation_id="violation-no-frames",
+        ended_at=base,
+    )
+
+    finished = await recorder.wait_until_finalized(
+        "violation-no-frames"
+    )
+
+    assert (
+            finished.status
+            == EventRecordingStatus.ERROR
+    )
+    assert finished.error == "NO_FRAMES_CAPTURED"
+
+    assert delivery.error_calls == [
+        {
+            "recording_id": "recording-no-frames",
+            "violation_id": "violation-no-frames",
+            "error_code": "NO_FRAMES_CAPTURED",
+        }
+    ]
+
+@pytest.mark.asyncio
+async def test_active_recording_count_excludes_terminal_recordings(
+) -> None:
+    base = datetime.now(timezone.utc)
+
+    recorder = EventRecorderCoordinator(
+        video_encoder=FakeVideoEncoder(),
+    )
+
+    ring_buffer = StubRingBufferManager(
+        frames=(
+            make_frame(
+                base - timedelta(seconds=1)
+            ),
+        )
+    )
+
+    assert await recorder.active_recording_count() == 0
+
+    await recorder.start_recording(
+        recording_id="recording-count-1",
+        violation_id="violation-count-1",
+        camera_id="camera-1",
+        session_id="session-1",
+        started_at=base,
+        pre_buffer_seconds=2,
+        post_buffer_seconds=0,
+        max_clip_seconds=20,
+        ring_buffer_manager=ring_buffer,
+    )
+
+    assert await recorder.active_recording_count() == 1
+
+    await recorder.offer_frame(
+        make_frame(
+            base + timedelta(seconds=1)
+        )
+    )
+
+    await recorder.request_stop(
+        violation_id="violation-count-1",
+        ended_at=base + timedelta(seconds=1),
+    )
+
+    finished = await recorder.wait_until_finalized(
+        "violation-count-1"
+    )
+
+    assert finished.status == EventRecordingStatus.READY
+    assert await recorder.active_recording_count() == 0

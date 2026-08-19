@@ -7,8 +7,12 @@ import com.isg.backend.violation.application.port.RecordingQueryPort;
 import com.isg.backend.violation.application.port.RecordingQueryResult;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 public class RecordingQueryBridgeAdapter
@@ -33,6 +37,41 @@ public class RecordingQueryBridgeAdapter
                 )
                 .map(
                         this::toQueryResult
+                );
+    }
+
+    @Override
+    public Map<UUID, RecordingQueryResult> findByViolationIds(
+            Collection<UUID> violationIds
+    ) {
+        return recordingRepository
+                .findByViolationIds(
+                        violationIds
+                )
+                .entrySet()
+                .stream()
+                .collect(
+                        Collectors.toMap(
+                                Map.Entry::getKey,
+                                entry -> toQueryResult(
+                                        entry.getValue()
+                                )
+                        )
+                );
+    }
+
+    @Override
+    public Set<UUID> findViolationIdsByRecordingStatus(
+            String recordingStatus
+    ) {
+        RecordingStatus status =
+                RecordingStatus.valueOf(
+                        recordingStatus
+                );
+
+        return recordingRepository
+                .findViolationIdsByStatus(
+                        status
                 );
     }
 
