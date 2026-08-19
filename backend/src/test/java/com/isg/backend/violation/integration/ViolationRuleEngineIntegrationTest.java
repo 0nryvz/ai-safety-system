@@ -41,6 +41,7 @@ class ViolationRuleEngineIntegrationTest {
     @MockitoBean
     private RestrictedZonePort restrictedZonePort;
 
+
     @Test
     void producesExpectedPpeCandidatesForWeldingPersonWithoutEquipment() {
         when(
@@ -52,7 +53,10 @@ class ViolationRuleEngineIntegrationTest {
         DetectionFrame frame =
                 frame(
                         person(),
-                        welding()
+                        welding(),
+                        nonGloves(),
+                        nonWeldingMask(),
+                        nonWeldingJacket()
                 );
 
         List<CandidateViolation> result =
@@ -71,6 +75,7 @@ class ViolationRuleEngineIntegrationTest {
                         ViolationType.UNPROTECTED_PERSON
                 );
     }
+
 
     @Test
     void doesNotProducePpeCandidatesWhenRequiredEquipmentIsPresent() {
@@ -106,6 +111,7 @@ class ViolationRuleEngineIntegrationTest {
                         ViolationType.UNPROTECTED_PERSON
                 );
     }
+
 
     @Test
     void producesRestrictedZoneCandidateUsingConfiguredPort() {
@@ -158,6 +164,7 @@ class ViolationRuleEngineIntegrationTest {
                 );
     }
 
+
     private static DetectionFrame frame(
             DetectedObject... detections
     ) {
@@ -176,10 +183,11 @@ class ViolationRuleEngineIntegrationTest {
         );
     }
 
+
     private static DetectedObject person() {
         return new DetectedObject(
                 DetectionLabel.PERSON,
-                "person",
+                "Person",
                 0.95,
                 new BoundingBox(
                         0.20,
@@ -190,6 +198,7 @@ class ViolationRuleEngineIntegrationTest {
                 "worker-1"
         );
     }
+
 
     private static DetectedObject welding() {
         return new DetectedObject(
@@ -206,6 +215,7 @@ class ViolationRuleEngineIntegrationTest {
         );
     }
 
+
     private static DetectedObject weldingMask() {
         return new DetectedObject(
                 DetectionLabel.WELDING_MASK,
@@ -220,6 +230,23 @@ class ViolationRuleEngineIntegrationTest {
                 null
         );
     }
+
+
+    private static DetectedObject nonWeldingMask() {
+        return new DetectedObject(
+                DetectionLabel.NON_WELDING_MASK,
+                "non_welding_mask",
+                0.90,
+                new BoundingBox(
+                        0.30,
+                        0.15,
+                        0.10,
+                        0.10
+                ),
+                null
+        );
+    }
+
 
     private static DetectedObject gloves() {
         return new DetectedObject(
@@ -236,6 +263,23 @@ class ViolationRuleEngineIntegrationTest {
         );
     }
 
+
+    private static DetectedObject nonGloves() {
+        return new DetectedObject(
+                DetectionLabel.NON_GLOVES,
+                "non_gloves",
+                0.90,
+                new BoundingBox(
+                        0.30,
+                        0.45,
+                        0.10,
+                        0.10
+                ),
+                null
+        );
+    }
+
+
     private static DetectedObject weldingApron() {
         return new DetectedObject(
                 DetectionLabel.WELDING_APRON,
@@ -251,10 +295,27 @@ class ViolationRuleEngineIntegrationTest {
         );
     }
 
+
     private static DetectedObject weldingJacket() {
         return new DetectedObject(
                 DetectionLabel.WELDING_JACKET,
                 "welding_jacket",
+                0.90,
+                new BoundingBox(
+                        0.27,
+                        0.22,
+                        0.20,
+                        0.40
+                ),
+                null
+        );
+    }
+
+
+    private static DetectedObject nonWeldingJacket() {
+        return new DetectedObject(
+                DetectionLabel.NON_WELDING_JACKET,
+                "non_welding_jacket",
                 0.90,
                 new BoundingBox(
                         0.27,
