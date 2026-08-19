@@ -1,4 +1,4 @@
-package com.isg.backend.shared.config;
+package com.isg.backend.shared.Config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

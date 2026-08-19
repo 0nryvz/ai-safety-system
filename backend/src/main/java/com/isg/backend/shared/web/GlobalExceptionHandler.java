@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.dao.DataIntegrityViolationException;
 import com.isg.backend.recording.application.RecordingNotFoundForViolationException;
 import com.isg.backend.recording.application.RecordingNotReadyException;
+import org.springframework.security.authentication.BadCredentialsException;
 
 
 import java.time.Clock;
@@ -271,4 +272,19 @@ public ResponseEntity<ApiErrorResponse> dataIntegrityViolation(
                         body
                 );
     }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiErrorResponse> badCredentials(
+            BadCredentialsException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.UNAUTHORIZED,
+                "UNAUTHORIZED",
+                "Geçersiz e-posta veya şifre.",
+                req,
+                Map.of()
+        );
+    }
+
 }

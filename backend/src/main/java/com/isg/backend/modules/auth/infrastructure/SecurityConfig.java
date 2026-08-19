@@ -63,15 +63,25 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
+                        // Health endpoint'ini public yapıyoruz
+                        .requestMatchers("/actuator/health").permitAll()
+
                         // BE-3: WebSocket bağlantısına izin verilir; kimlik doğrulama STOMP CONNECT aşamasında JWT ile yapılır.
                         .requestMatchers("/ws", "/ws/**").permitAll()
 
                         // 2. Internal Endpointler (Gateway / AI Worker için)
                         .requestMatchers("/internal/v1/**").permitAll()
 
-                        // 3. User Uç Noktaları (Önce özel kural, sonra genel kural)
+                        // 3. User Uç Noktaları
                         .requestMatchers("/api/v1/users/me").authenticated()
                         .requestMatchers("/api/v1/users/**").hasRole("ADMIN")
+
+                        // 3.1. Kamera Yönetim Uç Noktaları (Mutasyonlar ADMIN'e özel, listeleme/detay rollerine açık)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/cameras/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/cameras/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/cameras/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/cameras/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/cameras/**").hasAnyRole("ADMIN", "OHS_SPECIALIST", "SHIFT_SUPERVISOR")
 
                         // 4. Dashboard Endpointleri (Görev planındaki yetkili roller)
                         .requestMatchers("/api/v1/dashboard/**").hasAnyRole("ADMIN", "OHS_SPECIALIST", "SHIFT_SUPERVISOR")
