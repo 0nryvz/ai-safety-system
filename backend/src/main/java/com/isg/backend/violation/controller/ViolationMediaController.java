@@ -61,6 +61,31 @@ public class ViolationMediaController {
         );
     }
 
+    @GetMapping("/{violationId}/cover-url")
+    public ResponseEntity<MediaUrlResponse> createCoverUrl(
+            @PathVariable
+            UUID violationId,
+            Authentication authentication
+    ) {
+        UUID userId =
+                resolveCurrentUserId(
+                        authentication
+                );
+
+        PresignedPlaybackUrl presignedUrl =
+                mediaAccessService.createCoverUrl(
+                        userId,
+                        violationId
+                );
+
+        return ResponseEntity.ok(
+                new MediaUrlResponse(
+                        presignedUrl.url(),
+                        presignedUrl.expiresAt()
+                )
+        );
+    }
+
     private UUID resolveCurrentUserId(
             Authentication authentication
     ) {
@@ -82,4 +107,6 @@ public class ViolationMediaController {
 
         return currentUser.getId();
     }
+
+
 }
