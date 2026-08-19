@@ -10,6 +10,17 @@ public interface RecordingStatusCallbackPort {
             Instant changedAt
     );
 
+    default void recordingReady(
+            UUID violationId,
+            Instant changedAt,
+            String coverImageKey
+    ) {
+        recordingReady(
+                violationId,
+                changedAt
+        );
+    }
+
     void recordingError(
             UUID violationId,
             Instant changedAt,

@@ -165,6 +165,7 @@ class RecordingCallbackControllerTest {
                   "violationId": "%s",
                   "status": "READY",
                   "objectKey": "clips/object.mp4",
+                  "coverImageKey": "violations/2026/08/test/cover.jpg",
                   "durationMs": 2000,
                   "sizeBytes": 4000,
                   "checksum": "sha256:abc",

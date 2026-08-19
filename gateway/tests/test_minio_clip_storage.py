@@ -8,6 +8,7 @@ import pytest
 from app.infrastructure.minio_clip_storage import (
     MinioClipStorage,
     build_clip_object_key,
+    build_cover_object_key,
 )
 from app.services.clip_storage import ClipStorageError
 
@@ -192,3 +193,89 @@ def test_store_finalized_clip_wraps_minio_exception(
 
     assert "Could not upload clip to MinIO" in str(exc_info.value)
     assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+def test_build_cover_object_key_is_deterministic() -> None:
+    captured_at = datetime(
+        2026,
+        8,
+        19,
+        20,
+        30,
+        tzinfo=timezone.utc,
+    )
+
+    object_key = build_cover_object_key(
+        violation_id="violation-1",
+        captured_at=captured_at,
+    )
+
+    assert object_key == (
+        "violations/2026/08/"
+        "violation-1/cover.jpg"
+    )
+
+
+def test_store_cover_image_uploads_jpeg_and_verifies_stat(
+) -> None:
+    cover_bytes = (
+        b"\xff\xd8"
+        b"real-test-jpeg"
+        b"\xff\xd9"
+    )
+
+    fake_client = _FakeMinioClient()
+
+    storage = MinioClipStorage(
+        endpoint="minio.internal:9000",
+        access_key="test-access",
+        secret_key="test-secret",
+        bucket="private-recordings",
+        secure=False,
+        minio_client=fake_client,
+    )
+
+    object_key = storage.store_cover_image(
+        violation_id="violation-1",
+        recording_id="recording-1",
+        image_bytes=cover_bytes,
+        captured_at=datetime(
+            2026,
+            8,
+            19,
+            20,
+            30,
+            tzinfo=timezone.utc,
+        ),
+    )
+
+    assert object_key == (
+        "violations/2026/08/"
+        "violation-1/cover.jpg"
+    )
+
+    assert len(
+        fake_client.put_calls
+    ) == 1
+
+    put_call = (
+        fake_client.put_calls[0]
+    )
+
+    assert (
+            put_call["object_name"]
+            == object_key
+    )
+
+    assert (
+            put_call["content_type"]
+            == "image/jpeg"
+    )
+
+    assert (
+            put_call["length"]
+            == len(cover_bytes)
+    )
+
+    assert len(
+        fake_client.stat_calls
+    ) == 1

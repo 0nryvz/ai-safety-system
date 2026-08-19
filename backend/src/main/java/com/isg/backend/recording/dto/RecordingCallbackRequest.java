@@ -20,6 +20,8 @@ public record RecordingCallbackRequest(
 
         String objectKey,
 
+        String coverImageKey,
+
         @Positive
         Integer durationMs,
 

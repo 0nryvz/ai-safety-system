@@ -41,6 +41,7 @@ class RecordingStatusCallbackBridgeAdapterTest {
                 violationId,
                 RecordingStatus.READY,
                 "obj-key",
+                "violations/2026/08/violation-1/cover.jpg",
                 1_000L,
                 2_000L,
                 "checksum",
@@ -49,7 +50,8 @@ class RecordingStatusCallbackBridgeAdapterTest {
 
         verify(callbackPort).recordingReady(
                 eq(violationId),
-                eq(Instant.parse("2026-01-01T11:00:00Z"))
+                eq(Instant.parse("2026-01-01T11:00:00Z")),
+                eq("violations/2026/08/violation-1/cover.jpg")
         );
     }
 

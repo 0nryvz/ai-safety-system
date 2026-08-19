@@ -163,13 +163,14 @@ def make_frame(
         *,
         camera_id: str = "camera-1",
         session_id: str = "session-1",
+        data: bytes = b"jpeg-data",
 ) -> FramePacket:
     return FramePacket(
         camera_id=camera_id,
         session_id=session_id,
         captured_at=captured_at,
         content_type="image/jpeg",
-        data=b"jpeg-data",
+        data=data,
     )
 
 
@@ -719,3 +720,79 @@ async def test_active_recording_count_excludes_terminal_recordings(
 
     assert finished.status == EventRecordingStatus.READY
     assert await recorder.active_recording_count() == 0
+
+@pytest.mark.asyncio
+async def test_recorder_uses_frame_nearest_violation_start_as_cover(
+) -> None:
+    base = datetime.now(
+        timezone.utc
+    )
+
+    encoder = FakeVideoEncoder()
+
+    delivery = (
+        FakeClipDeliveryCoordinator()
+    )
+
+    recorder = EventRecorderCoordinator(
+        video_encoder=encoder,
+        clip_delivery_coordinator=delivery,
+    )
+
+    ring_buffer = StubRingBufferManager(
+        frames=(
+            make_frame(
+                base
+                - timedelta(seconds=2),
+                data=b"pre-frame",
+                ),
+            make_frame(
+                base,
+                data=b"cover-frame",
+            ),
+        )
+    )
+
+    await recorder.start_recording(
+        recording_id="recording-cover-1",
+        violation_id="violation-cover-1",
+        camera_id="camera-1",
+        session_id="session-1",
+        started_at=base,
+        pre_buffer_seconds=3,
+        post_buffer_seconds=1,
+        max_clip_seconds=20,
+        ring_buffer_manager=ring_buffer,
+    )
+
+    await recorder.request_stop(
+        violation_id="violation-cover-1",
+        ended_at=base,
+    )
+
+    await recorder.offer_frame(
+        make_frame(
+            base
+            + timedelta(seconds=2),
+            data=b"post-frame",
+            )
+    )
+
+    finished = (
+        await recorder.wait_until_finalized(
+            "violation-cover-1"
+        )
+    )
+
+    assert (
+            finished.status
+            == EventRecordingStatus.READY
+    )
+
+    assert len(delivery.calls) == 1
+
+    assert (
+            delivery.calls[0]
+            .cover_image_bytes
+            == b"cover-frame"
+    )
