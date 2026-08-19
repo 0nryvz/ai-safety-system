@@ -48,7 +48,30 @@ docker exec isg-postgres psql -U isg_user -d isg_restore_demo -c "\dt"
 
 > Aktif gelistirme veritabaninin uzerine restore yapilmamalidir. Restore islemi bos bir hedef veritabanina yapilmalidir.
 
-## Local Calistirma
+## MVP Local Calistirma
+
+### Canonical servis adresleri
+
+| Servis | Adres |
+| --- | --- |
+| PostgreSQL | `localhost:5432` |
+| MinIO API | `http://localhost:9000` |
+| MinIO Console | `http://localhost:9001` |
+| Spring Backend | `http://localhost:8080` |
+| Camera Ingestion Gateway | `http://localhost:8000` |
+| AI Worker | `http://localhost:8001` |
+
+### Ortak runtime sozlesmesi
+
+Local/demo referans degerleri root `.env.example` dosyasinda tutulur.
+
+- Backend internal key: `INTERNAL_API_KEY`
+- Backend -> Gateway: `RECORDING_GATEWAY_BASE_URL=http://localhost:8000`
+- MinIO endpoint: `MINIO_ENDPOINT=http://localhost:9000`
+- MinIO bucket: `MINIO_BUCKET=violation-media`
+
+> Root `.env` Docker Compose tarafindan otomatik okunur. Spring Backend, Gateway ve AI Worker kendi environment/config mekanizmalarini kullanir. Gercek production secret degerleri repository'ye commit edilmemelidir.
+
 
 ### Gereksinimler
 - Java 21

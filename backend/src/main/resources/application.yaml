@@ -28,7 +28,7 @@ application:
       refresh-token:
         expiration: 604800000
     internal:
-      api-key: "benim-gizli-anahtarim-123"
+      api-key: ${INTERNAL_API_KEY:local-dev-internal-key}
 
 logging:
   pattern:
@@ -44,7 +44,7 @@ recording:
     post-buffer-seconds: ${RECORDING_COMMAND_POST_BUFFER_SECONDS:3}
     max-clip-seconds: ${RECORDING_COMMAND_MAX_CLIP_SECONDS:30}
   gateway:
-    base-url: ${RECORDING_GATEWAY_BASE_URL:http://localhost:8081}
+    base-url: ${RECORDING_GATEWAY_BASE_URL:http://localhost:8000}
     connect-timeout: ${RECORDING_GATEWAY_CONNECT_TIMEOUT:1s}
     read-timeout: ${RECORDING_GATEWAY_READ_TIMEOUT:2s}
     max-retries: ${RECORDING_GATEWAY_MAX_RETRIES:2}
@@ -56,9 +56,9 @@ violation:
 
   playback:
     minio:
-      endpoint: ${RECORDING_PLAYBACK_MINIO_ENDPOINT:http://localhost:9000}
-      access-key: ${RECORDING_PLAYBACK_MINIO_ACCESS_KEY:minioadmin}
-      secret-key: ${RECORDING_PLAYBACK_MINIO_SECRET_KEY:minioadmin}
-      bucket: ${RECORDING_PLAYBACK_MINIO_BUCKET:violation-media}
+      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+      access-key: ${MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${MINIO_SECRET_KEY:minioadmin}
+      bucket: ${MINIO_BUCKET:violation-media}
       expiry: ${RECORDING_PLAYBACK_MINIO_EXPIRY:5m}
 
