@@ -134,7 +134,7 @@ public class ViolationLifecycleService
                         ViolationReviewStatus.UNREVIEWED,
                         confirmedViolation.candidateStartedAt(),
                         confirmedViolation.stateKey().subjectKey(),
-                        confirmedViolation.sessionId()
+                        cameraSessionRecordId
                 );
 
         ViolationJpaEntity savedViolation =
