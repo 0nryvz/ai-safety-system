@@ -184,6 +184,36 @@ class UnprotectedPersonRuleTest {
     }
 
     @Test
+    void producesCandidateWhenNonWeldingJacketIsDetectedAsMissingEquipment() {
+        UnprotectedPersonRule rule =
+                new UnprotectedPersonRule(
+                        properties()
+                );
+
+        PersonContext person =
+                personContext(
+                        welding(),
+                        mask(),
+                        gloves(),
+                        nonJacket()
+                );
+
+        Optional<CandidateViolation> result =
+                rule.evaluate(
+                        person,
+                        frame()
+                );
+
+        assertThat(result)
+                .isPresent();
+
+        assertThat(result.orElseThrow().violationType())
+                .isEqualTo(
+                        ViolationType.UNPROTECTED_PERSON
+                );
+    }
+
+    @Test
     void producesCandidateWhenNegativePpeClassesRepresentMultipleMissingEquipment() {
         UnprotectedPersonRule rule =
                 new UnprotectedPersonRule(
