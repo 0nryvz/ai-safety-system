@@ -70,7 +70,8 @@ class _CameraPageState extends State<CameraPage>
   bool _isCameraReady = false;
   bool _isStreaming = false;
   bool _isBusy = false;
-  bool _isUploadingFrame = false;
+  static const int _maxConcurrentFrameUploads = 2;
+  int _activeFrameUploads = 0;
 
   ConnectionState _connectionState =
       ConnectionState.stopped;
@@ -167,7 +168,7 @@ class _CameraPageState extends State<CameraPage>
 
       final controller = CameraController(
         cameras[cameraIndex],
-        ResolutionPreset.medium,
+        ResolutionPreset.low,
         enableAudio: false,
       );
 
@@ -427,12 +428,14 @@ class _CameraPageState extends State<CameraPage>
       await controller.startImageStream(
         (CameraImage image) async {
           if (_manualStop ||
-              _isAppInBackground ||
-              _isReconnecting ||
-              streamGeneration != _streamGeneration ||
-              _isUploadingFrame) {
-            return;
-          }
+    _isAppInBackground ||
+    _isReconnecting ||
+    streamGeneration != _streamGeneration ||
+    _activeFrameUploads >= _maxConcurrentFrameUploads) {
+  return;
+}
+
+_activeFrameUploads++;
 
           _activeFrameCallbacks++;
 
@@ -443,8 +446,6 @@ class _CameraPageState extends State<CameraPage>
             _completeFrameCallbacksIfNeeded();
             return;
           }
-
-          _isUploadingFrame = true;
 
           try {
             final uploaded =
@@ -480,10 +481,12 @@ class _CameraPageState extends State<CameraPage>
           } catch (_) {
             _handleFrameFailure();
           } finally {
-            _isUploadingFrame = false;
-            _activeFrameCallbacks--;
-            _completeFrameCallbacksIfNeeded();
-          }
+  _activeFrameUploads--;
+
+  _activeFrameCallbacks--;
+
+  _completeFrameCallbacksIfNeeded();
+}
         },
       );
 
