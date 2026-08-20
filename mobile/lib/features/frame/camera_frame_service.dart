@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:camera/camera.dart';
 import 'package:image/image.dart' as img;
 
@@ -5,6 +7,10 @@ import '../../core/network/api_client.dart';
 
 class CameraFrameService {
   final ApiClient _apiClient;
+
+  int _pendingUploads = 0;
+
+  Completer<void>? _pendingUploadsCompleter;
 
   CameraFrameService({
     ApiClient? apiClient,
@@ -16,20 +22,46 @@ class CameraFrameService {
     required DateTime frameTimestamp,
     required CameraImage image,
   }) async {
-    final jpegBytes = _convertToJpeg(image);
+    _pendingUploads++;
 
-    if (jpegBytes == null) {
+    try {
+      final jpegBytes = _convertToJpeg(image);
+
+      if (jpegBytes == null) {
+        return false;
+      }
+
+      final response = await _apiClient.postJpeg(
+        path: '/api/v1/sessions/$sessionId/frames',
+        cameraId: cameraId,
+        frameTimestamp: frameTimestamp,
+        jpegBytes: jpegBytes,
+      );
+
+      return response.statusCode == 202;
+    } catch (_) {
       return false;
+    } finally {
+      _pendingUploads--;
+
+      if (_pendingUploads == 0 &&
+          _pendingUploadsCompleter != null &&
+          !_pendingUploadsCompleter!.isCompleted) {
+        _pendingUploadsCompleter!.complete();
+      }
+    }
+  }
+
+  Future<void> waitForPendingUploads() async {
+    if (_pendingUploads == 0) {
+      return;
     }
 
-    final response = await _apiClient.postJpeg(
-      path: '/api/v1/sessions/$sessionId/frames',
-      cameraId: cameraId,
-      frameTimestamp: frameTimestamp,
-      jpegBytes: jpegBytes,
-    );
+    _pendingUploadsCompleter ??= Completer<void>();
 
-    return response.statusCode == 202;
+    await _pendingUploadsCompleter!.future;
+
+    _pendingUploadsCompleter = null;
   }
 
   List<int>? _convertToJpeg(CameraImage cameraImage) {
