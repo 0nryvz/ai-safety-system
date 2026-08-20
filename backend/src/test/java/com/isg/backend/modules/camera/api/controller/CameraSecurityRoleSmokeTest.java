@@ -10,6 +10,7 @@ import com.isg.backend.modules.camera.api.dto.RestrictedZoneUpdateReq;
 import com.isg.backend.modules.camera.application.CameraService;
 import com.isg.backend.modules.camera.application.ReferenceImageService;
 import com.isg.backend.modules.camera.application.RestrictedZoneService;
+import com.isg.backend.shared.web.CorrelationIdFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
@@ -44,6 +45,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -131,10 +133,46 @@ class CameraSecurityRoleSmokeTest {
 
     @Test
     void anonymousCannotListCameras() throws Exception {
+        String correlationId = "test-correlation-401";
+
         mockMvc.perform(
                         get("/api/v1/cameras")
+                                .header(
+                                        CorrelationIdFilter.HEADER_NAME,
+                                        correlationId
+                                )
                 )
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(
+                        header().string(
+                                CorrelationIdFilter.HEADER_NAME,
+                                correlationId
+                        )
+                )
+                .andExpect(
+                        jsonPath("$.status")
+                                .value(401)
+                )
+                .andExpect(
+                        jsonPath("$.code")
+                                .value("UNAUTHORIZED")
+                )
+                .andExpect(
+                        jsonPath("$.message")
+                                .value("Kimlik doğrulama gereklidir.")
+                )
+                .andExpect(
+                        jsonPath("$.path")
+                                .value("/api/v1/cameras")
+                )
+                .andExpect(
+                        jsonPath("$.correlationId")
+                                .value(correlationId)
+                )
+                .andExpect(
+                        jsonPath("$.fieldErrors")
+                                .isMap()
+                );
 
         verify(cameraService, never())
                 .getAllCameras();
@@ -232,12 +270,17 @@ class CameraSecurityRoleSmokeTest {
     @Test
     void ohsSpecialistCannotUpdateCamera() throws Exception {
         UUID cameraId = UUID.randomUUID();
+        String correlationId = "test-correlation-403";
 
         mockMvc.perform(
                         put(
                                 "/api/v1/cameras/{id}",
                                 cameraId
                         )
+                                .header(
+                                        CorrelationIdFilter.HEADER_NAME,
+                                        correlationId
+                                )
                                 .with(
                                         user("ohs@test.local")
                                                 .roles("OHS_SPECIALIST")
@@ -249,7 +292,39 @@ class CameraSecurityRoleSmokeTest {
                                         }
                                         """)
                 )
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(
+                        header().string(
+                                CorrelationIdFilter.HEADER_NAME,
+                                correlationId
+                        )
+                )
+                .andExpect(
+                        jsonPath("$.status")
+                                .value(403)
+                )
+                .andExpect(
+                        jsonPath("$.code")
+                                .value("FORBIDDEN")
+                )
+                .andExpect(
+                        jsonPath("$.message")
+                                .value("Bu işlem için yetkiniz yok.")
+                )
+                .andExpect(
+                        jsonPath("$.path")
+                                .value(
+                                        "/api/v1/cameras/" + cameraId
+                                )
+                )
+                .andExpect(
+                        jsonPath("$.correlationId")
+                                .value(correlationId)
+                )
+                .andExpect(
+                        jsonPath("$.fieldErrors")
+                                .isMap()
+                );
 
         verify(cameraService, never())
                 .updateCamera(
