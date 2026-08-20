@@ -70,12 +70,17 @@ class _CameraPageState extends State<CameraPage>
   bool _isCameraReady = false;
   bool _isStreaming = false;
   bool _isBusy = false;
+  bool _isUploadingFrame = false;
 
   ConnectionState _connectionState =
       ConnectionState.stopped;
 
   Timer? _heartbeatTimer;
   Timer? _reconnectTimer;
+
+  int _streamGeneration = 0;
+  int _activeFrameCallbacks = 0;
+  Completer<void>? _frameCallbacksCompleter;
 
   int _reconnectAttempt = 0;
   int _consecutiveFrameFailures = 0;
@@ -107,8 +112,7 @@ class _CameraPageState extends State<CameraPage>
   // ------------------------------------------------------------
   // INIT
   // ------------------------------------------------------------
-
-  @override
+    @override
   void initState() {
     super.initState();
 
@@ -243,8 +247,9 @@ class _CameraPageState extends State<CameraPage>
   // ------------------------------------------------------------
   // CAMERA DISPOSAL
   // ------------------------------------------------------------
-
-  Future<void> _disposeCameraController() async {
+    Future<void> _disposeCameraController() async {
+    _streamGeneration++;
+    _sessionId = null;
     final controller = _controller;
 
     if (controller == null) {
@@ -352,7 +357,6 @@ class _CameraPageState extends State<CameraPage>
     }
 
     try {
-      // Her yayın başlangıcında yeni session ID oluşturulur.
       final sessionId =
           DateTime.now().millisecondsSinceEpoch.toString();
 
@@ -364,15 +368,12 @@ class _CameraPageState extends State<CameraPage>
       );
 
       if (!sessionOpened) {
-        if (!mounted) {
-          return;
+        if (mounted) {
+          setState(() {
+            _isStreaming = false;
+            _errorMessage = 'Gateway session açılamadı.';
+          });
         }
-
-        setState(() {
-          _isStreaming = false;
-          _errorMessage =
-              'Gateway session açılamadı.';
-        });
 
         _setConnectionState(
           automaticReconnect
@@ -390,7 +391,6 @@ class _CameraPageState extends State<CameraPage>
       _sessionId = sessionId;
 
       _heartbeatTimer?.cancel();
-
       _heartbeatTimer = Timer.periodic(
         const Duration(seconds: 10),
         (_) async {
@@ -422,29 +422,46 @@ class _CameraPageState extends State<CameraPage>
         },
       );
 
+      final streamGeneration = _streamGeneration;
+
       await controller.startImageStream(
         (CameraImage image) async {
           if (_manualStop ||
               _isAppInBackground ||
-              _isReconnecting) {
+              _isReconnecting ||
+              streamGeneration != _streamGeneration ||
+              _isUploadingFrame) {
             return;
           }
+
+          _activeFrameCallbacks++;
 
           final currentSessionId = _sessionId;
 
           if (currentSessionId == null) {
+            _activeFrameCallbacks--;
+            _completeFrameCallbacksIfNeeded();
             return;
           }
+
+          _isUploadingFrame = true;
 
           try {
             final uploaded =
                 await _frameService.uploadFrame(
               cameraId: 'camera-1',
               sessionId: currentSessionId,
-              frameTimestamp:
-                  DateTime.now().toUtc(),
+              frameTimestamp: DateTime.now().toUtc(),
               image: image,
             );
+
+            if (streamGeneration != _streamGeneration ||
+                _sessionId != currentSessionId ||
+                _manualStop ||
+                _isAppInBackground ||
+                _isReconnecting) {
+              return;
+            }
 
             if (uploaded) {
               _consecutiveFrameFailures = 0;
@@ -462,6 +479,10 @@ class _CameraPageState extends State<CameraPage>
             }
           } catch (_) {
             _handleFrameFailure();
+          } finally {
+            _isUploadingFrame = false;
+            _activeFrameCallbacks--;
+            _completeFrameCallbacksIfNeeded();
           }
         },
       );
@@ -550,6 +571,26 @@ class _CameraPageState extends State<CameraPage>
     }
   }
 
+  void _completeFrameCallbacksIfNeeded() {
+    if (_activeFrameCallbacks == 0 &&
+        _frameCallbacksCompleter != null &&
+        !_frameCallbacksCompleter!.isCompleted) {
+      _frameCallbacksCompleter!.complete();
+    }
+  }
+
+  Future<void> _waitForActiveFrameCallbacks() async {
+    if (_activeFrameCallbacks == 0) {
+      return;
+    }
+
+    _frameCallbacksCompleter ??= Completer<void>();
+
+    await _frameCallbacksCompleter!.future;
+
+    _frameCallbacksCompleter = null;
+  }
+
   // ------------------------------------------------------------
   // CONNECTION FAILURE
   // ------------------------------------------------------------
@@ -583,8 +624,7 @@ class _CameraPageState extends State<CameraPage>
       return;
     }
 
-    if (_reconnectAttempt >=
-        _maxReconnectAttempts) {
+    if (_reconnectAttempt >= _maxReconnectAttempts) {
       _isReconnecting = false;
 
       _setConnectionState(
@@ -595,8 +635,7 @@ class _CameraPageState extends State<CameraPage>
         setState(() {
           _isStreaming = false;
           _errorMessage =
-              'Bağlantı kurulamadı. '
-              'Lütfen tekrar deneyin.';
+              'Bağlantı kurulamadı. Lütfen tekrar deneyin.';
         });
       }
 
@@ -611,9 +650,7 @@ class _CameraPageState extends State<CameraPage>
 
     _reconnectTimer?.cancel();
 
-    final delaySeconds =
-        1 << _reconnectAttempt;
-
+    final delaySeconds = 1 << _reconnectAttempt;
     _reconnectAttempt++;
 
     final delay = Duration(
@@ -653,9 +690,10 @@ class _CameraPageState extends State<CameraPage>
     try {
       final oldSessionId = _sessionId;
 
-      // Önce session ID'yi temizle.
-      // Böylece kapanmakta olan eski stream
-      // yeni frame gönderemez.
+      // Eski stream callback'lerini geçersiz hale getir.
+      _streamGeneration++;
+
+      // Eski callback'lerin eski session'ı kullanmasını engelle.
       _sessionId = null;
 
       _heartbeatTimer?.cancel();
@@ -665,7 +703,12 @@ class _CameraPageState extends State<CameraPage>
         if (controller.value.isStreamingImages) {
           await controller.stopImageStream();
         }
-      } catch (_) {}
+      } catch (_) {
+        // Stream zaten durmuş olabilir.
+      }
+
+      await _waitForActiveFrameCallbacks();
+      await _frameService.waitForPendingUploads();
 
       if (oldSessionId != null) {
         try {
@@ -715,7 +758,6 @@ class _CameraPageState extends State<CameraPage>
 
     _isBusy = true;
 
-    // Manuel stop ise reconnect tamamen yasak.
     if (!fromLifecycle) {
       _manualStop = true;
     }
@@ -727,8 +769,10 @@ class _CameraPageState extends State<CameraPage>
 
     final sessionId = _sessionId;
 
-    // Eski frame callback'lerinin artık
-    // session kullanmasını engelle.
+    // Eski frame callback'lerini geçersiz hale getir.
+    _streamGeneration++;
+
+    // Eski callback'lerin eski session'ı kullanmasını engelle.
     _sessionId = null;
 
     _heartbeatTimer?.cancel();
@@ -738,6 +782,9 @@ class _CameraPageState extends State<CameraPage>
       if (controller.value.isStreamingImages) {
         await controller.stopImageStream();
       }
+
+      await _waitForActiveFrameCallbacks();
+      await _frameService.waitForPendingUploads();
 
       if (sessionId != null) {
         try {
@@ -801,7 +848,6 @@ class _CameraPageState extends State<CameraPage>
     }
   }
 
-  // ------------------------------------------------------------
   // APP LIFECYCLE
   // ------------------------------------------------------------
 
@@ -893,8 +939,7 @@ class _CameraPageState extends State<CameraPage>
 
       case ConnectionState.reconnecting:
         return 'Yeniden bağlanıyor...';
-
-      case ConnectionState.offline:
+            case ConnectionState.offline:
         return 'Çevrimdışı';
 
       case ConnectionState.stopped:
@@ -1029,8 +1074,7 @@ class _CameraPageState extends State<CameraPage>
           // ----------------------------------------------------
           // CONNECTION STATUS
           // ----------------------------------------------------
-
-          Positioned(
+                    Positioned(
             top: 16,
             left: 16,
             child: Container(
