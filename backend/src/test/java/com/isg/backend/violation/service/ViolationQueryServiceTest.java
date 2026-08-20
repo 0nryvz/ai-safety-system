@@ -333,6 +333,13 @@ class ViolationQueryServiceTest {
                 )
         );
 
+        when(violation.getUpdatedAt())
+                .thenReturn(
+                        Instant.parse(
+                                "2026-08-19T20:00:00Z"
+                        )
+                );
+
         PageRequest pageable =
                 PageRequest.of(
                         0,
@@ -396,6 +403,13 @@ class ViolationQueryServiceTest {
         assertThat(item.cameraId())
                 .isEqualTo(
                         cameraId
+                );
+
+        assertThat(item.updatedAt())
+                .isEqualTo(
+                        Instant.parse(
+                                "2026-08-19T20:00:00Z"
+                        )
                 );
     }
 
