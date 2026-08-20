@@ -18,7 +18,6 @@ class NormalizedBBox:
     width: float
     height: float
 
-
 def normalize_and_clamp_bbox(
     x_px: float,
     y_px: float,
@@ -27,11 +26,43 @@ def normalize_and_clamp_bbox(
     frame_width: int,
     frame_height: int,
 ) -> NormalizedBBox:
-    """
-    Piksel cinsinden bbox'ı (sol-üst köşe + genişlik/yükseklik) 0-1 aralığına
-    normalize eder ve backend kuralına göre frame sınırları içinde clamp eder:
-    x + width <= 1 ve y + height <= 1.
-    """
+    if frame_width <= 0 or frame_height <= 0:
+        raise ValueError("frame_width ve frame_height pozitif olmalı")
+
+    eps = 1e-6
+
+    x = max(0.0, min(x_px / frame_width, 1.0))
+    y = max(0.0, min(y_px / frame_height, 1.0))
+
+    width = max(0.0, min(width_px / frame_width, 1.0))
+    height = max(0.0, min(height_px / frame_height, 1.0))
+
+    # Backend'in strict within-frame kontrolü için küçük güvenlik payı bırak.
+    max_width = max(0.0, 1.0 - x - eps)
+    max_height = max(0.0, 1.0 - y - eps)
+
+    width = min(width, max_width)
+    height = min(height, max_height)
+
+    return NormalizedBBox(
+        x=round(x, 6),
+        y=round(y, 6),
+        width=round(width, 6),
+        height=round(height, 6),
+    )
+"""def normalize_and_clamp_bbox(
+    x_px: float,
+    y_px: float,
+    width_px: float,
+    height_px: float,
+    frame_width: int,
+    frame_height: int,
+) -> NormalizedBBox:
+    
+    #Piksel cinsinden bbox'ı (sol-üst köşe + genişlik/yükseklik) 0-1 aralığına
+    #normalize eder ve backend kuralına göre frame sınırları içinde clamp eder:
+    #x + width <= 1 ve y + height <= 1.
+    
     if frame_width <= 0 or frame_height <= 0:
         raise ValueError("frame_width ve frame_height pozitif olmalı")
 
@@ -46,7 +77,7 @@ def normalize_and_clamp_bbox(
     if y + height > 1.0:
         height = max(0.0, 1.0 - y)
 
-    return NormalizedBBox(x=x, y=y, width=width, height=height)
+    return NormalizedBBox(x=x, y=y, width=width, height=height)"""
 
 
 # Backend'in kabul ettiği label listesi (görev planı - vizör YOK)

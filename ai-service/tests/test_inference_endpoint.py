@@ -37,7 +37,31 @@ def test_empty_body_returns_400():
         )
         assert response.status_code == 400
 
+def test_model_not_loaded_returns_503():
+    with TestClient(app) as client:
+        model_runner = app.state.model_runner
 
+        original_loaded = model_runner._loaded
+        original_model = model_runner._model
+        original_error = model_runner._load_error
+
+        try:
+            model_runner._loaded = False
+            model_runner._model = None
+            model_runner._load_error = "test: model hazır değil"
+
+            response = client.post(
+                "/internal/v1/inference/frames",
+                content=b"\xff\xd8\xff\xe0fakejpeg",
+                headers=HEADERS,
+            )
+
+            assert response.status_code == 503
+        finally:
+            model_runner._loaded = original_loaded
+            model_runner._model = original_model
+            model_runner._load_error = original_error
+"""
 def test_model_not_loaded_returns_503():
     # Adım 0/2 tamamlanana kadar model her zaman yüklenmemiş durumda,
     # bu yüzden endpoint şu an için 503 dönmeli (kontrollü hata).
@@ -48,6 +72,8 @@ def test_model_not_loaded_returns_503():
             headers=HEADERS,
         )
         assert response.status_code == 503
+
+"""
 
 
 def test_event_id_passthrough_when_model_loaded():
