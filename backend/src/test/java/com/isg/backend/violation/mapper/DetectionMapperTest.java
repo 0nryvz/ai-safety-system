@@ -131,7 +131,7 @@ class DetectionMapperTest {
     void rejectsUnsupportedLabel() {
         DetectionItem item =
                 new DetectionItem(
-                        "visor_open",
+                        "unsupported_label",
                         new BigDecimal("0.90"),
                         new BoundingBox(
                                 new BigDecimal("0.10"),
@@ -168,7 +168,7 @@ class DetectionMapperTest {
     }
 
     @Test
-    void rejectsUnknownNegativeLabel() {
+    void mapsNewNegativeLabels() {
         DetectionRequest request =
                 new DetectionRequest(
                         UUID.randomUUID(),
@@ -178,21 +178,28 @@ class DetectionMapperTest {
                         "welding-ppe-v1",
                         40L,
                         List.of(
-                                item(
-                                        "non_mask"
-                                )
+                                item("non_welding_mask"),
+                                item("non_gloves"),
+                                item("non_welding_jacket")
                         )
                 );
 
-        assertThatThrownBy(
-                () -> mapper.toDomain(
+        DetectionFrame result =
+                mapper.toDomain(
                         request
+                );
+
+        assertThat(result.detections())
+                .extracting(
+                        DetectedObject::label
                 )
-        )
-                .isInstanceOf(
-                        UnsupportedDetectionLabelException.class
+                .containsExactly(
+                        DetectionLabel.NON_WELDING_MASK,
+                        DetectionLabel.NON_GLOVES,
+                        DetectionLabel.NON_WELDING_JACKET
                 );
     }
+
 
     @Test
     void mapsAllSupportedDetectionsInFrame() {

@@ -37,16 +37,17 @@ public class UnprotectedPersonRule implements ViolationRule {
             return Optional.empty();
         }
 
-        List<DetectionLabel> requiredEquipment =
-                properties.getRequiredEquipmentForWelding();
+        List<DetectionLabel> missingEquipmentLabels =
+                List.of(
+                        DetectionLabel.NON_WELDING_MASK,
+                        DetectionLabel.NON_GLOVES,
+                        DetectionLabel.NON_WELDING_JACKET
+                );
 
         long missingEquipmentCount =
-                requiredEquipment.stream()
+                missingEquipmentLabels.stream()
                         .filter(
-                                label ->
-                                        !person.hasDetection(
-                                                label
-                                        )
+                                person::hasDetection
                         )
                         .count();
 

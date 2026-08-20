@@ -39,7 +39,8 @@ public interface SpringDataViolationRepository
                         v.review_status AS "reviewStatus",
                         v.reviewed_by AS "reviewedBy",
                         v.reviewed_at AS "reviewedAt",
-                        v.cover_image_key AS "coverImageKey"
+                        v.cover_image_key AS "coverImageKey",
+                        v.version AS "version"
                     FROM violations v
                     JOIN cameras c
                         ON c.id = v.camera_id

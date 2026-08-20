@@ -3,9 +3,11 @@ package com.isg.backend.shared.web;
 import com.isg.backend.violation.exception.InvalidViolationQueryException;
 import com.isg.backend.violation.exception.UnsupportedDetectionLabelException;
 import com.isg.backend.violation.exception.ViolationNotFoundException;
+import com.isg.backend.violation.exception.ViolationVersionConflictException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -18,6 +20,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import com.isg.backend.recording.application.RecordingNotFoundForViolationException;
 import com.isg.backend.recording.application.RecordingNotReadyException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 
 
 import java.time.Clock;
@@ -85,6 +88,20 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> messageNotReadable(
+            HttpMessageNotReadableException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.BAD_REQUEST,
+                "INVALID_REQUEST",
+                "Malformed or invalid request body.",
+                req,
+                Map.of()
+        );
+    }
+
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiErrorResponse> typeMismatch(
             MethodArgumentTypeMismatchException ex,
@@ -127,6 +144,20 @@ public class GlobalExceptionHandler {
                 HttpStatus.NOT_FOUND,
                 "VIOLATION_NOT_FOUND",
                 "Violation not found.",
+                req,
+                Map.of()
+        );
+    }
+
+    @ExceptionHandler(ViolationVersionConflictException.class)
+    public ResponseEntity<ApiErrorResponse> violationVersionConflict(
+            ViolationVersionConflictException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.CONFLICT,
+                "VIOLATION_VERSION_CONFLICT",
+                ex.getMessage(),
                 req,
                 Map.of()
         );
@@ -291,6 +322,20 @@ public ResponseEntity<ApiErrorResponse> dataIntegrityViolation(
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiErrorResponse> badCredentials(
             BadCredentialsException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.UNAUTHORIZED,
+                "UNAUTHORIZED",
+                "Geçersiz e-posta veya şifre.",
+                req,
+                Map.of()
+        );
+    }
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<ApiErrorResponse> disabledUser(
+            DisabledException ex,
             HttpServletRequest req
     ) {
         return build(

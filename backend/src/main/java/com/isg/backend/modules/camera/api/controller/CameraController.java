@@ -3,8 +3,10 @@ package com.isg.backend.modules.camera.api.controller;
 import com.isg.backend.modules.camera.api.dto.CameraCreateRequest;
 import com.isg.backend.modules.camera.api.dto.CameraResponse;
 import com.isg.backend.modules.camera.api.dto.CameraUpdateRequest;
+import com.isg.backend.modules.camera.api.dto.ReferenceImageUrlResponse;
 import com.isg.backend.modules.camera.api.dto.RestrictedZoneUpdateReq;
 import com.isg.backend.modules.camera.application.CameraService;
+import com.isg.backend.modules.camera.application.ReferenceImageService;
 import com.isg.backend.modules.camera.application.RestrictedZoneService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,7 @@ public class CameraController {
 
     private final CameraService cameraService;
     private final RestrictedZoneService restrictedZoneService;
+    private final ReferenceImageService referenceImageService;
 
     @PostMapping
     public ResponseEntity<CameraResponse> createCamera(@RequestBody CameraCreateRequest request) {
@@ -69,20 +72,24 @@ public class CameraController {
         return ResponseEntity.ok(response);
     }
 
-    // --- Referans Görüntü Endpoint'i (Hazırlık) ---
+    // --- Referans Görüntü Endpoint'leri ---
 
     @PostMapping("/{id}/reference-image")
     public ResponseEntity<Void> uploadReferenceImage(
             @PathVariable UUID id,
             @RequestParam("file") MultipartFile file) {
 
-        // 1. Gelen dosya MinIO servisine gönderilecek (Backend 4/1 istemcisi aracılığıyla).
-        // 2. Dönen objectKey, "cameras" tablosundaki reference_image_key sütununa yazılacak.
-        // Güvenlik kuralı: "Reference image objectKey doğrudan public URL olarak dönülmemeli"
-        // olduğu için frontend'e sadece 200 OK döneceğiz.
-
-        // TODO: MinIO entegrasyonu ve Kamera servis çağrısı buraya eklenecek.
-
+        referenceImageService.uploadReferenceImage(id, file);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{id}/reference-image-url")
+    public ResponseEntity<ReferenceImageUrlResponse> getReferenceImageUrl(
+            @PathVariable UUID id) {
+
+        ReferenceImageUrlResponse response =
+                referenceImageService.getReferenceImageUrl(id);
+
+        return ResponseEntity.ok(response);
     }
 }

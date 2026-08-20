@@ -41,4 +41,6 @@ public interface ViolationDetailProjection {
     Instant getReviewedAt();
 
     String getCoverImageKey();
+
+    Long getVersion();
 }

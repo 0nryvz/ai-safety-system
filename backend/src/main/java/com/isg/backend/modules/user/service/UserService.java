@@ -10,8 +10,8 @@ import java.util.UUID;
 
 public interface UserService {
     UserResponse createUser(CreateUserRequest request);
-    UserResponse updateUser(UUID id, UpdateUserRequest request);
-    void deactivateUser(UUID id);
+    UserResponse updateUser(UUID id, UpdateUserRequest request, String actorEmail);
+    void deactivateUser(UUID id, String actorEmail);
     UserResponse getUserById(UUID id);
     List<UserResponse> getAllUsers();
     UserResponse getMe(String email);

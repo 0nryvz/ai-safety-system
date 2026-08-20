@@ -171,7 +171,8 @@ public class ViolationController {
                         new ViolationReviewCommand(
                                 id,
                                 request.reviewStatus(),
-                                reviewerId
+                                reviewerId,
+                                request.version()
                         )
                 )
         );

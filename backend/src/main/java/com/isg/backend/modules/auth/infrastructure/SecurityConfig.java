@@ -1,5 +1,6 @@
 package com.isg.backend.modules.auth.infrastructure;
 
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,9 +18,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
-
+import java.time.Clock;
 import java.util.List;
 
 @Configuration
@@ -38,22 +37,28 @@ public class SecurityConfig {
     }
 
     @Bean
+    public RestSecurityErrorHandler restSecurityErrorHandler(
+            ObjectMapper objectMapper,
+            Clock clock
+    ) {
+        return new RestSecurityErrorHandler(objectMapper, clock);
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtAuthenticationFilter jwtAuthFilter,
             InternalApiKeyFilter internalApiKeyFilter,
-            AuthenticationProvider authenticationProvider) throws Exception {
+            AuthenticationProvider authenticationProvider,
+            RestSecurityErrorHandler restSecurityErrorHandler) throws Exception {
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint(
-                                new HttpStatusEntryPoint(
-                                        HttpStatus.UNAUTHORIZED
-                                )
-                        )
+                        .authenticationEntryPoint(restSecurityErrorHandler)
+                        .accessDeniedHandler(restSecurityErrorHandler)
                 )
                 .authorizeHttpRequests(auth -> auth
                         // 0. CORS Preflight (OPTIONS) isteklerine izin ver
@@ -73,7 +78,7 @@ public class SecurityConfig {
                         .requestMatchers("/internal/v1/**").permitAll()
 
                         // 3. User Uç Noktaları
-                        .requestMatchers("/api/v1/users/me").authenticated()
+                        .requestMatchers("/api/v1/users/me", "/api/v1/users/me/departments").authenticated()
                         .requestMatchers("/api/v1/users/**").hasRole("ADMIN")
 
                         // 3.1. Kamera Yönetim Uç Noktaları (Mutasyonlar ADMIN'e özel, listeleme/detay rollerine açık)
