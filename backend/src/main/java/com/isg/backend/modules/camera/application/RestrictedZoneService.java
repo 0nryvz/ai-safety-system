@@ -23,6 +23,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class RestrictedZoneService implements RestrictedZoneProvider {
 
+    private static final double GEOMETRY_EPSILON = 1e-9;
+
     private final RestrictedZoneRepository restrictedZoneRepository;
     private final CameraRepository cameraRepository;
     private final AuthorizationService authorizationService;
@@ -43,6 +45,9 @@ public class RestrictedZoneService implements RestrictedZoneProvider {
         if (!authorizationService.canAccessDepartment(user.getId(), camera.getDepartment().getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bu kameranın yasaklı alanını güncelleme yetkiniz yok!");
         }
+
+        // Polygon geometrik olarak geçerli olmalı.
+        validatePolygon(request.getPolygon());
 
         // 4. Upsert (Varsa getir, yoksa yeni oluştur)
         RestrictedZone zone = restrictedZoneRepository.findByCameraIdAndActiveTrue(cameraId)
@@ -75,5 +80,76 @@ public class RestrictedZoneService implements RestrictedZoneProvider {
         response.setName(zone.getName());
         response.setPolygon(zone.getPolygon());
         return response;
+    }
+
+    private void validatePolygon(List<PointDto> polygon) {
+        if (polygon == null || polygon.size() < 3) {
+            return;
+        }
+
+        int edgeCount = polygon.size();
+
+        for (int firstEdge = 0; firstEdge < edgeCount; firstEdge++) {
+            PointDto a1 = polygon.get(firstEdge);
+            PointDto a2 = polygon.get((firstEdge + 1) % edgeCount);
+
+            for (int secondEdge = firstEdge + 1; secondEdge < edgeCount; secondEdge++) {
+                if (areAdjacentEdges(firstEdge, secondEdge, edgeCount)) {
+                    continue;
+                }
+
+                PointDto b1 = polygon.get(secondEdge);
+                PointDto b2 = polygon.get((secondEdge + 1) % edgeCount);
+
+                if (segmentsIntersect(a1, a2, b1, b2)) {
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Poligon kendi kendini kesemez."
+                    );
+                }
+            }
+        }
+    }
+
+    private boolean areAdjacentEdges(int firstEdge, int secondEdge, int edgeCount) {
+        return Math.abs(firstEdge - secondEdge) == 1
+                || (firstEdge == 0 && secondEdge == edgeCount - 1);
+    }
+
+    private boolean segmentsIntersect(PointDto a1, PointDto a2, PointDto b1, PointDto b2) {
+        double o1 = orientation(a1, a2, b1);
+        double o2 = orientation(a1, a2, b2);
+        double o3 = orientation(b1, b2, a1);
+        double o4 = orientation(b1, b2, a2);
+
+        if (haveOppositeSigns(o1, o2) && haveOppositeSigns(o3, o4)) {
+            return true;
+        }
+
+        return (isZero(o1) && isOnSegment(a1, b1, a2))
+                || (isZero(o2) && isOnSegment(a1, b2, a2))
+                || (isZero(o3) && isOnSegment(b1, a1, b2))
+                || (isZero(o4) && isOnSegment(b1, a2, b2));
+    }
+
+    private double orientation(PointDto a, PointDto b, PointDto c) {
+        return (b.getX() - a.getX()) * (c.getY() - a.getY())
+                - (b.getY() - a.getY()) * (c.getX() - a.getX());
+    }
+
+    private boolean haveOppositeSigns(double first, double second) {
+        return (first > GEOMETRY_EPSILON && second < -GEOMETRY_EPSILON)
+                || (first < -GEOMETRY_EPSILON && second > GEOMETRY_EPSILON);
+    }
+
+    private boolean isZero(double value) {
+        return Math.abs(value) <= GEOMETRY_EPSILON;
+    }
+
+    private boolean isOnSegment(PointDto start, PointDto point, PointDto end) {
+        return point.getX() >= Math.min(start.getX(), end.getX()) - GEOMETRY_EPSILON
+                && point.getX() <= Math.max(start.getX(), end.getX()) + GEOMETRY_EPSILON
+                && point.getY() >= Math.min(start.getY(), end.getY()) - GEOMETRY_EPSILON
+                && point.getY() <= Math.max(start.getY(), end.getY()) + GEOMETRY_EPSILON;
     }
 }
