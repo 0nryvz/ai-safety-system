@@ -1,6 +1,7 @@
 export interface ApiErrorResponse {
   timestamp?: string
   status?: number
+  code?: string
   error?: string
   message?: string
   path?: string

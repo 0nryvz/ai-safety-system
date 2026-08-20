@@ -63,6 +63,7 @@ export interface ViolationDetailResponse {
   playbackUrl: string | null
   coverImageKey: string | null
   coverImageReady: boolean
+  version: number
 }
 
 export const editableViolationReviewStatuses = ['REVIEWED', 'CONFIRMED', 'FALSE_ALARM'] as const
@@ -73,6 +74,7 @@ export interface ViolationReviewResponse {
   reviewStatus: ViolationReviewStatus
   reviewedBy: string
   reviewedAt: string
+  version: number
 }
 
 export interface ViolationClipUrl {
@@ -156,11 +158,13 @@ export async function getViolationDetail(violationId: string): Promise<Violation
 export async function reviewViolation(
   violationId: string,
   reviewStatus: EditableViolationReviewStatus,
+  version: number,
 ): Promise<ViolationReviewResponse> {
   const response = await apiClient.patch<ViolationReviewResponse>(
     `/violations/${violationId}/review`,
     {
       reviewStatus,
+      version,
     },
   )
 

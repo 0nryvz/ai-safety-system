@@ -27,6 +27,7 @@ const detail: ViolationDetailResponse = {
   playbackUrl: null,
   coverImageKey: null,
   coverImageReady: false,
+  version: 3,
 }
 
 afterEach(() => {
