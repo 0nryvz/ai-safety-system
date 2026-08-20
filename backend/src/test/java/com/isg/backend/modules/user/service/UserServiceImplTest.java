@@ -295,6 +295,54 @@ class UserServiceImplTest {
                 .save(target);
     }
 
+    @Test
+    void createUserNormalizesEmailBeforeDuplicateCheckAndPersistence() {
+        CreateUserRequest request =
+                org.mockito.Mockito.mock(CreateUserRequest.class);
+
+        Role role = Role.builder()
+                .id(UUID.randomUUID())
+                .name("SHIFT_SUPERVISOR")
+                .build();
+
+        when(request.getEmail())
+                .thenReturn("New.User@Test.Local");
+
+        when(request.getPassword())
+                .thenReturn("StrongPassword123!");
+
+        when(request.getFullName())
+                .thenReturn("Normalized User");
+
+        when(request.getRoleNames())
+                .thenReturn(Set.of("SHIFT_SUPERVISOR"));
+
+        when(request.getDepartmentIds())
+                .thenReturn(Set.of());
+
+        when(roleRepository.findByName("SHIFT_SUPERVISOR"))
+                .thenReturn(Optional.of(role));
+
+        when(passwordEncoder.encode("StrongPassword123!"))
+                .thenReturn("encoded-password");
+
+        when(userRepository.save(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        userService.createUser(request);
+
+        verify(userRepository)
+                .existsByEmail("new.user@test.local");
+
+        ArgumentCaptor<User> captor =
+                ArgumentCaptor.forClass(User.class);
+
+        verify(userRepository)
+                .save(captor.capture());
+
+        assertThat(captor.getValue().getEmail())
+                .isEqualTo("new.user@test.local");
+    }
     private User user(
             UUID id,
             String email,

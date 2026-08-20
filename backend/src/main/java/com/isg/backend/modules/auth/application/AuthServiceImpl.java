@@ -7,6 +7,7 @@ import com.isg.backend.modules.auth.infrastructure.JwtService;
 import com.isg.backend.modules.auth.infrastructure.RefreshTokenRepository;
 import com.isg.backend.modules.user.entity.User;
 import com.isg.backend.modules.user.infrastructure.UserRepository;
+import com.isg.backend.modules.user.service.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -43,7 +44,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.email())
+        String normalizedEmail = EmailNormalizer.normalize(request.email());
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new BadCredentialsException("Geçersiz e-posta veya şifre"));
 
         if (!user.isActive()) {
@@ -52,7 +54,7 @@ public class AuthServiceImpl implements AuthService {
 
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        request.email(),
+                        normalizedEmail,
                         request.password()
                 )
         );

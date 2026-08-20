@@ -35,8 +35,9 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponse createUser(CreateUserRequest request) {
+        String normalizedEmail = EmailNormalizer.normalize(request.getEmail());
         // Duplicate email için 409 CONFLICT durumu sağlandı
-        if (userRepository.existsByEmail(request.getEmail())) {
+        if (userRepository.existsByEmail(normalizedEmail)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bu email adresi zaten kullanımda.");
         }
 
@@ -49,7 +50,7 @@ public class UserServiceImpl implements UserService {
                 .collect(Collectors.toSet());
 
         User user = User.builder()
-                .email(request.getEmail())
+                .email(normalizedEmail)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .roles(roles)
