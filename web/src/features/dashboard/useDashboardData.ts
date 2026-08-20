@@ -6,6 +6,7 @@ import {
   getRecentViolations,
 } from '../../services/dashboardService'
 import type { Camera, DashboardSummary, RecentViolation } from './dashboardTypes'
+import { subscribeToRealtimeRecovery } from '../../core/realtime/realtimeRuntime'
 
 interface UseDashboardDataOptions {
   includeSummary: boolean
@@ -82,6 +83,12 @@ export function useDashboardData({ includeSummary }: UseDashboardDataOptions) {
       isActive = false
     }
   }, [includeSummary, requestVersion])
+
+  useEffect(() => {
+    return subscribeToRealtimeRecovery(() => {
+      setRequestVersion((currentVersion) => currentVersion + 1)
+    })
+  }, [])
 
   const retry = useCallback(() => {
     setState((currentState) => ({

@@ -8,11 +8,16 @@ import {
 } from '../../services/dashboardService'
 import type { DashboardSummary } from './dashboardTypes'
 import { useDashboardData } from './useDashboardData'
+import { subscribeToRealtimeRecovery } from '../../core/realtime/realtimeRuntime'
 
 vi.mock('../../services/dashboardService', () => ({
   getDashboardSummary: vi.fn(),
   getRecentViolations: vi.fn(),
   getCameras: vi.fn(),
+}))
+
+vi.mock('../../core/realtime/realtimeRuntime', () => ({
+  subscribeToRealtimeRecovery: vi.fn(),
 }))
 
 const summary: DashboardSummary = {
@@ -27,6 +32,7 @@ const summary: DashboardSummary = {
 const mockedGetDashboardSummary = vi.mocked(getDashboardSummary)
 const mockedGetRecentViolations = vi.mocked(getRecentViolations)
 const mockedGetCameras = vi.mocked(getCameras)
+const mockedSubscribeToRealtimeRecovery = vi.mocked(subscribeToRealtimeRecovery)
 
 afterEach(() => {
   cleanup()
@@ -118,5 +124,34 @@ describe('useDashboardData', () => {
     expect(mockedGetCameras).toHaveBeenCalledTimes(1)
     expect(result.current.summary).toBeNull()
     expect(result.current.error).toBeNull()
+  })
+
+  it('reloads dashboard REST state after realtime recovery', async () => {
+    let recoveryListener: (() => void | Promise<void>) | null = null
+
+    mockedSubscribeToRealtimeRecovery.mockImplementation((listener) => {
+      recoveryListener = listener
+      return vi.fn()
+    })
+
+    mockedGetDashboardSummary.mockResolvedValue(summary)
+    mockedGetRecentViolations.mockResolvedValue([])
+    mockedGetCameras.mockResolvedValue([])
+
+    renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await waitFor(() => {
+      expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+    })
+
+    await act(async () => {
+      await recoveryListener?.()
+    })
+
+    await waitFor(() => {
+      expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(2)
+      expect(mockedGetRecentViolations).toHaveBeenCalledTimes(2)
+      expect(mockedGetCameras).toHaveBeenCalledTimes(2)
+    })
   })
 })
