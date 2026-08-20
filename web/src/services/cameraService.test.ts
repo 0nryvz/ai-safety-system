@@ -176,6 +176,11 @@ describe('cameraService', () => {
     expect(postSpy).toHaveBeenCalledWith(
       `/cameras/${cameras[0].id}/reference-image`,
       expect.any(FormData),
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      },
     )
 
     const formData = postSpy.mock.calls[0][1] as FormData

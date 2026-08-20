@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import * as cameraService from '../services/cameraService'
 import RestrictedZoneEditorPage from './RestrictedZoneEditorPage'
 import axios from 'axios'
+import { ApiError } from '../core/api/apiError'
 
 afterEach(() => {
   cleanup()
@@ -108,6 +109,66 @@ describe('RestrictedZoneEditorPage', () => {
         name: 'Yasaklı alan çizim alanı',
       }),
     ).toBeInTheDocument()
+  })
+
+  it('treats ApiError 404 restricted zone response as an empty state', async () => {
+    vi.spyOn(cameraService, 'getCamera').mockResolvedValue({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Kamera 1',
+      code: 'CAM-001',
+      departmentId: '22222222-2222-2222-2222-222222222222',
+      departmentName: 'Kaynak',
+      active: true,
+      connectionStatus: 'ONLINE',
+      lastSeenAt: null,
+      activeSessionId: null,
+    })
+
+    vi.mocked(cameraService.getRestrictedZone).mockRejectedValue(
+      new ApiError('Aktif yasaklı alan bulunamadı.', 404),
+    )
+
+    renderPage()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('application', {
+          name: 'Yasaklı alan çizim alanı',
+        }),
+      ).toBeInTheDocument()
+    })
+
+    expect(screen.queryByText('Yasaklı alan yüklenemedi')).not.toBeInTheDocument()
+  })
+
+  it('treats ApiError 404 reference image response as an empty state', async () => {
+    vi.spyOn(cameraService, 'getCamera').mockResolvedValue({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Kamera 1',
+      code: 'CAM-001',
+      departmentId: '22222222-2222-2222-2222-222222222222',
+      departmentName: 'Kaynak',
+      active: true,
+      connectionStatus: 'ONLINE',
+      lastSeenAt: null,
+      activeSessionId: null,
+    })
+
+    vi.mocked(cameraService.getReferenceImageUrl).mockRejectedValue(
+      new ApiError('Kamera referans görüntüsü bulunamadı.', 404),
+    )
+
+    renderPage()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('application', {
+          name: 'Yasaklı alan çizim alanı',
+        }),
+      ).toBeInTheDocument()
+    })
+
+    expect(screen.queryByText('Kamera referans görüntüsü yüklenemedi')).not.toBeInTheDocument()
   })
 
   it('renders the secured reference image URL', async () => {
