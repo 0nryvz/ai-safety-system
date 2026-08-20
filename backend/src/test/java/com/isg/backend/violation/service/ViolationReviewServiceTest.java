@@ -116,7 +116,7 @@ class ViolationReviewServiceTest {
                 true
         );
 
-        when(violationRepository.save(
+        when(violationRepository.saveAndFlush(
                 violation
         )).thenReturn(
                 violation
@@ -395,7 +395,7 @@ class ViolationReviewServiceTest {
                 )
         );
 
-        when(violationRepository.save(
+        when(violationRepository.saveAndFlush(
                 violation
         )).thenReturn(
                 violation
@@ -597,11 +597,9 @@ class ViolationReviewServiceTest {
                 true
         );
 
-        when(
-                violationRepository.save(
-                        violation
-                )
-        ).thenReturn(
+        when(violationRepository.saveAndFlush(
+                violation
+        )).thenReturn(
                 violation
         );
 
