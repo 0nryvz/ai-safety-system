@@ -21,6 +21,7 @@ import {
   hasSelfIntersection,
 } from '../features/restricted-zone/polygonUtils'
 import { mapApiError } from '../core/api/apiErrorMapper'
+import { ApiError } from '../core/api/apiError'
 
 function RestrictedZoneEditorPage() {
   const { cameraId } = useParams<{ cameraId: string }>()
@@ -199,7 +200,7 @@ function RestrictedZoneEditorPage() {
           return
         }
 
-        const apiError = mapApiError(error)
+        const apiError = error instanceof ApiError ? error : mapApiError(error)
 
         if (apiError.status === 404) {
           setZoneName('')
@@ -228,7 +229,7 @@ function RestrictedZoneEditorPage() {
           return
         }
 
-        const apiError = mapApiError(error)
+        const apiError = error instanceof ApiError ? error : mapApiError(error)
 
         if (apiError.status === 404) {
           setReferenceImageUrl(undefined)
