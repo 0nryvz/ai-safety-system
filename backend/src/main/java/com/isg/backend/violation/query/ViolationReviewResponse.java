@@ -9,6 +9,7 @@ public record ViolationReviewResponse(
         UUID violationId,
         ViolationReviewStatus reviewStatus,
         UUID reviewedBy,
-        Instant reviewedAt
+        Instant reviewedAt,
+        long version
 ) {
 }

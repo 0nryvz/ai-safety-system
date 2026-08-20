@@ -29,6 +29,7 @@ public record ViolationDetailResponse(
         boolean clipReady,
         String playbackUrl,
         String coverImageKey,
-        boolean coverImageReady
+        boolean coverImageReady,
+        long version
 ) {
 }

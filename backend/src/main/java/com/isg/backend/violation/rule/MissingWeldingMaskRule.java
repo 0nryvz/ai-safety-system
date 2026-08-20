@@ -25,12 +25,12 @@ public class MissingWeldingMaskRule implements ViolationRule {
                         DetectionLabel.WELDING
                 );
 
-        boolean hasWeldingMask =
+        boolean missingWeldingMask =
                 person.hasDetection(
-                        DetectionLabel.WELDING_MASK
+                        DetectionLabel.NON_WELDING_MASK
                 );
 
-        if (!isWelding || hasWeldingMask) {
+        if (!isWelding || !missingWeldingMask) {
             return Optional.empty();
         }
 

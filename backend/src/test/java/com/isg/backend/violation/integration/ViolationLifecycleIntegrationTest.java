@@ -269,6 +269,11 @@ class ViolationLifecycleIntegrationTest {
                 ).orElseThrow();
 
         assertThat(
+                persisted.getUpdatedAt()
+        )
+                .isNotNull();
+
+        assertThat(
                 persisted.getLifecycleStatus()
         ).isEqualTo(
                 ViolationLifecycleStatus.ACTIVE
@@ -513,6 +518,16 @@ class ViolationLifecycleIntegrationTest {
         UUID violationId =
                 created.getId();
 
+        ViolationJpaEntity persisted =
+                violationRepository.findById(
+                        violationId
+                ).orElseThrow();
+
+        assertThat(
+                persisted.getUpdatedAt()
+        )
+                .isNotNull();
+
         testViolationIds.add(
                 violationId
         );
@@ -546,6 +561,11 @@ class ViolationLifecycleIntegrationTest {
                 violationRepository.findById(
                         violationId
                 ).orElseThrow();
+
+        assertThat(
+                errored.getUpdatedAt()
+        )
+                .isNotNull();
 
         assertThat(
                 errored.getLifecycleStatus()

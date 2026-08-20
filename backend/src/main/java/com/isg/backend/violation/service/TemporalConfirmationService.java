@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -308,6 +307,35 @@ public class TemporalConfirmationService {
 
         return removed;
     }
+
+    public synchronized void restoreConfirmedState(
+            ViolationStateKey stateKey,
+            Instant candidateStartedAt,
+            Instant lastSeenAt,
+            double confidence
+    ) {
+        Objects.requireNonNull(
+                stateKey,
+                "stateKey must not be null"
+        );
+
+        CandidateViolationState recoveredState =
+                CandidateViolationState.recoveredConfirmed(
+                        candidateStartedAt,
+                        lastSeenAt,
+                        confidence
+                );
+
+        states.putIfAbsent(
+                stateKey,
+                recoveredState
+        );
+
+        cooldownUntil.remove(
+                stateKey
+        );
+    }
+
     public synchronized void rollbackConfirmation(
             ViolationStateKey stateKey
     ) {
