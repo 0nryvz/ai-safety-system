@@ -22,6 +22,7 @@ import {
 } from '../features/restricted-zone/polygonUtils'
 import { mapApiError } from '../core/api/apiErrorMapper'
 import { ApiError } from '../core/api/apiError'
+import './RestrictedZoneEditorPage.css'
 
 function RestrictedZoneEditorPage() {
   const { cameraId } = useParams<{ cameraId: string }>()
@@ -264,8 +265,8 @@ function RestrictedZoneEditorPage() {
 
   return (
     <AppShell>
-      <section>
-        <header>
+      <section className="restricted-zone-page">
+        <header className="restricted-zone-page__header">
           <div>
             <h2>Yasaklı Alan Düzenleyici</h2>
 
@@ -296,7 +297,7 @@ function RestrictedZoneEditorPage() {
             description="Seçilen kamera bilgileri alınırken bir hata oluştu."
           />
         ) : camera ? (
-          <section>
+          <section className="restricted-zone-page__content">
             <h3>{camera.name}</h3>
             <p>Departman: {camera.departmentName ?? '-'}</p>
 
@@ -315,7 +316,7 @@ function RestrictedZoneEditorPage() {
                   onChange={(event) => setZoneName(event.target.value)}
                 />
 
-                <div>
+                <div className="restricted-zone-page__actions">
                   <Button
                     type="button"
                     variant="secondary"
@@ -341,7 +342,7 @@ function RestrictedZoneEditorPage() {
 
                 {referenceImageError && <p role="alert">{referenceImageError}</p>}
 
-                <div>
+                <div className="restricted-zone-page__reference-upload">
                   <label htmlFor="reference-image-file">Yeni kamera referans görüntüsü</label>
 
                   <input
@@ -366,11 +367,13 @@ function RestrictedZoneEditorPage() {
 
                 {referenceImageUploadSuccess && <p role="status">Referans görüntüsü yüklendi.</p>}
 
-                <RestrictedZoneEditor
-                  points={points}
-                  onChange={setPoints}
-                  imageUrl={referenceImageUrl}
-                />
+                <div className="restricted-zone-page__editor">
+                  <RestrictedZoneEditor
+                    points={points}
+                    onChange={setPoints}
+                    imageUrl={referenceImageUrl}
+                  />
+                </div>
 
                 {validationError && <p role="alert">{validationError}</p>}
 
