@@ -72,13 +72,46 @@ public class RestrictedZoneService implements RestrictedZoneProvider {
     }
 
     public RestrictedZoneUpdateReq getRestrictedZoneDto(UUID cameraId) {
-        // Aktif yasaklı alan bulunamadığında 404 Not Found dönmesi sağlandı
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Kullanıcı bulunamadı!"
+                        )
+                );
+
+        Camera camera = cameraRepository.findById(cameraId)
+                .orElseThrow(() ->
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Kamera bulunamadı!"
+                        )
+                );
+
+        if (!authorizationService.canAccessDepartment(
+                user.getId(),
+                camera.getDepartment().getId()
+        )) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Bu kameranın yasaklı alanını görüntüleme yetkiniz yok!"
+            );
+        }
+
         RestrictedZone zone = restrictedZoneRepository.findByCameraIdAndActiveTrue(cameraId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Aktif yasaklı alan bulunamadı."));
+                .orElseThrow(() ->
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Aktif yasaklı alan bulunamadı."
+                        )
+                );
 
         RestrictedZoneUpdateReq response = new RestrictedZoneUpdateReq();
         response.setName(zone.getName());
         response.setPolygon(zone.getPolygon());
+
         return response;
     }
 

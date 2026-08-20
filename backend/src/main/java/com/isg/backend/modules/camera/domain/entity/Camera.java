@@ -48,6 +48,9 @@ public class Camera {
     @Column(name = "last_seen_at")
     private Instant lastSeenAt;
 
+    @Column(name = "reference_image_key", length = 512)
+    private String referenceImageKey;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

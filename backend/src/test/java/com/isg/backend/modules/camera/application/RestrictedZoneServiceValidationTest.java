@@ -205,6 +205,93 @@ class RestrictedZoneServiceValidationTest {
                 .save(any(RestrictedZone.class));
     }
 
+    @Test
+    void authorizedUserCanReadRestrictedZone() {
+        RestrictedZone zone =
+                new RestrictedZone();
+
+        List<PointDto> polygon =
+                List.of(
+                        new PointDto(0.10, 0.10),
+                        new PointDto(0.90, 0.10),
+                        new PointDto(0.90, 0.90),
+                        new PointDto(0.10, 0.90)
+                );
+
+        zone.setCameraId(cameraId);
+        zone.setName("Authorized Zone");
+        zone.setPolygon(polygon);
+        zone.setActive(true);
+
+        when(restrictedZoneRepository.findByCameraIdAndActiveTrue(cameraId))
+                .thenReturn(Optional.of(zone));
+
+        RestrictedZoneUpdateReq response =
+                restrictedZoneService.getRestrictedZoneDto(cameraId);
+
+        assertThat(response.getName())
+                .isEqualTo("Authorized Zone");
+
+        assertThat(response.getPolygon())
+                .containsExactlyElementsOf(polygon);
+
+        verify(authorizationService)
+                .canAccessDepartment(userId, departmentId);
+
+        verify(restrictedZoneRepository)
+                .findByCameraIdAndActiveTrue(cameraId);
+    }
+
+    @Test
+    void unauthorizedUserCannotReadRestrictedZone() {
+        when(authorizationService.canAccessDepartment(userId, departmentId))
+                .thenReturn(false);
+
+        ResponseStatusException exception =
+                assertThrows(
+                        ResponseStatusException.class,
+                        () -> restrictedZoneService.getRestrictedZoneDto(cameraId)
+                );
+
+        assertThat(exception.getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+
+        verify(restrictedZoneRepository, never())
+                .findByCameraIdAndActiveTrue(cameraId);
+    }
+
+    @Test
+    void unauthorizedUserCannotUpdateRestrictedZone() {
+        when(authorizationService.canAccessDepartment(userId, departmentId))
+                .thenReturn(false);
+
+        RestrictedZoneUpdateReq request =
+                request(
+                        new PointDto(0.10, 0.10),
+                        new PointDto(0.90, 0.10),
+                        new PointDto(0.90, 0.90),
+                        new PointDto(0.10, 0.90)
+                );
+
+        ResponseStatusException exception =
+                assertThrows(
+                        ResponseStatusException.class,
+                        () -> restrictedZoneService.updateRestrictedZone(
+                                cameraId,
+                                request
+                        )
+                );
+
+        assertThat(exception.getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+
+        verify(restrictedZoneRepository, never())
+                .findByCameraIdAndActiveTrue(cameraId);
+
+        verify(restrictedZoneRepository, never())
+                .save(any(RestrictedZone.class));
+    }
+
     private RestrictedZoneUpdateReq request(
             PointDto... points
     ) {
