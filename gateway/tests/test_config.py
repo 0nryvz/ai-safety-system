@@ -3,6 +3,15 @@ from pydantic import ValidationError
 
 from app.core.config import Settings
 
+CANONICAL_RUNTIME_ENV_VARS = (
+    "BACKEND_BASE_URL",
+    "INTERNAL_API_KEY",
+    "AI_WORKER_BASE_URL",
+    "MINIO_ENDPOINT",
+    "MINIO_ACCESS_KEY",
+    "MINIO_SECRET_KEY",
+    "MINIO_BUCKET",
+)
 
 RING_BUFFER_ENV_VARS = (
     "GATEWAY_RING_BUFFER_SECONDS",
@@ -47,16 +56,19 @@ SESSION_LIFECYCLE_ENV_VARS = (
 
 
 @pytest.fixture(autouse=True)
-def clear_ring_buffer_env(monkeypatch) -> None:
+def clear_runtime_env(monkeypatch) -> None:
     for env_var in (
-            RING_BUFFER_ENV_VARS
+            CANONICAL_RUNTIME_ENV_VARS
+            + RING_BUFFER_ENV_VARS
             + AI_DISPATCH_ENV_VARS
             + MINIO_ENV_VARS
             + RECORDING_CALLBACK_ENV_VARS
             + SESSION_LIFECYCLE_ENV_VARS
     ):
-        monkeypatch.delenv(env_var, raising=False)
-
+        monkeypatch.delenv(
+            env_var,
+            raising=False,
+        )
 
 def test_ring_buffer_settings_defaults() -> None:
     settings = Settings(_env_file=None)
@@ -357,4 +369,242 @@ def test_ai_http_settings_environment_override(
     assert (
             settings.ai_base_url
             == "http://ai.internal:8001"
+    )
+
+def test_canonical_runtime_env_maps_to_gateway(
+        monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "BACKEND_BASE_URL",
+        "http://backend.internal:8080",
+    )
+
+    monkeypatch.setenv(
+        "INTERNAL_API_KEY",
+        "canonical-internal-key",
+    )
+
+    monkeypatch.setenv(
+        "AI_WORKER_BASE_URL",
+        "http://ai.internal:8001",
+    )
+
+    monkeypatch.setenv(
+        "MINIO_ENDPOINT",
+        "http://minio.internal:9000",
+    )
+
+    monkeypatch.setenv(
+        "MINIO_ACCESS_KEY",
+        "minio-access",
+    )
+
+    monkeypatch.setenv(
+        "MINIO_SECRET_KEY",
+        "minio-secret",
+    )
+
+    monkeypatch.setenv(
+        "MINIO_BUCKET",
+        "violation-media",
+    )
+
+    settings = Settings(
+        _env_file=None
+    )
+
+    assert (
+            settings
+            .effective_session_lifecycle_backend_base_url
+            == "http://backend.internal:8080"
+    )
+
+    assert (
+            settings
+            .effective_recording_callback_backend_base_url
+            == "http://backend.internal:8080"
+    )
+
+    assert (
+            settings
+            .effective_session_lifecycle_internal_api_key
+            == "canonical-internal-key"
+    )
+
+    assert (
+            settings
+            .effective_recording_callback_internal_api_key
+            == "canonical-internal-key"
+    )
+
+    assert (
+            settings.effective_ai_base_url
+            == "http://ai.internal:8001"
+    )
+
+    assert (
+            settings
+            .effective_recorder_storage_minio_endpoint
+            == "minio.internal:9000"
+    )
+
+    assert (
+            settings
+            .effective_recorder_storage_minio_access_key
+            == "minio-access"
+    )
+
+    assert (
+            settings
+            .effective_recorder_storage_minio_secret_key
+            == "minio-secret"
+    )
+
+    assert (
+            settings
+            .effective_recorder_storage_minio_bucket
+            == "violation-media"
+    )
+
+    assert (
+            settings
+            .effective_recorder_storage_minio_secure
+            is False
+    )
+
+def test_canonical_runtime_env_takes_precedence_over_legacy_gateway_env(
+        monkeypatch,
+) -> None:
+    monkeypatch.setenv(
+        "BACKEND_BASE_URL",
+        "http://canonical-backend:8080",
+    )
+    monkeypatch.setenv(
+        "GATEWAY_SESSION_LIFECYCLE_BACKEND_BASE_URL",
+        "http://legacy-backend:9999",
+    )
+    monkeypatch.setenv(
+        "GATEWAY_RECORDING_CALLBACK_BACKEND_BASE_URL",
+        "http://legacy-callback:9998",
+    )
+
+    monkeypatch.setenv(
+        "INTERNAL_API_KEY",
+        "canonical-key",
+    )
+    monkeypatch.setenv(
+        "GATEWAY_SESSION_LIFECYCLE_INTERNAL_API_KEY",
+        "legacy-lifecycle-key",
+    )
+    monkeypatch.setenv(
+        "GATEWAY_RECORDING_CALLBACK_INTERNAL_API_KEY",
+        "legacy-callback-key",
+    )
+
+    monkeypatch.setenv(
+        "AI_WORKER_BASE_URL",
+        "http://canonical-ai:8001",
+    )
+    monkeypatch.setenv(
+        "GATEWAY_AI_BASE_URL",
+        "http://legacy-ai:9001",
+    )
+
+    monkeypatch.setenv(
+        "MINIO_ENDPOINT",
+        "https://canonical-minio:9000",
+    )
+    monkeypatch.setenv(
+        "GATEWAY_RECORDER_STORAGE_MINIO_ENDPOINT",
+        "legacy-minio:9999",
+    )
+
+    monkeypatch.setenv(
+        "MINIO_ACCESS_KEY",
+        "canonical-access",
+    )
+    monkeypatch.setenv(
+        "GATEWAY_RECORDER_STORAGE_MINIO_ACCESS_KEY",
+        "legacy-access",
+    )
+
+    monkeypatch.setenv(
+        "MINIO_SECRET_KEY",
+        "canonical-secret",
+    )
+    monkeypatch.setenv(
+        "GATEWAY_RECORDER_STORAGE_MINIO_SECRET_KEY",
+        "legacy-secret",
+    )
+
+    monkeypatch.setenv(
+        "MINIO_BUCKET",
+        "canonical-bucket",
+    )
+    monkeypatch.setenv(
+        "GATEWAY_RECORDER_STORAGE_MINIO_BUCKET",
+        "legacy-bucket",
+    )
+
+    settings = Settings(
+        _env_file=None
+    )
+
+    assert (
+            settings
+            .effective_session_lifecycle_backend_base_url
+            == "http://canonical-backend:8080"
+    )
+
+    assert (
+            settings
+            .effective_recording_callback_backend_base_url
+            == "http://canonical-backend:8080"
+    )
+
+    assert (
+            settings
+            .effective_session_lifecycle_internal_api_key
+            == "canonical-key"
+    )
+
+    assert (
+            settings
+            .effective_recording_callback_internal_api_key
+            == "canonical-key"
+    )
+
+    assert (
+            settings.effective_ai_base_url
+            == "http://canonical-ai:8001"
+    )
+
+    assert (
+            settings
+            .effective_recorder_storage_minio_endpoint
+            == "canonical-minio:9000"
+    )
+
+    assert (
+            settings
+            .effective_recorder_storage_minio_access_key
+            == "canonical-access"
+    )
+
+    assert (
+            settings
+            .effective_recorder_storage_minio_secret_key
+            == "canonical-secret"
+    )
+
+    assert (
+            settings
+            .effective_recorder_storage_minio_bucket
+            == "canonical-bucket"
+    )
+
+    assert (
+            settings
+            .effective_recorder_storage_minio_secure
+            is True
     )

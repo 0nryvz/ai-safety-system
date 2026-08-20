@@ -36,6 +36,8 @@ export interface ViolationListItem {
   confidence: number
   lifecycleStatus: ViolationLifecycleStatus
   reviewStatus: ViolationReviewStatus
+  recordingStatus: ViolationRecordingStatus | null
+  updatedAt: string
 }
 
 export interface ViolationDetailResponse {

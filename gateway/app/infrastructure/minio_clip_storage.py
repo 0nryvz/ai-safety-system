@@ -3,6 +3,7 @@ import hashlib
 from pathlib import Path
 from urllib3 import PoolManager, Retry
 from urllib3.util import Timeout
+from io import BytesIO
 
 from app.services.clip_storage import (
     ClipStorage,
@@ -22,6 +23,22 @@ def build_clip_object_key(
     return (
         f"violations/{started_at_utc:%Y}/{started_at_utc:%m}/"
         f"{violation_id}/{recording_id}.mp4"
+    )
+
+def build_cover_object_key(
+        *,
+        violation_id: str,
+        captured_at: datetime,
+) -> str:
+    captured_at_utc = _to_utc(
+        captured_at
+    )
+
+    return (
+        f"violations/"
+        f"{captured_at_utc:%Y}/"
+        f"{captured_at_utc:%m}/"
+        f"{violation_id}/cover.jpg"
     )
 
 
@@ -107,6 +124,79 @@ class MinioClipStorage(ClipStorage):
             checksum=checksum,
             size_bytes=local_size_bytes,
         )
+
+    def store_cover_image(
+            self,
+            *,
+            violation_id: str,
+            recording_id: str,
+            image_bytes: bytes,
+            captured_at: datetime,
+    ) -> str:
+        if not image_bytes:
+            raise ClipStorageError(
+                "Cover image is empty",
+                retryable=False,
+            )
+
+        minio_client = self._get_minio_client()
+
+        object_key = build_cover_object_key(
+            violation_id=violation_id,
+            captured_at=captured_at,
+        )
+
+        local_size_bytes = len(
+            image_bytes
+        )
+
+        try:
+            minio_client.put_object(
+                bucket_name=self._bucket,
+                object_name=object_key,
+                data=BytesIO(
+                    image_bytes
+                ),
+                length=local_size_bytes,
+                content_type="image/jpeg",
+                metadata={
+                    "violationid": violation_id,
+                    "recordingid": recording_id,
+                },
+            )
+
+            stat_result = (
+                minio_client.stat_object(
+                    bucket_name=self._bucket,
+                    object_name=object_key,
+                )
+            )
+
+        except Exception as ex:
+            raise ClipStorageError(
+                "Could not upload cover image to MinIO",
+                retryable=True,
+            ) from ex
+
+        remote_size_bytes = getattr(
+            stat_result,
+            "size",
+            None,
+        )
+
+        if (
+                remote_size_bytes
+                != local_size_bytes
+        ):
+            raise ClipStorageError(
+                "Uploaded cover image size mismatch "
+                f"for key={object_key}: "
+                f"local={local_size_bytes}, "
+                f"remote={remote_size_bytes}",
+                retryable=False,
+            )
+
+        return object_key
 
     def _get_minio_client(
             self,

@@ -36,6 +36,7 @@ public class RecordingCallbackController {
                     request.violationId(),
                     request.status(),
                     request.objectKey(),
+                    request.coverImageKey(),
                     request.durationMs(),
                     request.sizeBytes(),
                     request.checksum(),

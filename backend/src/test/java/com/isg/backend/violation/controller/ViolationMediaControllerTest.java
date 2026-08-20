@@ -16,6 +16,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.server.ResponseStatusException;
+import com.isg.backend.violation.exception.CoverImageNotReadyException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -305,6 +306,101 @@ class ViolationMediaControllerTest {
                         jsonPath("$.code")
                                 .value(
                                         "RECORDING_NOT_READY"
+                                )
+                );
+    }
+
+    @Test
+    void returns200WithPresignedCoverUrl() throws Exception {
+        UUID userId =
+                UUID.randomUUID();
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        mockAuthenticatedUser(
+                userId
+        );
+
+        when(
+                mediaAccessService.createCoverUrl(
+                        userId,
+                        violationId
+                )
+        ).thenReturn(
+                new PresignedPlaybackUrl(
+                        "http://localhost:9000/cover-presigned",
+                        Instant.parse(
+                                "2026-08-18T18:05:00Z"
+                        )
+                )
+        );
+
+        mockMvc.perform(
+                        get(
+                                "/api/v1/violations/{violationId}/cover-url",
+                                violationId
+                        )
+                                .principal(
+                                        authentication
+                                )
+                )
+                .andExpect(
+                        status().isOk()
+                )
+                .andExpect(
+                        jsonPath("$.url")
+                                .value(
+                                        "http://localhost:9000/cover-presigned"
+                                )
+                )
+                .andExpect(
+                        jsonPath("$.expiresAt")
+                                .value(
+                                        "2026-08-18T18:05:00Z"
+                                )
+                );
+    }
+
+    @Test
+    void returns409WhenCoverImageIsNotReady() throws Exception {
+        UUID userId =
+                UUID.randomUUID();
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        mockAuthenticatedUser(
+                userId
+        );
+
+        when(
+                mediaAccessService.createCoverUrl(
+                        userId,
+                        violationId
+                )
+        ).thenThrow(
+                new CoverImageNotReadyException(
+                        violationId
+                )
+        );
+
+        mockMvc.perform(
+                        get(
+                                "/api/v1/violations/{violationId}/cover-url",
+                                violationId
+                        )
+                                .principal(
+                                        authentication
+                                )
+                )
+                .andExpect(
+                        status().isConflict()
+                )
+                .andExpect(
+                        jsonPath("$.code")
+                                .value(
+                                        "COVER_IMAGE_NOT_READY"
                                 )
                 );
     }

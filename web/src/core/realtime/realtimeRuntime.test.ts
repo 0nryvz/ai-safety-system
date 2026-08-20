@@ -51,7 +51,9 @@ vi.mock('./realtimeAuthBridge', () => ({
 }))
 
 import {
+  clearRealtimeRecoverySnapshotLoader,
   realtimeEventStore,
+  setRealtimeRecoverySnapshotLoader,
   startRealtimeRuntime,
   stopRealtimeRuntime,
   subscribeToRealtimeMessages,
@@ -69,6 +71,7 @@ describe('realtimeRuntime', () => {
     runtimeMock.cleanupAuthBinding.mockReset()
     runtimeMock.bindRealtimeToAuth.mockReset()
     runtimeMock.bindRealtimeToAuth.mockReturnValue(runtimeMock.cleanupAuthBinding)
+    clearRealtimeRecoverySnapshotLoader()
   })
 
   afterEach(() => {
@@ -202,5 +205,60 @@ describe('realtimeRuntime', () => {
     expect(loggedValues).not.toContain('must-not-be-logged')
 
     warnSpy.mockRestore()
+  })
+
+  it('reconciles the realtime store with recovery snapshots before notifying subscribers', async () => {
+    getClientOptions().onMessage({
+      body: JSON.stringify({
+        violationId: 'violation-runtime',
+        type: 'MISSING_GLOVES',
+        cameraName: 'Kamera 3',
+        departmentName: 'Montaj',
+        startedAt: '2026-08-17T12:00:00Z',
+        confidence: 0.91,
+        lifecycleStatus: 'ACTIVE',
+        recordingStatus: 'REQUESTED',
+        clipReady: false,
+        coverImageReady: false,
+      }),
+      headers: {
+        destination: '/user/queue/alerts',
+      },
+    })
+
+    const loader = vi.fn().mockResolvedValue([
+      {
+        violationId: 'violation-runtime',
+        lifecycleStatus: 'COMPLETED',
+        recordingStatus: 'READY',
+        updatedAt: '2026-08-17T12:05:00Z',
+      },
+    ])
+
+    const recoveryListener = vi.fn(() => {
+      expect(realtimeEventStore.getSnapshot().byId['violation-runtime']).toMatchObject({
+        lifecycleStatus: 'COMPLETED',
+        recordingStatus: 'READY',
+        lastEventAt: '2026-08-17T12:05:00Z',
+      })
+    })
+
+    setRealtimeRecoverySnapshotLoader(loader)
+    const unsubscribe = subscribeToRealtimeRecovery(recoveryListener)
+
+    await getClientOptions().onRecoveryRequired?.()
+
+    expect(loader).toHaveBeenCalledOnce()
+    expect(recoveryListener).toHaveBeenCalledOnce()
+
+    unsubscribe()
+  })
+
+  it('propagates recovery loader failures from the runtime recovery callback', async () => {
+    const loader = vi.fn().mockRejectedValue(new Error('recovery failed'))
+
+    setRealtimeRecoverySnapshotLoader(loader)
+
+    await expect(getClientOptions().onRecoveryRequired?.()).rejects.toThrow('recovery failed')
   })
 })

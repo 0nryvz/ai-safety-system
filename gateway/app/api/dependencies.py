@@ -87,10 +87,10 @@ def get_camera_session_lifecycle_notifier(
 
     return HttpCameraSessionLifecycleNotifier(
         backend_base_url=(
-            settings.session_lifecycle_backend_base_url
+            settings.effective_session_lifecycle_backend_base_url
         ),
         internal_api_key=(
-            settings.session_lifecycle_internal_api_key
+            settings.effective_session_lifecycle_internal_api_key
         ),
     )
 
@@ -121,19 +121,19 @@ def get_clip_storage() -> ClipStorage:
 
     return MinioClipStorage(
         endpoint=(
-            settings.recorder_storage_minio_endpoint
+            settings.effective_recorder_storage_minio_endpoint
         ),
         access_key=(
-            settings.recorder_storage_minio_access_key
+            settings.effective_recorder_storage_minio_access_key
         ),
         secret_key=(
-            settings.recorder_storage_minio_secret_key
+            settings.effective_recorder_storage_minio_secret_key
         ),
         bucket=(
-            settings.recorder_storage_minio_bucket
+            settings.effective_recorder_storage_minio_bucket
         ),
         secure=(
-            settings.recorder_storage_minio_secure
+            settings.effective_recorder_storage_minio_secure
         ),
     )
 
@@ -145,10 +145,10 @@ def get_recording_callback_client(
 
     return HttpRecordingCallbackClient(
         backend_base_url=(
-            settings.recording_callback_backend_base_url
+            settings.effective_recording_callback_backend_base_url
         ),
         internal_api_key=(
-            settings.recording_callback_internal_api_key
+            settings.effective_recording_callback_internal_api_key
         ),
     )
 
@@ -232,7 +232,7 @@ def get_session_frame_ingestion_worker_coordinator(
     )
     if settings.ai_http_enabled:
         ai_frame_client = HttpAIFrameClient(
-            ai_base_url=settings.ai_base_url,
+            ai_base_url=settings.effective_ai_base_url,
             timeout_seconds=(
                 settings.ai_dispatch_timeout_seconds
             ),

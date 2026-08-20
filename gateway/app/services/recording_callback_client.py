@@ -22,11 +22,11 @@ class RecordingCallbackPayload:
     status: str
     retry_count: int
     object_key: str | None = None
+    cover_image_key: str | None = None
     duration_ms: int | None = None
     size_bytes: int | None = None
     checksum: str | None = None
     error_code: str | None = None
-
 
 class RecordingCallbackClient(Protocol):
     async def send_callback(

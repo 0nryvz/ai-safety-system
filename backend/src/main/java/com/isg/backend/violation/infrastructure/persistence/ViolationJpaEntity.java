@@ -242,6 +242,22 @@ public class ViolationJpaEntity {
         return coverImageKey;
     }
 
+    public void updateCoverImageKey(
+            String coverImageKey
+    ) {
+        if (
+                coverImageKey == null
+                        || coverImageKey.isBlank()
+        ) {
+            throw new IllegalArgumentException(
+                    "coverImageKey must not be blank"
+            );
+        }
+
+        this.coverImageKey =
+                coverImageKey;
+    }
+
     public Instant getDetectedAt() {
         return detectedAt;
     }

@@ -35,6 +35,32 @@ class _FakeClipStorage:
         self._errors = list(errors or [])
         self._events = events
         self.calls: list[dict[str, object]] = []
+        self.cover_calls: list[
+            dict[str, object]
+        ] = []
+
+    def store_cover_image(
+            self,
+            *,
+            violation_id: str,
+            recording_id: str,
+            image_bytes: bytes,
+            captured_at: datetime,
+    ) -> str:
+        self.cover_calls.append(
+            {
+                "violation_id": violation_id,
+                "recording_id": recording_id,
+                "image_bytes": image_bytes,
+                "captured_at": captured_at,
+            }
+        )
+
+        return (
+            "violations/2026/08/"
+            f"{violation_id}/cover.jpg"
+        )
+
 
     def store_finalized_clip(
             self,
@@ -631,3 +657,75 @@ def test_local_clip_spool_keeps_non_expired_file_within_ttl(
 
     assert current_file.exists()
     assert recent_file.exists()
+
+@pytest.mark.asyncio
+async def test_deliver_ready_uploads_cover_and_sends_key(
+) -> None:
+    storage_result = ClipStorageResult(
+        bucket="private-recordings",
+        object_key=(
+            "violations/2026/08/"
+            "violation-1/recording-1.mp4"
+        ),
+        checksum="sha256:abcd",
+        size_bytes=12345,
+    )
+
+    storage = _FakeClipStorage(
+        result=storage_result
+    )
+
+    callback_client = (
+        _FakeRecordingCallbackClient()
+    )
+
+    coordinator = ClipDeliveryCoordinator(
+        clip_storage=storage,
+        recording_callback_client=(
+            callback_client
+        ),
+    )
+
+    command = ClipDeliveryCommand(
+        recording_id="recording-1",
+        violation_id="violation-1",
+        started_at=datetime(
+            2026,
+            8,
+            19,
+            12,
+            0,
+            tzinfo=timezone.utc,
+        ),
+        output_path=Path(
+            "C:/tmp/finalized.mp4"
+        ),
+        duration_ms=10_000,
+        size_bytes=12345,
+        cover_image_bytes=(
+            b"\xff\xd8cover\xff\xd9"
+        ),
+    )
+
+    await coordinator.deliver_ready(
+        command
+    )
+
+    assert len(
+        storage.cover_calls
+    ) == 1
+
+    assert len(
+        callback_client.calls
+    ) == 1
+
+    payload = (
+        callback_client.calls[0]
+    )
+
+    assert payload.status == "READY"
+
+    assert payload.cover_image_key == (
+        "violations/2026/08/"
+        "violation-1/cover.jpg"
+    )

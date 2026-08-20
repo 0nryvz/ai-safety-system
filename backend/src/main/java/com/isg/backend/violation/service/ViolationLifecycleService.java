@@ -234,6 +234,20 @@ public class ViolationLifecycleService
             UUID violationId,
             Instant changedAt
     ) {
+        recordingReady(
+                violationId,
+                changedAt,
+                null
+        );
+    }
+
+    @Override
+    @Transactional
+    public void recordingReady(
+            UUID violationId,
+            Instant changedAt,
+            String coverImageKey
+    ) {
         Objects.requireNonNull(
                 violationId,
                 "violationId must not be null"
@@ -248,8 +262,26 @@ public class ViolationLifecycleService
                 findViolation(
                         violationId
                 );
+        if (
+                coverImageKey != null
+                        && !coverImageKey.isBlank()
+        ) {
+            violation.updateCoverImageKey(
+                    coverImageKey
+            );
+        }
 
         if (violation.getEndedAt() == null) {
+
+            if (
+                    coverImageKey != null
+                            && !coverImageKey.isBlank()
+            ) {
+                violationRepository.save(
+                        violation
+                );
+            }
+
             return;
         }
 
@@ -257,6 +289,16 @@ public class ViolationLifecycleService
                 violation.getLifecycleStatus();
 
         if (currentStatus == ViolationLifecycleStatus.COMPLETED) {
+
+            if (
+                    coverImageKey != null
+                            && !coverImageKey.isBlank()
+            ) {
+                violationRepository.save(
+                        violation
+                );
+            }
+
             return;
         }
 

@@ -25,6 +25,16 @@ export interface UpdateCameraRequest {
   active?: boolean
 }
 
+export interface RestrictedZonePoint {
+  x: number
+  y: number
+}
+
+export interface RestrictedZone {
+  name: string
+  polygon: RestrictedZonePoint[]
+}
+
 export async function getCameras(): Promise<CameraResponse[]> {
   const response = await apiClient.get<CameraResponse[]>('/cameras')
 
@@ -50,4 +60,17 @@ export async function updateCamera(
   const response = await apiClient.put<CameraResponse>(`/cameras/${cameraId}`, request)
 
   return response.data
+}
+
+export async function getRestrictedZone(cameraId: string): Promise<RestrictedZone> {
+  const response = await apiClient.get<RestrictedZone>(`/cameras/${cameraId}/restricted-zone`)
+
+  return response.data
+}
+
+export async function updateRestrictedZone(
+  cameraId: string,
+  restrictedZone: RestrictedZone,
+): Promise<void> {
+  await apiClient.put(`/cameras/${cameraId}/restricted-zone`, restrictedZone)
 }

@@ -19,6 +19,8 @@ import {
 } from '../features/admin/cameraFormUtils'
 import ConfirmDialog from '../shared/ui/ConfirmDialog/ConfirmDialog'
 import { mapApiError } from '../core/api/apiErrorMapper'
+import { useNavigate } from 'react-router-dom'
+import { ROUTE_PATHS } from '../app/routeConfig'
 
 function getConnectionPresentation(status: string) {
   switch (status) {
@@ -49,6 +51,7 @@ function getConnectionPresentation(status: string) {
 }
 
 function CameraManagementPage() {
+  const navigate = useNavigate()
   const { data, isLoading, error, retry } = useCameraManagement()
 
   const {
@@ -104,6 +107,15 @@ function CameraManagementPage() {
       header: 'İşlemler',
       render: (camera) => (
         <div className="camera-management__actions">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              navigate(ROUTE_PATHS.restrictedZoneEditor.replace(':cameraId', camera.id))
+            }}
+          >
+            Yasaklı Alan
+          </Button>
           <Button
             type="button"
             variant="secondary"

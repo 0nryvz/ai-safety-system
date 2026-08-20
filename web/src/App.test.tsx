@@ -151,4 +151,34 @@ describe('App auth routing', () => {
       }),
     ).not.toBeInTheDocument()
   })
+
+  it('allows an admin to open the restricted zone editor', () => {
+    setAuthenticatedSession(adminSession)
+
+    renderApp('/admin/cameras/11111111-1111-1111-1111-111111111111/restricted-zone')
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'Yasaklı Alan Düzenleyici',
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('redirects a non-admin user away from the restricted zone editor', () => {
+    setAuthenticatedSession(session)
+
+    renderApp('/admin/cameras/11111111-1111-1111-1111-111111111111/restricted-zone')
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'Operasyon Dashboardu',
+      }),
+    ).toBeInTheDocument()
+
+    expect(
+      screen.queryByRole('heading', {
+        name: 'Yasaklı Alan Düzenleyici',
+      }),
+    ).not.toBeInTheDocument()
+  })
 })

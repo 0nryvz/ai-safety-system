@@ -7,12 +7,14 @@ import com.isg.backend.violation.exception.ViolationVersionConflictException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
+import com.isg.backend.violation.exception.CoverImageNotReadyException;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import com.isg.backend.recording.application.RecordingNotFoundForViolationException;
@@ -82,6 +84,20 @@ public class GlobalExceptionHandler {
                 "Validation failed.",
                 req,
                 fieldErrors
+        );
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> messageNotReadable(
+            HttpMessageNotReadableException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.BAD_REQUEST,
+                "INVALID_REQUEST",
+                "Malformed or invalid request body.",
+                req,
+                Map.of()
         );
     }
 
@@ -183,6 +199,20 @@ public ResponseEntity<ApiErrorResponse> dataIntegrityViolation(
                 HttpStatus.CONFLICT,
                 "RECORDING_NOT_READY",
                 "Recording is not ready.",
+                req,
+                Map.of()
+        );
+    }
+
+    @ExceptionHandler(CoverImageNotReadyException.class)
+    public ResponseEntity<ApiErrorResponse> coverImageNotReady(
+            CoverImageNotReadyException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.CONFLICT,
+                "COVER_IMAGE_NOT_READY",
+                "Cover image is not ready.",
                 req,
                 Map.of()
         );
