@@ -5,6 +5,7 @@ import * as detailHook from '../features/violations/useViolationDetail'
 import * as violationService from '../services/violationService'
 import ViolationDetailPage from './ViolationDetailPage'
 import * as realtimeHook from '../core/realtime/useRealtimeViolations'
+import { ApiError } from '../core/api/apiError'
 
 afterEach(() => {
   cleanup()
@@ -44,6 +45,7 @@ const violation = {
   playbackUrl: null,
   coverImageKey: null,
   coverImageReady: false,
+  version: 3,
 }
 
 describe('ViolationDetailPage', () => {
@@ -81,6 +83,7 @@ describe('ViolationDetailPage', () => {
       reviewStatus: 'CONFIRMED',
       reviewedBy: '55555555-5555-5555-5555-555555555555',
       reviewedAt: '2026-08-19T10:05:00Z',
+      version: 4,
     })
 
     renderPage()
@@ -108,7 +111,7 @@ describe('ViolationDetailPage', () => {
     )
 
     await waitFor(() => {
-      expect(reviewSpy).toHaveBeenCalledWith(violation.violationId, 'CONFIRMED')
+      expect(reviewSpy).toHaveBeenCalledWith(violation.violationId, 'CONFIRMED', violation.version)
     })
 
     await waitFor(() => {
@@ -188,6 +191,45 @@ describe('ViolationDetailPage', () => {
           <Route path="/violations/:id" element={<ViolationDetailPage />} />
         </Routes>
       </MemoryRouter>,
+    )
+
+    expect(retry).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes detail and shows a conflict message when the review version is stale', async () => {
+    const retry = vi.fn()
+
+    vi.spyOn(detailHook, 'useViolationDetail').mockReturnValue({
+      data: violation,
+      isLoading: false,
+      error: null,
+      retry,
+    })
+
+    vi.spyOn(violationService, 'reviewViolation').mockRejectedValue(
+      new ApiError('Violation version conflict', 409, {
+        status: 409,
+        code: 'VIOLATION_VERSION_CONFLICT',
+        message: 'Violation version conflict',
+      }),
+    )
+
+    renderPage()
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'İncelemeyi kaydet',
+      }),
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Onayla',
+      }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'İhlal başka bir kullanıcı tarafından güncellendi. Güncel bilgileri yükleyip tekrar deneyin.',
     )
 
     expect(retry).toHaveBeenCalledTimes(1)

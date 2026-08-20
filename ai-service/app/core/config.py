@@ -32,8 +32,25 @@ class Settings(BaseSettings):
     ai_model_device: str = Field(default="cpu", alias="AI_MODEL_DEVICE")
 
     # --- Inference eşikleri (Adım 0 handoff'tan doğrulanacak) ---
-    confidence_threshold: float = Field(default=0.5, alias="CONFIDENCE_THRESHOLD")
-    iou_threshold: float = Field(default=0.45, alias="IOU_THRESHOLD")
+    confidence_threshold: float = Field(
+        default=0.50,
+        alias="CONFIDENCE_THRESHOLD",
+    )
+
+    welding_confidence_threshold: float = Field(
+        default=0.25,
+        alias="WELDING_CONFIDENCE_THRESHOLD",
+    )
+
+    non_gloves_confidence_threshold: float = Field(
+        default=0.40,
+        alias="NON_GLOVES_CONFIDENCE_THRESHOLD",
+    )
+
+    iou_threshold: float = Field(
+        default=0.45,
+        alias="IOU_THRESHOLD",
+    )
 
     # --- Backend entegrasyonu (Adım 4) ---
     backend_base_url: str = Field(default="http://localhost:8080", alias="BACKEND_BASE_URL")

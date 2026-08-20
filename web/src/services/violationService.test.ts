@@ -139,6 +139,7 @@ describe('violationService', () => {
       playbackUrl: null,
       coverImageKey: null,
       coverImageReady: false,
+      version: 3,
     }
 
     const getSpy = vi.spyOn(apiClient, 'get').mockResolvedValue({
@@ -159,16 +160,18 @@ describe('violationService', () => {
       reviewStatus: 'CONFIRMED' as const,
       reviewedBy: '55555555-5555-5555-5555-555555555555',
       reviewedAt: '2026-08-19T10:05:00Z',
+      version: 4,
     }
 
     const patchSpy = vi.spyOn(apiClient, 'patch').mockResolvedValue({
       data: reviewResponse,
     })
 
-    const result = await reviewViolation(violationId, 'CONFIRMED')
+    const result = await reviewViolation(violationId, 'CONFIRMED', 3)
 
     expect(patchSpy).toHaveBeenCalledWith(`/violations/${violationId}/review`, {
       reviewStatus: 'CONFIRMED',
+      version: 3,
     })
 
     expect(result).toEqual(reviewResponse)
