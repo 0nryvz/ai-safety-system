@@ -2,10 +2,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '../core/api/apiClient'
 import type {
   Camera,
+  DashboardDistributionItem,
   DashboardSummary,
+  DashboardTrendPoint,
   RecentViolation,
 } from '../features/dashboard/dashboardTypes'
-import { getCameras, getDashboardSummary, getRecentViolations } from './dashboardService'
+import {
+  getCameras,
+  getDashboardDistribution,
+  getDashboardSummary,
+  getDashboardTrend,
+  getRecentViolations,
+} from './dashboardService'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -56,5 +64,64 @@ describe('dashboardService', () => {
 
     expect(getSpy).toHaveBeenCalledWith('/cameras')
     expect(result).toEqual(cameras)
+  })
+
+  it('loads dashboard trend using the confirmed date range contract', async () => {
+    const trend: DashboardTrendPoint[] = [
+      {
+        date: '2026-08-18',
+        count: 4,
+      },
+      {
+        date: '2026-08-19',
+        count: 7,
+      },
+    ]
+
+    const getSpy = vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: trend,
+    })
+
+    const result = await getDashboardTrend({
+      from: '2026-08-18',
+      to: '2026-08-19',
+    })
+
+    expect(getSpy).toHaveBeenCalledWith('/dashboard/trend', {
+      params: {
+        from: '2026-08-18',
+        to: '2026-08-19',
+        bucket: 'DAY',
+      },
+    })
+
+    expect(result).toEqual(trend)
+  })
+
+  it('loads dashboard distribution using the confirmed groupBy contract', async () => {
+    const distribution: DashboardDistributionItem[] = [
+      {
+        group: 'NO_HELMET',
+        count: 8,
+      },
+      {
+        group: 'RESTRICTED_ZONE',
+        count: 3,
+      },
+    ]
+
+    const getSpy = vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: distribution,
+    })
+
+    const result = await getDashboardDistribution('TYPE')
+
+    expect(getSpy).toHaveBeenCalledWith('/dashboard/distribution', {
+      params: {
+        groupBy: 'TYPE',
+      },
+    })
+
+    expect(result).toEqual(distribution)
   })
 })

@@ -36,3 +36,21 @@ export interface Camera {
   lastSeenAt: string | null
   activeSessionId: string | null
 }
+
+export interface DashboardTrendPoint {
+  date: string
+  count: number
+}
+
+export type DashboardDistributionGroup = 'TYPE' | 'CAMERA' | 'DEPARTMENT'
+
+export interface DashboardDistributionItem {
+  group: string
+  count: number
+}
+
+export interface DashboardTrendParams {
+  from: string
+  to: string
+  bucket?: 'DAY'
+}
