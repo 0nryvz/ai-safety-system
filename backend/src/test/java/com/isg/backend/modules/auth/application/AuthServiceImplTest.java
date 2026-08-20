@@ -18,12 +18,14 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.Authentication;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -51,6 +53,9 @@ class AuthServiceImplTest {
 
     private static final Instant NOW =
             Instant.parse("2026-08-20T06:00:00Z");
+
+    private static final long REFRESH_TOKEN_EXPIRATION_MILLIS =
+            3_600_000L;
 
     @Mock
     private UserRepository userRepository;
@@ -108,6 +113,12 @@ class AuthServiceImplTest {
 
     @Test
     void successfulLoginAuthenticatesAndPersistsHashedRefreshToken() {
+        ReflectionTestUtils.setField(
+                authService,
+                "refreshTokenExpiration",
+                REFRESH_TOKEN_EXPIRATION_MILLIS
+        );
+
         LoginRequest request =
                 new LoginRequest(
                         EMAIL,
@@ -193,7 +204,11 @@ class AuthServiceImplTest {
                                         NOW,
                                         ZoneOffset.UTC
                                 )
-                                .plusDays(7)
+                                .plus(
+                                        Duration.ofMillis(
+                                                REFRESH_TOKEN_EXPIRATION_MILLIS
+                                        )
+                                )
                 );
     }
 

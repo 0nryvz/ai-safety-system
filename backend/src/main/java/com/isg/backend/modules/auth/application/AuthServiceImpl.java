@@ -8,6 +8,7 @@ import com.isg.backend.modules.auth.infrastructure.RefreshTokenRepository;
 import com.isg.backend.modules.user.entity.User;
 import com.isg.backend.modules.user.infrastructure.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -21,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.UUID;
@@ -34,6 +36,9 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final RefreshTokenRepository refreshTokenRepository;
     private final Clock clock; // Merkezi saat bean'i eklendi
+
+    @Value("${application.security.jwt.refresh-token.expiration}")
+    private long refreshTokenExpiration;
 
     @Override
     @Transactional
@@ -111,7 +116,15 @@ public class AuthServiceImpl implements AuthService {
         RefreshToken refreshToken = RefreshToken.builder()
                 .tokenHash(hashedToken)
                 .user(user)
-                .expiresAt(OffsetDateTime.now(clock).plusDays(7)) // Clock kullanılarak güncellendi
+                .expiresAt(
+                        OffsetDateTime
+                                .now(clock)
+                                .plus(
+                                        Duration.ofMillis(
+                                                refreshTokenExpiration
+                                        )
+                                )
+                )
                 .revoked(false)
                 .build();
 
