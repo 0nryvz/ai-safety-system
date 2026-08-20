@@ -26,6 +26,10 @@ vi.mock('../core/realtime/useRealtimeViolations', () => ({
   useRealtimeViolations: vi.fn(),
 }))
 
+vi.mock('../features/dashboard/DashboardAnalyticsPanel', () => ({
+  default: () => <section aria-label="Dashboard analytics">Analytics</section>,
+}))
+
 const mockedUseDashboardData = vi.mocked(useDashboardData)
 const mockedUseAuthSession = vi.mocked(useAuthSession)
 const mockedUseRealtimeViolations = vi.mocked(useRealtimeViolations)
@@ -287,6 +291,19 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('heading', { name: 'İhlal bulunamadı' })).toBeInTheDocument()
     expect(
       screen.getByText('Erişebildiğiniz departmanlarda gösterilecek ihlal bulunmuyor.'),
+    ).toBeInTheDocument()
+  })
+
+  it('renders the analytics section when dashboard data is available', () => {
+    setAuthenticatedRole('OHS_SPECIALIST')
+    mockedUseDashboardData.mockReturnValue(createDashboardState())
+
+    renderDashboard()
+
+    expect(
+      screen.getByRole('region', {
+        name: 'Dashboard analytics',
+      }),
     ).toBeInTheDocument()
   })
 })
