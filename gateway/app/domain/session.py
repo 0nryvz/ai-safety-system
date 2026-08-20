@@ -29,7 +29,7 @@ class CameraSessionContext:
             raise ValueError("Closed session cannot receive heartbeat")
 
         self.last_heartbeat_at = utc_now()
-        self.last_activity_at = now
+        self.last_activity_at = self.last_heartbeat_at
 
     def register_frame(self) -> None:
         if self.status is SessionStatus.CLOSED:
