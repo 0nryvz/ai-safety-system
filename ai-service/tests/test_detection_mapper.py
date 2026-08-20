@@ -46,3 +46,35 @@ def test_label_mapping_rejects_unsupported_backend_label():
     mapping = {"visor_cls": "welding_visor"}
     with pytest.raises(UnsupportedLabelError):
         map_model_label_to_backend_label("visor_cls", mapping)
+def test_bbox_touching_right_bottom_edges_stays_inside_frame():
+    bbox = normalize_and_clamp_bbox(
+        x_px=630,
+        y_px=470,
+        width_px=50,
+        height_px=50,
+        frame_width=640,
+        frame_height=480,
+    )
+
+    assert bbox.x >= 0.0
+    assert bbox.y >= 0.0
+    assert bbox.x + bbox.width <= 1.0
+    assert bbox.y + bbox.height <= 1.0
+    assert bbox.width > 0.0
+    assert bbox.height > 0.0
+
+
+def test_bbox_completely_outside_frame_is_rejected():
+    try:
+        normalize_and_clamp_bbox(
+            x_px=700,
+            y_px=500,
+            width_px=50,
+            height_px=50,
+            frame_width=640,
+            frame_height=480,
+        )
+    except ValueError:
+        return
+
+    raise AssertionError("Tamamen frame dışındaki bbox reddedilmeliydi")

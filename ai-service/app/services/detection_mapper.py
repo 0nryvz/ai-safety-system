@@ -17,8 +17,6 @@ class NormalizedBBox:
     y: float
     width: float
     height: float
-
-
 def normalize_and_clamp_bbox(
     x_px: float,
     y_px: float,
@@ -27,11 +25,93 @@ def normalize_and_clamp_bbox(
     frame_width: int,
     frame_height: int,
 ) -> NormalizedBBox:
-    """
-    Piksel cinsinden bbox'ı (sol-üst köşe + genişlik/yükseklik) 0-1 aralığına
-    normalize eder ve backend kuralına göre frame sınırları içinde clamp eder:
-    x + width <= 1 ve y + height <= 1.
-    """
+    if frame_width <= 0 or frame_height <= 0:
+        raise ValueError(
+            "frame_width ve frame_height pozitif olmalı"
+        )
+
+    x1_px = max(
+        0.0,
+        min(float(x_px), float(frame_width)),
+    )
+    y1_px = max(
+        0.0,
+        min(float(y_px), float(frame_height)),
+    )
+
+    x2_px = max(
+        0.0,
+        min(
+            float(x_px) + max(float(width_px), 0.0),
+            float(frame_width),
+        ),
+    )
+    y2_px = max(
+        0.0,
+        min(
+            float(y_px) + max(float(height_px), 0.0),
+            float(frame_height),
+        ),
+    )
+
+    if x2_px <= x1_px or y2_px <= y1_px:
+        raise ValueError(
+            "bbox frame içinde pozitif alan üretmiyor"
+        )
+
+    # Önce endpoint'leri round ediyoruz.
+    # Böylece JSON -> Java BigDecimal tarafında
+    # x + width > 1 gibi floating-point taşmaları oluşmuyor.
+    x = round(
+        x1_px / frame_width,
+        6,
+    )
+    y = round(
+        y1_px / frame_height,
+        6,
+    )
+    x2 = round(
+        x2_px / frame_width,
+        6,
+    )
+    y2 = round(
+        y2_px / frame_height,
+        6,
+    )
+
+    width = round(
+        x2 - x,
+        6,
+    )
+    height = round(
+        y2 - y,
+        6,
+    )
+
+    if width <= 0.0 or height <= 0.0:
+        raise ValueError(
+            "bbox normalize edildikten sonra pozitif alan üretmiyor"
+        )
+
+    return NormalizedBBox(
+        x=x,
+        y=y,
+        width=width,
+        height=height,
+    )
+"""def normalize_and_clamp_bbox(
+    x_px: float,
+    y_px: float,
+    width_px: float,
+    height_px: float,
+    frame_width: int,
+    frame_height: int,
+) -> NormalizedBBox:
+    
+    #Piksel cinsinden bbox'ı (sol-üst köşe + genişlik/yükseklik) 0-1 aralığına
+    #normalize eder ve backend kuralına göre frame sınırları içinde clamp eder:
+    #x + width <= 1 ve y + height <= 1.
+    
     if frame_width <= 0 or frame_height <= 0:
         raise ValueError("frame_width ve frame_height pozitif olmalı")
 
@@ -46,18 +126,21 @@ def normalize_and_clamp_bbox(
     if y + height > 1.0:
         height = max(0.0, 1.0 - y)
 
-    return NormalizedBBox(x=x, y=y, width=width, height=height)
+    return NormalizedBBox(x=x, y=y, width=width, height=height)"""
 
 
 # Backend'in kabul ettiği label listesi (görev planı - vizör YOK)
 SUPPORTED_BACKEND_LABELS: frozenset[str] = frozenset(
     {
         "person",
-        "welding",
-        "welding_mask",
-        "welding_apron",
         "gloves",
+        "non_gloves",
+        "non_welding_jacket",
+        "non_welding_mask",
+        "welding",
+        "welding_apron",
         "welding_jacket",
+        "welding_mask",
     }
 )
 

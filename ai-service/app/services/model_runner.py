@@ -92,43 +92,93 @@ class ModelRunner:
 
         np_arr = np.frombuffer(jpeg_bytes, dtype=np.uint8)
         image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
         if image is None:
             raise InvalidFrameError("JPEG decode edilemedi - bozuk kare.")
 
         frame_height, frame_width = image.shape[:2]
 
+        # YOLO'nun sonuçları daha class bazlı filtreleme yapmadan önce
+        # silmemesi için en düşük özel threshold ile inference çalıştırılır.
+        model_confidence_floor = min(
+            self._settings.confidence_threshold,
+            self._settings.welding_confidence_threshold,
+            self._settings.non_gloves_confidence_threshold,
+        )
+
         start = time.perf_counter()
+
         results = self._model.predict(
             source=image,
-            conf=self._settings.confidence_threshold,
+            conf=model_confidence_floor,
             iou=self._settings.iou_threshold,
             imgsz=640,
             device=self._settings.ai_model_device,
             verbose=False,
         )
+
         inference_ms = (time.perf_counter() - start) * 1000
 
         detections: list[Detection] = []
+
         if results:
             result = results[0]
             names = result.names or self._model.names
+
             for box in result.boxes:
                 cls_id = int(box.cls[0])
                 confidence = float(box.conf[0])
-                x1, y1, x2, y2 = (float(v) for v in box.xyxy[0])
+                label = str(names[cls_id])
 
-                norm = normalize_and_clamp_bbox(
-                    x_px=x1,
-                    y_px=y1,
-                    width_px=x2 - x1,
-                    height_px=y2 - y1,
-                    frame_width=frame_width,
-                    frame_height=frame_height,
+                normalized_label = label.lower()
+
+                if normalized_label == "welding":
+                    threshold = (
+                        self._settings.welding_confidence_threshold
+                    )
+
+                elif normalized_label == "non_gloves":
+                    threshold = (
+                        self._settings.non_gloves_confidence_threshold
+                    )
+
+                else:
+                    threshold = (
+                        self._settings.confidence_threshold
+                    )
+
+                # Class-specific threshold
+                if confidence < threshold:
+                    continue
+
+                x1, y1, x2, y2 = (
+                    float(v)
+                    for v in box.xyxy[0]
                 )
+
+                try:
+                    norm = normalize_and_clamp_bbox(
+                        x_px=x1,
+                        y_px=y1,
+                        width_px=x2 - x1,
+                        height_px=y2 - y1,
+                        frame_width=frame_width,
+                        frame_height=frame_height,
+                    )
+
+                except ValueError as exc:
+                    logger.warning(
+                        "Geçersiz bbox atlandı "
+                        "class=%s bbox=%s error=%s",
+                        label,
+                        [x1, y1, x2, y2],
+                        exc,
+                    )
+                    continue
 
                 detections.append(
                     Detection(
-                        label=names[cls_id],
+                        label=label,
                         confidence=confidence,
                         bbox_x=norm.x,
                         bbox_y=norm.y,
@@ -137,5 +187,8 @@ class ModelRunner:
                     )
                 )
 
-        return InferenceResult(detections=detections, inference_ms=inference_ms)
+        return InferenceResult(
+            detections=detections,
+            inference_ms=inference_ms,
+        )
 
