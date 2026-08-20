@@ -34,13 +34,25 @@ def test_no_visor_class_in_mapping():
         assert "visor" not in backend_label.lower()
 
 
-def test_expected_six_classes_present():
+def test_expected_nine_classes_present():
     mapping = load_class_mapping(str(CLASS_MAPPING_PATH))
-    assert set(mapping.keys()) == {
+    expected = {
         "Person",
         "gloves",
+        "non_gloves",
+        "non_welding_jacket",
+        "non_welding_mask",
         "welding",
         "welding_apron",
         "welding_jacket",
         "welding_mask",
     }
+
+    assert set(mapping.keys()) == expected
+
+def test_non_classes_are_preserved():
+    mapping = load_class_mapping(str(CLASS_MAPPING_PATH))
+
+    assert mapping["non_gloves"] == "non_gloves"
+    assert mapping["non_welding_jacket"] == "non_welding_jacket"
+    assert mapping["non_welding_mask"] == "non_welding_mask"
