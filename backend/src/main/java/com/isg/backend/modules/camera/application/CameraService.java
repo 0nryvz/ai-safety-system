@@ -117,7 +117,16 @@ public class CameraService {
             );
         }
 
-        return mapToResponse(camera);
+        CameraResponse response = mapToResponse(camera);
+
+        cameraSessionRepository.findByCameraIdAndStatus(
+                        camera.getId(),
+                        CameraSession.SessionStatus.ACTIVE
+                )
+                .map(CameraSession::getSessionId)
+                .ifPresent(response::setActiveSessionId);
+
+        return response;
     }
 
     @Transactional
