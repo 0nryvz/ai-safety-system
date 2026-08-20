@@ -39,7 +39,7 @@ class DetectionRequest(BaseModel):
     session_id: str = Field(alias="sessionId")
     frame_timestamp: datetime = Field(alias="frameTimestamp")  # ISO-8601 / UTC, tz zorunlu
     model_version: str = Field(alias="modelVersion")
-    inference_ms: float = Field(alias="inferenceMs", ge=0.0)
+    inference_ms: int = Field(alias="inferenceMs", ge=0)
     # NOT: backend DetectionRequest.detections şu an @NotEmpty (BE1 ile düzeltilecek,
     # bkz. Adım 4 "KRİTİK - boş detection contractı"). Boş liste MVP'de yine de
     # gönderilebilir olacak şekilde burada zorunlu tutmuyoruz; BE1 fix'i
