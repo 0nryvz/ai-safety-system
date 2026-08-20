@@ -84,7 +84,15 @@ export async function uploadReferenceImage(cameraId: string, file: File): Promis
   const formData = new FormData()
   formData.append('file', file)
 
-  await apiClient.post(`/cameras/${cameraId}/reference-image`, formData)
+  await apiClient.post(
+    `/cameras/${cameraId}/reference-image`,
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    },
+  )
 }
 
 export async function getReferenceImageUrl(
