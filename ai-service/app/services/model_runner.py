@@ -117,23 +117,31 @@ class ModelRunner:
                 confidence = float(box.conf[0])
                 x1, y1, x2, y2 = (float(v) for v in box.xyxy[0])
 
-                norm = normalize_and_clamp_bbox(
-                    x_px=x1,
-                    y_px=y1,
-                    width_px=x2 - x1,
-                    height_px=y2 - y1,
-                    frame_width=frame_width,
-                    frame_height=frame_height,
-                )
-
+                try:
+                    norm = normalize_and_clamp_bbox(
+                        x_px=x1,
+                        y_px=y1,
+                        width_px=x2 - x1,
+                        height_px=y2 - y1,
+                            frame_width=frame_width,
+                        frame_height=frame_height,
+                    )
+                except ValueError as exc:
+                    logger.warning(
+                        "Geçersiz bbox atlandı class=%s bbox=%s error=%s",
+                        names[cls_id],
+                        [x1, y1, x2, y2],
+                        exc,
+                    )
+                    continue
                 detections.append(
                     Detection(
-                        label=names[cls_id],
-                        confidence=confidence,
-                        bbox_x=norm.x,
-                        bbox_y=norm.y,
-                        bbox_width=norm.width,
-                        bbox_height=norm.height,
+                    label=names[cls_id],
+                    confidence=confidence,
+                    bbox_x=norm.x,
+                    bbox_y=norm.y,
+                    bbox_width=norm.width,
+                    bbox_height=norm.height,
                     )
                 )
 
