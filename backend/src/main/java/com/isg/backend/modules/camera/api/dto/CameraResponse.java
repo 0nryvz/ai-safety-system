@@ -15,7 +15,7 @@ public class CameraResponse {
     private UUID departmentId;
     private String departmentName; // FE1 talebi doğrultusunda eklendi
     private boolean active;
-    private String connectionStatus; // ONLINE, WEAK, OFFLINE (Artık uyumlu)
+    private String status; // ONLINE, WEAK, OFFLINE (Artık uyumlu)
     private Instant lastSeenAt;
     private String activeSessionId;
 }

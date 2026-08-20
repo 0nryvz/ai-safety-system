@@ -4,6 +4,7 @@ import com.isg.backend.modules.user.service.AuthorizationService;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
 import com.isg.backend.violation.domain.ViolationStatusKind;
 import com.isg.backend.violation.exception.ViolationNotFoundException;
+import com.isg.backend.violation.exception.ViolationVersionConflictException;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationStatusHistoryRepository;
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
@@ -69,6 +70,12 @@ public class ViolationReviewService {
             );
         }
 
+        if (violation.getVersion() != command.version()) {
+            throw new ViolationVersionConflictException(
+                    "Violation version conflict"
+            );
+        }
+
         ViolationReviewStatus currentStatus =
                 violation.getReviewStatus();
 
@@ -119,7 +126,8 @@ public class ViolationReviewService {
                 violation.getId(),
                 violation.getReviewStatus(),
                 violation.getReviewedBy(),
-                violation.getReviewedAt()
+                violation.getReviewedAt(),
+                violation.getVersion()
         );
     }
 }

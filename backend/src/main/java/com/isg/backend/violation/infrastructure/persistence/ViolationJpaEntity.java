@@ -26,6 +26,9 @@ public class ViolationJpaEntity {
     @Column(name = "camera_id", nullable = false)
     private UUID cameraId;
 
+    @Column(name = "subject_key", nullable = false, length = 255)
+    private String subjectKey;
+
     @Column(name = "department_id", nullable = false)
     private UUID departmentId;
 
@@ -74,6 +77,16 @@ public class ViolationJpaEntity {
     @Column(name = "reviewed_at")
     private Instant reviewedAt;
 
+    @Column(name = "source_session_id")
+    private UUID sourceSessionId;
+
+    @Column(
+            name = "updated_at",
+            insertable = false,
+            updatable = false
+    )
+    private Instant updatedAt;
+
     @Version
     @Column(name = "version", nullable = false)
     private long version;
@@ -107,10 +120,74 @@ public class ViolationJpaEntity {
         this.lifecycleStatus = lifecycleStatus;
         this.reviewStatus = reviewStatus;
         this.detectedAt = detectedAt;
+
+        /*
+         * Compatibility constructor for existing tests/legacy call sites.
+         * New production violations use the constructor that receives
+         * the real subjectKey and sourceSessionId.
+         */
+        this.subjectKey = "untracked";
+        this.sourceSessionId = null;
+    }
+
+    public ViolationJpaEntity(
+            UUID id,
+            UUID cameraId,
+            UUID departmentId,
+            UUID cameraSessionId,
+            UUID restrictedZoneId,
+            ViolationType violationType,
+            Instant startedAt,
+            BigDecimal confidence,
+            String modelVersion,
+            ViolationLifecycleStatus lifecycleStatus,
+            ViolationReviewStatus reviewStatus,
+            Instant detectedAt,
+            String subjectKey,
+            UUID sourceSessionId
+    ) {
+        this.id = id;
+        this.cameraId = cameraId;
+        this.departmentId = departmentId;
+        this.cameraSessionId = cameraSessionId;
+        this.restrictedZoneId = restrictedZoneId;
+        this.violationType = violationType;
+        this.startedAt = startedAt;
+        this.confidence = confidence;
+        this.modelVersion = modelVersion;
+        this.lifecycleStatus = lifecycleStatus;
+        this.reviewStatus = reviewStatus;
+        this.detectedAt = detectedAt;
+
+        this.subjectKey =
+                Objects.requireNonNull(
+                        subjectKey,
+                        "subjectKey must not be null"
+                );
+
+        if (subjectKey.isBlank()) {
+            throw new IllegalArgumentException(
+                    "subjectKey must not be blank"
+            );
+        }
+
+        this.sourceSessionId =
+                Objects.requireNonNull(
+                        sourceSessionId,
+                        "sourceSessionId must not be null"
+                );
+    }
+
+    public UUID getSourceSessionId() {
+        return sourceSessionId;
     }
 
     public UUID getId() {
         return id;
+    }
+
+    public long getVersion() {
+        return version;
     }
 
     public UUID getCameraId() {
@@ -123,6 +200,10 @@ public class ViolationJpaEntity {
 
     public UUID getCameraSessionId() {
         return cameraSessionId;
+    }
+
+    public String getSubjectKey() {
+        return subjectKey;
     }
 
     public UUID getRestrictedZoneId() {
@@ -187,6 +268,10 @@ public class ViolationJpaEntity {
 
     public UUID getReviewedBy() {
         return reviewedBy;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
     }
 
     public Instant getReviewedAt() {

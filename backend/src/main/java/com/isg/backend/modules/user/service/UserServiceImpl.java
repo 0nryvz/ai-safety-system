@@ -35,8 +35,9 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponse createUser(CreateUserRequest request) {
+        String normalizedEmail = EmailNormalizer.normalize(request.getEmail());
         // Duplicate email için 409 CONFLICT durumu sağlandı
-        if (userRepository.existsByEmail(request.getEmail())) {
+        if (userRepository.existsByEmail(normalizedEmail)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bu email adresi zaten kullanımda.");
         }
 
@@ -49,7 +50,7 @@ public class UserServiceImpl implements UserService {
                 .collect(Collectors.toSet());
 
         User user = User.builder()
-                .email(request.getEmail())
+                .email(normalizedEmail)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .roles(roles)
@@ -67,12 +68,15 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserResponse updateUser(UUID id, UpdateUserRequest request) {
+    public UserResponse updateUser(UUID id, UpdateUserRequest request, String actorEmail) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kullanıcı bulunamadı."));
 
-        if (request.getActive() != null && !request.getActive() && isAdmin(user)) {
-            checkIfLastAdmin();
+        if (Boolean.FALSE.equals(request.getActive())) {
+            ensureNotSelfDeactivation(user, actorEmail);
+            if (isAdmin(user)) {
+                checkIfLastAdmin();
+            }
         }
 
         // Sadece fullName dolu geldiyse güncelle (Partial Update desteği)
@@ -108,9 +112,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void deactivateUser(UUID id) {
+    public void deactivateUser(UUID id, String actorEmail) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Kullanıcı bulunamadı."));
+
+        ensureNotSelfDeactivation(user, actorEmail);
 
         if (isAdmin(user)) {
             checkIfLastAdmin();
@@ -160,6 +166,17 @@ public class UserServiceImpl implements UserService {
                 .collect(Collectors.toList());
     }
 
+    private void ensureNotSelfDeactivation(User targetUser, String actorEmail) {
+        String normalizedActorEmail = EmailNormalizer.normalize(actorEmail);
+        String normalizedTargetEmail = EmailNormalizer.normalize(targetUser.getEmail());
+
+        if (normalizedActorEmail.equals(normalizedTargetEmail)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Kullanıcı kendi hesabını pasife alamaz."
+            );
+        }
+    }
     private boolean isAdmin(User user) {
         return user.getRoles().stream().anyMatch(r -> r.getName().equals("ADMIN"));
     }

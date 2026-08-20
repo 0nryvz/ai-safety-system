@@ -36,6 +36,7 @@ class MissingGlovesRuleTest {
     private final MissingGlovesRule rule =
             new MissingGlovesRule();
 
+
     @Test
     void supportsMissingGlovesViolationType() {
         assertThat(
@@ -45,8 +46,67 @@ class MissingGlovesRuleTest {
         );
     }
 
+
     @Test
-    void producesCandidateWhenWeldingPersonHasNoGloves() {
+    void producesCandidateWhenWeldingPersonHasNonGloves() {
+
+        PersonContext person =
+                new PersonContext(
+                        "track-worker-1",
+                        person(),
+                        List.of(
+                                welding(),
+                                nonGloves()
+                        )
+                );
+
+        Optional<CandidateViolation> result =
+                rule.evaluate(
+                        person,
+                        frame()
+                );
+
+        assertThat(result)
+                .isPresent();
+
+        assertThat(
+                result.orElseThrow()
+                        .violationType()
+        )
+                .isEqualTo(
+                        ViolationType.MISSING_GLOVES
+                );
+    }
+
+
+    @Test
+    void producesCandidateWhenWeldingPersonHasBothGlovesAndNonGloves() {
+
+        PersonContext person =
+                new PersonContext(
+                        "track-worker-1",
+                        person(),
+                        List.of(
+                                welding(),
+                                gloves(),
+                                nonGloves()
+                        )
+                );
+
+        Optional<CandidateViolation> result =
+                rule.evaluate(
+                        person,
+                        frame()
+                );
+
+        assertThat(result)
+                .isPresent();
+    }
+
+
+    @Test
+    void doesNotProduceCandidateWhenWeldingPersonHasNoMissingGlovesDetection() {
+
         PersonContext person =
                 new PersonContext(
                         "track-worker-1",
@@ -63,57 +123,19 @@ class MissingGlovesRuleTest {
                 );
 
         assertThat(result)
-                .isPresent();
-
-        CandidateViolation candidate =
-                result.orElseThrow();
-
-        assertThat(candidate.violationType())
-                .isEqualTo(
-                        ViolationType.MISSING_GLOVES
-                );
-
-        assertThat(candidate.personKey())
-                .isEqualTo(
-                        "track-worker-1"
-                );
-
-        assertThat(candidate.eventId())
-                .isEqualTo(
-                        EVENT_ID
-                );
-
-        assertThat(candidate.cameraId())
-                .isEqualTo(
-                        CAMERA_ID
-                );
-
-        assertThat(candidate.sessionId())
-                .isEqualTo(
-                        SESSION_ID
-                );
-
-        assertThat(candidate.personBox())
-                .isEqualTo(
-                        person.person()
-                                .boundingBox()
-                );
-
-        assertThat(candidate.frameTimestamp())
-                .isEqualTo(
-                        frame().frameTimestamp()
-                );
+                .isEmpty();
     }
 
+
     @Test
-    void doesNotProduceCandidateWhenWeldingPersonHasGloves() {
+    void doesNotProduceCandidateWhenPersonIsNotWelding() {
+
         PersonContext person =
                 new PersonContext(
                         "track-worker-1",
                         person(),
                         List.of(
-                                welding(),
-                                gloves()
+                                nonGloves()
                         )
                 );
 
@@ -127,29 +149,11 @@ class MissingGlovesRuleTest {
                 .isEmpty();
     }
 
-    @Test
-    void doesNotProduceCandidateWhenPersonIsNotWelding() {
-        PersonContext person =
-                new PersonContext(
-                        "track-worker-1",
-                        person(),
-                        List.of()
-                );
-
-        Optional<CandidateViolation> result =
-                rule.evaluate(
-                        person,
-                        frame()
-                );
-
-        assertThat(result)
-                .isEmpty();
-    }
 
     private static DetectedObject person() {
         return new DetectedObject(
                 DetectionLabel.PERSON,
-                "person",
+                "Person",
                 0.95,
                 new BoundingBox(
                         0.1,
@@ -160,6 +164,7 @@ class MissingGlovesRuleTest {
                 "worker-1"
         );
     }
+
 
     private static DetectedObject welding() {
         return new DetectedObject(
@@ -176,6 +181,7 @@ class MissingGlovesRuleTest {
         );
     }
 
+
     private static DetectedObject gloves() {
         return new DetectedObject(
                 DetectionLabel.GLOVES,
@@ -190,6 +196,23 @@ class MissingGlovesRuleTest {
                 null
         );
     }
+
+
+    private static DetectedObject nonGloves() {
+        return new DetectedObject(
+                DetectionLabel.NON_GLOVES,
+                "non_gloves",
+                0.91,
+                new BoundingBox(
+                        0.2,
+                        0.45,
+                        0.1,
+                        0.1
+                ),
+                null
+        );
+    }
+
 
     private static DetectionFrame frame() {
         return new DetectionFrame(

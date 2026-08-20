@@ -50,13 +50,13 @@ public class UserController {
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<UserResponse> updateUser(@PathVariable UUID id, @Valid @RequestBody UpdateUserRequest request) {
-        return ResponseEntity.ok(userService.updateUser(id, request));
+    public ResponseEntity<UserResponse> updateUser(@PathVariable UUID id, @Valid @RequestBody UpdateUserRequest request, Authentication authentication) {
+        return ResponseEntity.ok(userService.updateUser(id, request, authentication.getName()));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deactivateUser(@PathVariable UUID id) {
-        userService.deactivateUser(id);
+    public ResponseEntity<Void> deactivateUser(@PathVariable UUID id, Authentication authentication) {
+        userService.deactivateUser(id, authentication.getName());
         return ResponseEntity.noContent().build();
     }
 }

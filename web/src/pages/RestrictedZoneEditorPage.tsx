@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import AppShell from '../app/AppShell'
 import { ROUTE_PATHS } from '../app/routeConfig'
@@ -6,6 +6,8 @@ import {
   getCamera,
   getRestrictedZone,
   updateRestrictedZone,
+  getReferenceImageUrl,
+  uploadReferenceImage,
   type CameraResponse,
   type RestrictedZonePoint,
 } from '../services/cameraService'
@@ -23,6 +25,7 @@ import { mapApiError } from '../core/api/apiErrorMapper'
 function RestrictedZoneEditorPage() {
   const { cameraId } = useParams<{ cameraId: string }>()
   const navigate = useNavigate()
+  const referenceImageInputRef = useRef<HTMLInputElement>(null)
 
   const [camera, setCamera] = useState<CameraResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -35,6 +38,12 @@ function RestrictedZoneEditorPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [referenceImageUrl, setReferenceImageUrl] = useState<string>()
+  const [referenceImageError, setReferenceImageError] = useState<string | null>(null)
+  const [selectedReferenceImage, setSelectedReferenceImage] = useState<File | null>(null)
+  const [isReferenceImageUploading, setIsReferenceImageUploading] = useState(false)
+  const [referenceImageUploadError, setReferenceImageUploadError] = useState<string | null>(null)
+  const [referenceImageUploadSuccess, setReferenceImageUploadSuccess] = useState(false)
 
   function handleUndoPoint() {
     setPoints((currentPoints) => currentPoints.slice(0, -1))
@@ -42,6 +51,71 @@ function RestrictedZoneEditorPage() {
 
   function handleClearPoints() {
     setPoints([])
+  }
+
+  function handleReferenceImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null
+
+    setReferenceImageUploadError(null)
+    setReferenceImageUploadSuccess(false)
+
+    if (!file) {
+      setSelectedReferenceImage(null)
+      return
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+    const maximumFileSize = 5 * 1024 * 1024
+
+    if (!allowedTypes.includes(file.type)) {
+      setSelectedReferenceImage(null)
+      setReferenceImageUploadError('Yalnızca JPEG, PNG veya WebP görselleri yüklenebilir.')
+      event.target.value = ''
+      return
+    }
+
+    if (file.size > maximumFileSize) {
+      setSelectedReferenceImage(null)
+      setReferenceImageUploadError('Referans görüntüsü en fazla 5 MiB olabilir.')
+      event.target.value = ''
+      return
+    }
+
+    setSelectedReferenceImage(file)
+  }
+
+  async function handleReferenceImageUpload() {
+    if (!cameraId || !selectedReferenceImage || isReferenceImageUploading) {
+      return
+    }
+
+    setIsReferenceImageUploading(true)
+    setReferenceImageUploadError(null)
+    setReferenceImageUploadSuccess(false)
+
+    try {
+      await uploadReferenceImage(cameraId, selectedReferenceImage)
+
+      const response = await getReferenceImageUrl(cameraId)
+
+      setReferenceImageUrl(response.url)
+      setReferenceImageError(null)
+      setSelectedReferenceImage(null)
+
+      if (referenceImageInputRef.current) {
+        referenceImageInputRef.current.value = ''
+      }
+
+      setReferenceImageUploadSuccess(true)
+    } catch (error) {
+      const apiError = mapApiError(error)
+
+      setReferenceImageUploadError(
+        apiError.message || 'Referans görüntüsü yüklenemedi. Lütfen tekrar deneyin.',
+      )
+    } finally {
+      setIsReferenceImageUploading(false)
+    }
   }
 
   async function handleSaveZone() {
@@ -141,8 +215,35 @@ function RestrictedZoneEditorPage() {
       }
     }
 
+    async function loadReferenceImage() {
+      try {
+        const response = await getReferenceImageUrl(currentCameraId)
+
+        if (!isCancelled) {
+          setReferenceImageUrl(response.url)
+          setReferenceImageError(null)
+        }
+      } catch (error) {
+        if (isCancelled) {
+          return
+        }
+
+        const apiError = mapApiError(error)
+
+        if (apiError.status === 404) {
+          setReferenceImageUrl(undefined)
+          setReferenceImageError(null)
+          return
+        }
+
+        setReferenceImageUrl(undefined)
+        setReferenceImageError(apiError.message || 'Kamera referans görüntüsü yüklenemedi.')
+      }
+    }
+
     void loadCamera()
     void loadRestrictedZone()
+    void loadReferenceImage()
 
     return () => {
       isCancelled = true
@@ -237,7 +338,38 @@ function RestrictedZoneEditorPage() {
                   </Button>
                 </div>
 
-                <RestrictedZoneEditor points={points} onChange={setPoints} />
+                {referenceImageError && <p role="alert">{referenceImageError}</p>}
+
+                <div>
+                  <label htmlFor="reference-image-file">Yeni kamera referans görüntüsü</label>
+
+                  <input
+                    ref={referenceImageInputRef}
+                    id="reference-image-file"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={isReferenceImageUploading}
+                    onChange={handleReferenceImageChange}
+                  />
+
+                  <Button
+                    type="button"
+                    disabled={!selectedReferenceImage || isReferenceImageUploading}
+                    onClick={() => void handleReferenceImageUpload()}
+                  >
+                    {isReferenceImageUploading ? 'Yükleniyor...' : 'Referans görüntüsünü yükle'}
+                  </Button>
+                </div>
+
+                {referenceImageUploadError && <p role="alert">{referenceImageUploadError}</p>}
+
+                {referenceImageUploadSuccess && <p role="status">Referans görüntüsü yüklendi.</p>}
+
+                <RestrictedZoneEditor
+                  points={points}
+                  onChange={setPoints}
+                  imageUrl={referenceImageUrl}
+                />
 
                 {validationError && <p role="alert">{validationError}</p>}
 

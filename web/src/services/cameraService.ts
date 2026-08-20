@@ -35,6 +35,11 @@ export interface RestrictedZone {
   polygon: RestrictedZonePoint[]
 }
 
+export interface ReferenceImageUrlResponse {
+  url: string
+  expiresAt: string
+}
+
 export async function getCameras(): Promise<CameraResponse[]> {
   const response = await apiClient.get<CameraResponse[]>('/cameras')
 
@@ -73,4 +78,21 @@ export async function updateRestrictedZone(
   restrictedZone: RestrictedZone,
 ): Promise<void> {
   await apiClient.put(`/cameras/${cameraId}/restricted-zone`, restrictedZone)
+}
+
+export async function uploadReferenceImage(cameraId: string, file: File): Promise<void> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  await apiClient.post(`/cameras/${cameraId}/reference-image`, formData)
+}
+
+export async function getReferenceImageUrl(
+  cameraId: string,
+): Promise<ReferenceImageUrlResponse> {
+  const response = await apiClient.get<ReferenceImageUrlResponse>(
+    `/cameras/${cameraId}/reference-image-url`,
+  )
+
+  return response.data
 }

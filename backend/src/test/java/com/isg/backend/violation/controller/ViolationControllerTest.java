@@ -14,6 +14,8 @@ import com.isg.backend.violation.query.ViolationReviewResponse;
 import com.isg.backend.violation.service.ViolationQueryService;
 import com.isg.backend.violation.service.ViolationReviewService;
 import com.isg.backend.shared.web.PageResponse;
+import com.isg.backend.modules.user.dto.UserResponse;
+import org.springframework.security.core.Authentication;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -59,6 +61,76 @@ class ViolationControllerTest {
                         queryService,
                         reviewService,
                         userService
+                );
+    }
+
+    @Test
+    void listPassesRecordingStatusFilter() {
+        UUID userId =
+                UUID.randomUUID();
+
+        PageRequest pageable =
+                PageRequest.of(
+                        0,
+                        20
+                );
+
+        when(authentication.getName())
+                .thenReturn(
+                        "user@example.com"
+                );
+
+        when(userService.getMe(
+                "user@example.com"
+        )).thenReturn(
+                UserResponse.builder()
+                        .id(userId)
+                        .email("user@example.com")
+                        .build()
+        );
+
+        when(queryService.findViolations(
+                org.mockito.ArgumentMatchers.eq(userId),
+                org.mockito.ArgumentMatchers.any(
+                        ViolationQueryFilter.class
+                ),
+                org.mockito.ArgumentMatchers.eq(pageable)
+        )).thenReturn(
+                Page.empty(pageable)
+        );
+
+
+        controller.findViolations(
+                authentication,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "READY",
+                pageable
+        );
+
+
+        ArgumentCaptor<ViolationQueryFilter> filterCaptor =
+                ArgumentCaptor.forClass(
+                        ViolationQueryFilter.class
+                );
+
+
+        verify(queryService)
+                .findViolations(
+                        org.mockito.ArgumentMatchers.eq(userId),
+                        filterCaptor.capture(),
+                        org.mockito.ArgumentMatchers.eq(pageable)
+                );
+
+
+        assertThat(filterCaptor.getValue().recordingStatus())
+                .isEqualTo(
+                        "READY"
                 );
     }
 
@@ -134,6 +206,7 @@ class ViolationControllerTest {
                         departmentId,
                         ViolationLifecycleStatus.COMPLETED,
                         ViolationReviewStatus.CONFIRMED,
+                        null,
                         pageable
                 );
 
@@ -300,7 +373,8 @@ class ViolationControllerTest {
                         reviewerId,
                         Instant.parse(
                                 "2026-08-11T20:00:00Z"
-                        )
+                        ),
+                        0L
                 );
 
         when(reviewService.review(
@@ -315,7 +389,8 @@ class ViolationControllerTest {
                 controller.reviewViolation(
                         violationId,
                         new ViolationReviewRequest(
-                                ViolationReviewStatus.FALSE_ALARM
+                                ViolationReviewStatus.FALSE_ALARM,
+                                0L
                         ),
                         authentication
                 );
