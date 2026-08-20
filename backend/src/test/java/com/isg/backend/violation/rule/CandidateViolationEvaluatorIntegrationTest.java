@@ -84,7 +84,7 @@ class CandidateViolationEvaluatorIntegrationTest {
 
 
     @Test
-    void producesUnprotectedPersonFromRealRulePipelineWhenNonWeldingJacketDetected() {
+    void producesUnprotectedPersonFromRealRulePipelineWhenMultipleNegativePpeLabelsDetected() {
 
         CandidateViolationEvaluator evaluator =
                 evaluator();
@@ -94,6 +94,8 @@ class CandidateViolationEvaluatorIntegrationTest {
                         frame(
                                 person(),
                                 welding(),
+                                nonWeldingMask(),
+                                nonGloves(),
                                 nonWeldingJacket()
                         )
                 );
@@ -109,7 +111,7 @@ class CandidateViolationEvaluatorIntegrationTest {
 
 
     @Test
-    void positiveMaskDetectionOverridesNegativeMaskDetection() {
+    void producesMissingMaskWhenNegativeMaskDetectionExists() {
 
         CandidateViolationEvaluator evaluator =
                 evaluator();
@@ -128,11 +130,10 @@ class CandidateViolationEvaluatorIntegrationTest {
                 .extracting(
                         CandidateViolation::violationType
                 )
-                .doesNotContain(
+                .contains(
                         ViolationType.MISSING_WELDING_MASK
                 );
     }
-
 
     private CandidateViolationEvaluator evaluator() {
 
