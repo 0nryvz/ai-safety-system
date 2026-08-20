@@ -7,8 +7,11 @@ import {
   getRestrictedZone,
   updateCamera,
   updateRestrictedZone,
+  getReferenceImageUrl,
+  uploadReferenceImage,
   type CameraResponse,
   type RestrictedZone,
+  type ReferenceImageUrlResponse,
 } from './cameraService'
 
 const cameras: CameraResponse[] = [
@@ -141,5 +144,41 @@ describe('cameraService', () => {
     await updateRestrictedZone(cameras[0].id, restrictedZone)
 
     expect(putSpy).toHaveBeenCalledWith(`/cameras/${cameras[0].id}/restricted-zone`, restrictedZone)
+  })
+
+  it('loads a reference image URL by camera id', async () => {
+    const referenceImage: ReferenceImageUrlResponse = {
+      url: 'https://storage.example/reference-image.png',
+      expiresAt: '2026-08-20T16:00:00Z',
+    }
+
+    const getSpy = vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: referenceImage,
+    })
+
+    const result = await getReferenceImageUrl(cameras[0].id)
+
+    expect(getSpy).toHaveBeenCalledWith(`/cameras/${cameras[0].id}/reference-image-url`)
+    expect(result).toEqual(referenceImage)
+  })
+
+  it('uploads a reference image as multipart form data', async () => {
+    const file = new File(['reference-image'], 'reference.png', {
+      type: 'image/png',
+    })
+
+    const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({
+      data: undefined,
+    })
+
+    await uploadReferenceImage(cameras[0].id, file)
+
+    expect(postSpy).toHaveBeenCalledWith(
+      `/cameras/${cameras[0].id}/reference-image`,
+      expect.any(FormData),
+    )
+
+    const formData = postSpy.mock.calls[0][1] as FormData
+    expect(formData.get('file')).toBe(file)
   })
 })

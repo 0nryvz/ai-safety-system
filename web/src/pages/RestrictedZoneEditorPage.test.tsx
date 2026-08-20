@@ -29,6 +29,25 @@ function mockRestrictedZoneNotFound() {
   )
 }
 
+function mockReferenceImageNotFound() {
+  vi.spyOn(cameraService, 'getReferenceImageUrl').mockRejectedValue(
+    new axios.AxiosError('Request failed', 'ERR_BAD_REQUEST', undefined, undefined, {
+      data: {
+        status: 404,
+        error: 'Not Found',
+        message: 'Kamera referans görüntüsü bulunamadı.',
+        path: '/api/v1/cameras/11111111-1111-1111-1111-111111111111/reference-image-url',
+      },
+      status: 404,
+      statusText: 'Not Found',
+      headers: {},
+      config: {
+        headers: new axios.AxiosHeaders(),
+      },
+    }),
+  )
+}
+
 function renderPage() {
   return render(
     <MemoryRouter
@@ -46,6 +65,7 @@ function renderPage() {
 
 beforeEach(() => {
   mockRestrictedZoneNotFound()
+  mockReferenceImageNotFound()
 })
 
 describe('RestrictedZoneEditorPage', () => {
@@ -88,6 +108,31 @@ describe('RestrictedZoneEditorPage', () => {
         name: 'Yasaklı alan çizim alanı',
       }),
     ).toBeInTheDocument()
+  })
+
+  it('renders the secured reference image URL', async () => {
+    vi.spyOn(cameraService, 'getCamera').mockResolvedValue({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Kamera 1',
+      code: 'CAM-001',
+      departmentId: '22222222-2222-2222-2222-222222222222',
+      departmentName: 'Kaynak',
+      active: true,
+      connectionStatus: 'ONLINE',
+      lastSeenAt: null,
+      activeSessionId: null,
+    })
+
+    vi.mocked(cameraService.getReferenceImageUrl).mockResolvedValue({
+      url: 'https://storage.example/reference-image.png',
+      expiresAt: '2026-08-20T16:00:00Z',
+    })
+
+    renderPage()
+
+    const image = await screen.findByLabelText('Kamera referans görüntüsü')
+
+    expect(image).toHaveAttribute('src', 'https://storage.example/reference-image.png')
   })
 
   it('renders an error state', async () => {
@@ -573,5 +618,188 @@ describe('RestrictedZoneEditorPage', () => {
     )
 
     expect(screen.getByRole('alert')).toHaveTextContent('Polygon kendi üzerinden kesişemez.')
+  })
+
+  it('uploads a reference image and refreshes the secured image URL', async () => {
+    vi.spyOn(cameraService, 'getCamera').mockResolvedValue({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Kamera 1',
+      code: 'CAM-001',
+      departmentId: '22222222-2222-2222-2222-222222222222',
+      departmentName: 'Kaynak',
+      active: true,
+      connectionStatus: 'ONLINE',
+      lastSeenAt: null,
+      activeSessionId: null,
+    })
+
+    const uploadSpy = vi.spyOn(cameraService, 'uploadReferenceImage').mockResolvedValue()
+
+    renderPage()
+
+    const fileInput = await screen.findByLabelText('Yeni kamera referans görüntüsü')
+
+    await waitFor(() => {
+      expect(cameraService.getReferenceImageUrl).toHaveBeenCalled()
+    })
+
+    vi.mocked(cameraService.getReferenceImageUrl).mockResolvedValue({
+      url: 'https://storage.example/updated-reference-image.png',
+      expiresAt: '2026-08-20T17:00:00Z',
+    })
+
+    const file = new File(['reference-image'], 'reference.png', {
+      type: 'image/png',
+    })
+
+    fireEvent.change(fileInput, {
+      target: {
+        files: [file],
+      },
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Referans görüntüsünü yükle',
+      }),
+    )
+
+    await waitFor(() => {
+      expect(uploadSpy).toHaveBeenCalledWith('11111111-1111-1111-1111-111111111111', file)
+    })
+
+    expect(await screen.findByText('Referans görüntüsü yüklendi.')).toBeInTheDocument()
+
+    expect(fileInput).toHaveValue('')
+
+    expect(await screen.findByLabelText('Kamera referans görüntüsü')).toHaveAttribute(
+      'src',
+      'https://storage.example/updated-reference-image.png',
+    )
+  })
+
+  it('rejects an unsupported reference image type before upload', async () => {
+    vi.spyOn(cameraService, 'getCamera').mockResolvedValue({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Kamera 1',
+      code: 'CAM-001',
+      departmentId: '22222222-2222-2222-2222-222222222222',
+      departmentName: 'Kaynak',
+      active: true,
+      connectionStatus: 'ONLINE',
+      lastSeenAt: null,
+      activeSessionId: null,
+    })
+
+    const uploadSpy = vi.spyOn(cameraService, 'uploadReferenceImage').mockResolvedValue()
+
+    renderPage()
+
+    const fileInput = await screen.findByLabelText('Yeni kamera referans görüntüsü')
+    const file = new File(['reference-image'], 'reference.gif', {
+      type: 'image/gif',
+    })
+
+    fireEvent.change(fileInput, {
+      target: {
+        files: [file],
+      },
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Yalnızca JPEG, PNG veya WebP görselleri yüklenebilir.',
+    )
+
+    expect(
+      screen.getByRole('button', {
+        name: 'Referans görüntüsünü yükle',
+      }),
+    ).toBeDisabled()
+
+    expect(uploadSpy).not.toHaveBeenCalled()
+  })
+
+  it('rejects a reference image larger than 5 MiB before upload', async () => {
+    vi.spyOn(cameraService, 'getCamera').mockResolvedValue({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Kamera 1',
+      code: 'CAM-001',
+      departmentId: '22222222-2222-2222-2222-222222222222',
+      departmentName: 'Kaynak',
+      active: true,
+      connectionStatus: 'ONLINE',
+      lastSeenAt: null,
+      activeSessionId: null,
+    })
+
+    const uploadSpy = vi.spyOn(cameraService, 'uploadReferenceImage').mockResolvedValue()
+
+    renderPage()
+
+    const fileInput = await screen.findByLabelText('Yeni kamera referans görüntüsü')
+    const file = new File(['reference-image'], 'reference.png', {
+      type: 'image/png',
+    })
+
+    Object.defineProperty(file, 'size', {
+      value: 5 * 1024 * 1024 + 1,
+    })
+
+    fireEvent.change(fileInput, {
+      target: {
+        files: [file],
+      },
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Referans görüntüsü en fazla 5 MiB olabilir.',
+    )
+
+    expect(
+      screen.getByRole('button', {
+        name: 'Referans görüntüsünü yükle',
+      }),
+    ).toBeDisabled()
+
+    expect(uploadSpy).not.toHaveBeenCalled()
+  })
+
+  it('shows a controlled error when reference image upload fails', async () => {
+    vi.spyOn(cameraService, 'getCamera').mockResolvedValue({
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Kamera 1',
+      code: 'CAM-001',
+      departmentId: '22222222-2222-2222-2222-222222222222',
+      departmentName: 'Kaynak',
+      active: true,
+      connectionStatus: 'ONLINE',
+      lastSeenAt: null,
+      activeSessionId: null,
+    })
+
+    vi.spyOn(cameraService, 'uploadReferenceImage').mockRejectedValue(new Error('upload failed'))
+
+    renderPage()
+
+    const fileInput = await screen.findByLabelText('Yeni kamera referans görüntüsü')
+    const file = new File(['reference-image'], 'reference.png', {
+      type: 'image/png',
+    })
+
+    fireEvent.change(fileInput, {
+      target: {
+        files: [file],
+      },
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Referans görüntüsünü yükle',
+      }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('İstek işlenirken bir hata oluştu.')
+
+    expect(screen.queryByText('Referans görüntüsü yüklendi.')).not.toBeInTheDocument()
   })
 })
