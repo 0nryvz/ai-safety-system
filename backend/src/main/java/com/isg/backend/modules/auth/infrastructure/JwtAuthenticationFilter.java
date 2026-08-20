@@ -66,19 +66,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(userEmail);
 
-                if (jwtService.isTokenValid(jwt, userDetails)) {
+                if (userDetails.isEnabled()
+                        && userDetails.isAccountNonExpired()
+                        && userDetails.isAccountNonLocked()
+                        && userDetails.isCredentialsNonExpired()
+                        && jwtService.isTokenValid(jwt, userDetails)) {
+
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null,
                             userDetails.getAuthorities()
                     );
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                    authToken.setDetails(
+                            new WebAuthenticationDetailsSource().buildDetails(request)
+                    );
 
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
         } catch (Exception e) {
-            logger.warn("JWT doğrulanırken bir hata oluştu veya token süresi dolmuş: {}", e.getMessage());
+            logger.warn(
+                    "JWT doğrulanırken bir hata oluştu veya token süresi dolmuş: {}",
+                    e.getMessage()
+            );
         }
 
         filterChain.doFilter(request, response);

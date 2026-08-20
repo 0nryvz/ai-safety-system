@@ -45,18 +45,12 @@ public class AuthServiceImpl implements AuthService {
             throw new DisabledException("Hesabınız pasif duruma alınmıştır, giriş yapılamaz.");
         }
 
-        try {
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            request.email(),
-                            request.password()
-                    )
-            );
-        } catch (Exception e) {
-            System.err.println("AUTHENTICATION FAILED: " + e.getClass().getName() + " - " + e.getMessage());
-            e.printStackTrace();
-            throw e;
-        }
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        request.email(),
+                        request.password()
+                )
+        );
 
         String jwtToken = jwtService.generateToken(user);
         String plainRefreshToken = createAndSaveRefreshToken(user);
@@ -84,6 +78,11 @@ public class AuthServiceImpl implements AuthService {
         }
 
         User user = refreshToken.getUser();
+
+        if (!user.isActive()) {
+            throw new DisabledException("Hesap pasif durumdadır.");
+        }
+
         String newJwt = jwtService.generateToken(user);
 
         return new AuthResponse(newJwt, plainRefreshToken);
