@@ -213,6 +213,46 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void loginNormalizesEmailBeforeLookupAndAuthentication() {
+        LoginRequest request =
+                new LoginRequest(
+                        "BE2-Auth@Test.Local",
+                        PASSWORD
+                );
+
+        when(userRepository.findByEmail(
+                org.mockito.ArgumentMatchers.anyString()
+        ))
+                .thenReturn(
+                        Optional.of(activeUser)
+                );
+
+        when(authenticationManager.authenticate(
+                any(Authentication.class)
+        ))
+                .thenReturn(
+                        org.mockito.Mockito.mock(
+                                Authentication.class
+                        )
+                );
+
+        when(jwtService.generateToken(activeUser))
+                .thenReturn("access-token");
+
+        authService.login(request);
+
+        verify(userRepository)
+                .findByEmail(EMAIL);
+
+        verify(authenticationManager)
+                .authenticate(
+                        argThat(authentication ->
+                                EMAIL.equals(authentication.getName())
+                                        && PASSWORD.equals(authentication.getCredentials())
+                        )
+                );
+    }
+    @Test
     void wrongPasswordIsRejectedWithoutIssuingTokens() {
         LoginRequest request =
                 new LoginRequest(
