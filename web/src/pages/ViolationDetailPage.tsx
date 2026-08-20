@@ -19,6 +19,7 @@ import StatusBadge from '../shared/ui/StatusBadge/StatusBadge'
 import './ViolationDetailPage.css'
 import ViolationVideoPlayer from '../features/violations/ViolationVideoPlayer'
 import { useRealtimeViolations } from '../core/realtime/useRealtimeViolations'
+import { ApiError } from '../core/api/apiError'
 
 function ViolationDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -81,10 +82,22 @@ function ViolationDetailPage() {
     setReviewError(null)
 
     try {
-      await reviewViolation(data.violationId, selectedReviewStatus)
+      await reviewViolation(data.violationId, selectedReviewStatus, data.version)
       setIsReviewDialogOpen(false)
       retry()
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.status === 409 &&
+        error.response?.code === 'VIOLATION_VERSION_CONFLICT'
+      ) {
+        setReviewError(
+          'İhlal başka bir kullanıcı tarafından güncellendi. Güncel bilgileri yükleyip tekrar deneyin.',
+        )
+        retry()
+        return
+      }
+
       setReviewError('İnceleme durumu güncellenemedi. Lütfen tekrar deneyin.')
     } finally {
       setIsReviewSubmitting(false)
