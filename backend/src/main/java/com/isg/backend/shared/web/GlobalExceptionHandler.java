@@ -6,6 +6,7 @@ import com.isg.backend.violation.exception.ViolationNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -82,6 +83,20 @@ public class GlobalExceptionHandler {
                 "Validation failed.",
                 req,
                 fieldErrors
+        );
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> messageNotReadable(
+            HttpMessageNotReadableException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.BAD_REQUEST,
+                "INVALID_REQUEST",
+                "Malformed or invalid request body.",
+                req,
+                Map.of()
         );
     }
 
