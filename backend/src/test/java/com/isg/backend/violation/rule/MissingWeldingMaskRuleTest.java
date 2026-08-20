@@ -52,7 +52,8 @@ class MissingWeldingMaskRuleTest {
                         "track-worker-1",
                         person(),
                         List.of(
-                                welding()
+                                welding(),
+                                nonWeldingMask()
                         )
                 );
 
@@ -180,6 +181,21 @@ class MissingWeldingMaskRuleTest {
         return new DetectedObject(
                 DetectionLabel.WELDING_MASK,
                 "welding_mask",
+                0.91,
+                new BoundingBox(
+                        0.2,
+                        0.15,
+                        0.1,
+                        0.1
+                ),
+                null
+        );
+    }
+
+    private static DetectedObject nonWeldingMask() {
+        return new DetectedObject(
+                DetectionLabel.NON_WELDING_MASK,
+                "non_welding_mask",
                 0.91,
                 new BoundingBox(
                         0.2,

@@ -52,7 +52,10 @@ class ViolationRuleEngineIntegrationTest {
         DetectionFrame frame =
                 frame(
                         person(),
-                        welding()
+                        welding(),
+                        nonWeldingMask(),
+                        nonGloves(),
+                        nonWeldingJacket()
                 );
 
         List<CandidateViolation> result =
@@ -221,10 +224,40 @@ class ViolationRuleEngineIntegrationTest {
         );
     }
 
+    private static DetectedObject nonWeldingMask() {
+        return new DetectedObject(
+                DetectionLabel.NON_WELDING_MASK,
+                "non_welding_mask",
+                0.90,
+                new BoundingBox(
+                        0.30,
+                        0.15,
+                        0.10,
+                        0.10
+                ),
+                null
+        );
+    }
+
     private static DetectedObject gloves() {
         return new DetectedObject(
                 DetectionLabel.GLOVES,
                 "gloves",
+                0.90,
+                new BoundingBox(
+                        0.30,
+                        0.45,
+                        0.10,
+                        0.10
+                ),
+                null
+        );
+    }
+
+    private static DetectedObject nonGloves() {
+        return new DetectedObject(
+                DetectionLabel.NON_GLOVES,
+                "non_gloves",
                 0.90,
                 new BoundingBox(
                         0.30,
@@ -255,6 +288,20 @@ class ViolationRuleEngineIntegrationTest {
         return new DetectedObject(
                 DetectionLabel.WELDING_JACKET,
                 "welding_jacket",
+                0.90,
+                new BoundingBox(
+                        0.27,
+                        0.22,
+                        0.20,
+                        0.40
+                ),
+                null
+        );
+    }
+    private static DetectedObject nonWeldingJacket() {
+        return new DetectedObject(
+                DetectionLabel.NON_WELDING_JACKET,
+                "non_welding_jacket",
                 0.90,
                 new BoundingBox(
                         0.27,

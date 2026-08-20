@@ -146,7 +146,7 @@ class DetectionMapperTest {
     }
 
     @Test
-    void rejectsRemovedNegativeLabel() {
+    void mapsNewNegativeLabels() {
         DetectionRequest request =
                 new DetectionRequest(
                         UUID.randomUUID(),
@@ -156,21 +156,28 @@ class DetectionMapperTest {
                         "welding-ppe-v1",
                         40L,
                         List.of(
-                                item(
-                                        "non_mask"
-                                )
+                                item("non_welding_mask"),
+                                item("non_gloves"),
+                                item("non_welding_jacket")
                         )
                 );
 
-        assertThatThrownBy(
-                () -> mapper.toDomain(
+        DetectionFrame result =
+                mapper.toDomain(
                         request
+                );
+
+        assertThat(result.detections())
+                .extracting(
+                        DetectedObject::label
                 )
-        )
-                .isInstanceOf(
-                        UnsupportedDetectionLabelException.class
+                .containsExactly(
+                        DetectionLabel.NON_WELDING_MASK,
+                        DetectionLabel.NON_GLOVES,
+                        DetectionLabel.NON_WELDING_JACKET
                 );
     }
+
 
     @Test
     void mapsAllSupportedDetectionsInFrame() {
@@ -183,12 +190,15 @@ class DetectionMapperTest {
                         "welding-ppe-v1",
                         40L,
                         List.of(
-                                item("person"),
-                                item("welding"),
-                                item("welding_mask"),
-                                item("welding_apron"),
+                                item("Person"),
                                 item("gloves"),
-                                item("welding_jacket")
+                                item("non_gloves"),
+                                item("non_welding_jacket"),
+                                item("non_welding_mask"),
+                                item("welding"),
+                                item("welding_apron"),
+                                item("welding_jacket"),
+                                item("welding_mask")
                         )
                 );
 
@@ -203,11 +213,14 @@ class DetectionMapperTest {
                 )
                 .containsExactly(
                         DetectionLabel.PERSON,
-                        DetectionLabel.WELDING,
-                        DetectionLabel.WELDING_MASK,
-                        DetectionLabel.WELDING_APRON,
                         DetectionLabel.GLOVES,
-                        DetectionLabel.WELDING_JACKET
+                        DetectionLabel.NON_GLOVES,
+                        DetectionLabel.NON_WELDING_JACKET,
+                        DetectionLabel.NON_WELDING_MASK,
+                        DetectionLabel.WELDING,
+                        DetectionLabel.WELDING_APRON,
+                        DetectionLabel.WELDING_JACKET,
+                        DetectionLabel.WELDING_MASK
                 );
     }
 

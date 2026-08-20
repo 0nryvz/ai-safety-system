@@ -25,12 +25,12 @@ public class MissingGlovesRule implements ViolationRule {
                         DetectionLabel.WELDING
                 );
 
-        boolean hasGloves =
+        boolean missingGloves =
                 person.hasDetection(
-                        DetectionLabel.GLOVES
+                        DetectionLabel.NON_GLOVES
                 );
 
-        if (!isWelding || hasGloves) {
+        if (!isWelding || !missingGloves) {
             return Optional.empty();
         }
 

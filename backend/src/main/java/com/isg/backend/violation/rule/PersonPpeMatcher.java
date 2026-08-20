@@ -37,9 +37,12 @@ public class PersonPpeMatcher {
     private static final Set<DetectionLabel> ASSOCIATED_LABELS =
             EnumSet.of(
                     DetectionLabel.WELDING_MASK,
+                    DetectionLabel.NON_WELDING_MASK,
                     DetectionLabel.WELDING_APRON,
                     DetectionLabel.WELDING_JACKET,
+                    DetectionLabel.NON_WELDING_JACKET,
                     DetectionLabel.GLOVES,
+                    DetectionLabel.NON_GLOVES,
                     DetectionLabel.WELDING
             );
 
