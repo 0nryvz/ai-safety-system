@@ -1,0 +1,46 @@
+.restricted-zone-page {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  
+  .restricted-zone-page__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  
+  .restricted-zone-page__content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    max-width: 960px;
+  }
+  
+  .restricted-zone-page__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .restricted-zone-page__reference-upload {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .restricted-zone-page__reference-upload label {
+    flex-basis: 100%;
+  }
+  
+  .restricted-zone-page__editor {
+    width: 100%;
+  }
+
+  .restricted-zone-page__content > h3,
+.restricted-zone-page__content > p {
+  margin: 0;
+}
