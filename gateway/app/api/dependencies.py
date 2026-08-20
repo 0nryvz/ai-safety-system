@@ -24,6 +24,9 @@ from app.services.session_frame_queue_manager import (
 from app.services.session_frame_ingestion_worker import (
     SessionFrameIngestionWorkerCoordinator,
 )
+from app.services.session_stale_cleanup import (
+    SessionStaleCleanupCoordinator,
+)
 from app.services.ai_frame_client import NoOpAIFrameClient
 from app.services.session_ai_frame_dispatch_worker import (
     SessionAIFrameDispatchWorkerCoordinator,
@@ -281,5 +284,35 @@ def get_recording_command_coordinator(
         ),
         ring_buffer_manager=(
             get_session_frame_ring_buffer_manager()
+        ),
+    )
+
+@lru_cache
+def get_session_stale_cleanup_coordinator(
+) -> SessionStaleCleanupCoordinator:
+    settings = get_settings()
+
+    return SessionStaleCleanupCoordinator(
+        session_manager=get_session_manager(),
+        session_frame_queue_manager=(
+            get_session_frame_queue_manager()
+        ),
+        session_frame_ring_buffer_manager=(
+            get_session_frame_ring_buffer_manager()
+        ),
+        ingestion_worker_coordinator=(
+            get_session_frame_ingestion_worker_coordinator()
+        ),
+        event_recorder_coordinator=(
+            get_event_recorder_coordinator()
+        ),
+        session_lifecycle_notifier=(
+            get_camera_session_lifecycle_notifier()
+        ),
+        stale_timeout_seconds=(
+            settings.session_stale_timeout_seconds
+        ),
+        sweep_interval_seconds=(
+            settings.session_cleanup_interval_seconds
         ),
     )

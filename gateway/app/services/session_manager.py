@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 
 from app.domain.session import CameraSessionContext
 
@@ -117,6 +118,24 @@ class SessionManager:
             del self._sessions[session_id]
 
             return session
+
+    async def claim_stale_sessions(
+            self,
+            stale_before: datetime,
+    ) -> tuple[CameraSessionContext, ...]:
+        async with self._lock:
+            stale_sessions: list[CameraSessionContext] = []
+
+            for session_id, session in tuple(self._sessions.items()):
+                if session.last_activity_at > stale_before:
+                    continue
+
+                session.close()
+                del self._sessions[session_id]
+                stale_sessions.append(session)
+
+            return tuple(stale_sessions)
+
 
     async def active_session_count(self) -> int:
         async with self._lock:

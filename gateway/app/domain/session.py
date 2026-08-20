@@ -18,6 +18,7 @@ class CameraSessionContext:
     session_id: str
     opened_at: datetime = field(default_factory=utc_now)
     last_heartbeat_at: datetime = field(default_factory=utc_now)
+    last_activity_at: datetime = field(default_factory=utc_now)
     status: SessionStatus = SessionStatus.ACTIVE
     closed_at: datetime | None = None
     frame_count: int = 0
@@ -28,12 +29,14 @@ class CameraSessionContext:
             raise ValueError("Closed session cannot receive heartbeat")
 
         self.last_heartbeat_at = utc_now()
+        self.last_activity_at = now
 
     def register_frame(self) -> None:
         if self.status is SessionStatus.CLOSED:
             raise ValueError("Closed session cannot receive frames")
 
         self.frame_count += 1
+        self.last_activity_at = utc_now()
 
     def register_dropped_frame(self) -> None:
         self.dropped_frame_count += 1
@@ -46,3 +49,4 @@ class CameraSessionContext:
         self.status = SessionStatus.CLOSED
         self.closed_at = now
         self.last_heartbeat_at = now
+        self.last_activity_at = now
