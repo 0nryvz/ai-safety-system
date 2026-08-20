@@ -418,7 +418,7 @@ public class CameraService {
     }
 
     private CameraResponse mapToResponse(Camera camera) {
-        String connectionStatus =
+        String status =
                 camera.getStatus() != null
                         ? camera.getStatus().name()
                         : "OFFLINE";
@@ -438,7 +438,7 @@ public class CameraService {
                                 : null
                 )
                 .active(camera.isActive())
-                .connectionStatus(connectionStatus)
+                .status(status)
                 .lastSeenAt(camera.getLastSeenAt())
                 .build();
     }
