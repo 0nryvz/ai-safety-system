@@ -9,6 +9,41 @@ class Settings(BaseSettings):
     environment: str = "local"
     local_session_token: str = "dev-session-token"
 
+    backend_base_url: str = Field(
+        default="",
+        validation_alias="BACKEND_BASE_URL",
+    )
+
+    internal_api_key: str = Field(
+        default="",
+        validation_alias="INTERNAL_API_KEY",
+    )
+
+    ai_worker_base_url: str = Field(
+        default="",
+        validation_alias="AI_WORKER_BASE_URL",
+    )
+
+    minio_endpoint: str = Field(
+        default="",
+        validation_alias="MINIO_ENDPOINT",
+    )
+
+    minio_access_key: str = Field(
+        default="",
+        validation_alias="MINIO_ACCESS_KEY",
+    )
+
+    minio_secret_key: str = Field(
+        default="",
+        validation_alias="MINIO_SECRET_KEY",
+    )
+
+    minio_bucket: str = Field(
+        default="",
+        validation_alias="MINIO_BUCKET",
+    )
+
     session_lifecycle_http_enabled: bool = False
 
     session_lifecycle_backend_base_url: str = (
@@ -132,10 +167,135 @@ class Settings(BaseSettings):
         ge=0,
     )
 
+    @property
+    def effective_session_lifecycle_backend_base_url(
+            self,
+    ) -> str:
+        return (
+                self.backend_base_url
+                or self.session_lifecycle_backend_base_url
+        )
+
+
+    @property
+    def effective_recording_callback_backend_base_url(
+            self,
+    ) -> str:
+        return (
+                self.backend_base_url
+                or self.recording_callback_backend_base_url
+        )
+
+
+    @property
+    def effective_session_lifecycle_internal_api_key(
+            self,
+    ) -> str:
+        return (
+                self.internal_api_key
+                or self.session_lifecycle_internal_api_key
+        )
+
+
+    @property
+    def effective_recording_callback_internal_api_key(
+            self,
+    ) -> str:
+        return (
+                self.internal_api_key
+                or self.recording_callback_internal_api_key
+        )
+
+
+    @property
+    def effective_ai_base_url(
+            self,
+    ) -> str:
+        return (
+                self.ai_worker_base_url
+                or self.ai_base_url
+        )
+
+
+    @property
+    def effective_recorder_storage_minio_endpoint(
+            self,
+    ) -> str:
+        endpoint = (
+                self.minio_endpoint
+                or self.recorder_storage_minio_endpoint
+        ).strip()
+
+        if endpoint.startswith("http://"):
+            return (
+                endpoint
+                .removeprefix("http://")
+                .rstrip("/")
+            )
+
+        if endpoint.startswith("https://"):
+            return (
+                endpoint
+                .removeprefix("https://")
+                .rstrip("/")
+            )
+
+        return endpoint.rstrip("/")
+
+
+    @property
+    def effective_recorder_storage_minio_access_key(
+            self,
+    ) -> str:
+        return (
+                self.minio_access_key
+                or self.recorder_storage_minio_access_key
+        )
+
+
+    @property
+    def effective_recorder_storage_minio_secret_key(
+            self,
+    ) -> str:
+        return (
+                self.minio_secret_key
+                or self.recorder_storage_minio_secret_key
+        )
+
+
+    @property
+    def effective_recorder_storage_minio_bucket(
+            self,
+    ) -> str:
+        return (
+                self.minio_bucket
+                or self.recorder_storage_minio_bucket
+        )
+
+
+    @property
+    def effective_recorder_storage_minio_secure(
+            self,
+    ) -> bool:
+        endpoint = (
+            self.minio_endpoint
+            .strip()
+            .lower()
+        )
+
+        if endpoint.startswith("https://"):
+            return True
+
+        if endpoint.startswith("http://"):
+            return False
+
+        return self.recorder_storage_minio_secure
+
     model_config = SettingsConfigDict(
         env_prefix="GATEWAY_",
         env_file=".env",
         extra="ignore",
+        populate_by_name=True,
     )
 
 

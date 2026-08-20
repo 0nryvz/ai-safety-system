@@ -48,6 +48,15 @@ docker exec isg-postgres psql -U isg_user -d isg_restore_demo -c "\dt"
 
 > Aktif gelistirme veritabaninin uzerine restore yapilmamalidir. Restore islemi bos bir hedef veritabanina yapilmalidir.
 
+## Canonical MVP Runtime Contract
+
+Local ve MVP runtime icin tek source of truth root `.env` dosyasidir.
+
+Ornek dosya:
+
+```text
+.env.example
+
 ## Local Calistirma
 
 ### Gereksinimler
@@ -78,3 +87,13 @@ Ornek admin kullanicisi: admin@isgvision.local
 
 ### Backend testlerini calistir
 .\backend\mvnw.cmd -f backend\pom.xml test
+
+
+---
+
+## 6. Hızlı config smoke
+
+Önce root’ta:
+
+```powershell
+. .\scripts\import-env.ps1
