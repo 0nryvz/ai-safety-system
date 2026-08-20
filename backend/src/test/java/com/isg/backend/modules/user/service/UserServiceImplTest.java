@@ -1,6 +1,7 @@
 package com.isg.backend.modules.user.service;
 
 import com.isg.backend.modules.user.dto.CreateUserRequest;
+import com.isg.backend.modules.user.dto.UpdateUserRequest;
 import com.isg.backend.modules.user.entity.Department;
 import com.isg.backend.modules.user.entity.Role;
 import com.isg.backend.modules.user.entity.User;
@@ -214,7 +215,7 @@ class UserServiceImplTest {
         when(userRepository.findById(userId))
                 .thenReturn(Optional.of(user));
 
-        userService.deactivateUser(userId);
+        userService.deactivateUser(userId, "admin@test.local");
 
         assertThat(user.isActive())
                 .isFalse();
@@ -249,7 +250,7 @@ class UserServiceImplTest {
         ResponseStatusException exception =
                 assertThrows(
                         ResponseStatusException.class,
-                        () -> userService.deactivateUser(adminId)
+                        () -> userService.deactivateUser(adminId, "operator@test.local")
                 );
 
         assertThat(exception.getStatusCode())
@@ -286,7 +287,7 @@ class UserServiceImplTest {
         when(userRepository.findAll())
                 .thenReturn(List.of(target, otherAdmin));
 
-        userService.deactivateUser(targetId);
+        userService.deactivateUser(targetId, "admin.two@test.local");
 
         assertThat(target.isActive())
                 .isFalse();
@@ -342,6 +343,82 @@ class UserServiceImplTest {
 
         assertThat(captor.getValue().getEmail())
                 .isEqualTo("new.user@test.local");
+    }
+    @Test
+    void userCannotDeactivateOwnAccount() {
+        UUID targetId = UUID.randomUUID();
+
+        User target = user(
+                targetId,
+                "admin.one@test.local",
+                "ADMIN",
+                true
+        );
+
+
+        when(userRepository.findById(targetId))
+                .thenReturn(Optional.of(target));
+
+        ResponseStatusException exception =
+                assertThrows(
+                        ResponseStatusException.class,
+                        () -> userService.deactivateUser(
+                                targetId,
+                                "ADMIN.ONE@Test.Local"
+                        )
+                );
+
+        assertThat(exception.getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+
+        assertThat(target.isActive())
+                .isTrue();
+
+        verify(userRepository, never())
+                .findAll();
+
+        verify(userRepository, never())
+                .save(target);
+    }
+
+    @Test
+    void userCannotDeactivateOwnAccountThroughPatch() {
+        UUID targetId = UUID.randomUUID();
+
+        User target = user(
+                targetId,
+                "admin.one@test.local",
+                "ADMIN",
+                true
+        );
+
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setActive(false);
+
+        when(userRepository.findById(targetId))
+                .thenReturn(Optional.of(target));
+
+        ResponseStatusException exception =
+                assertThrows(
+                        ResponseStatusException.class,
+                        () -> userService.updateUser(
+                                targetId,
+                                request,
+                                "ADMIN.ONE@Test.Local"
+                        )
+                );
+
+        assertThat(exception.getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+
+        assertThat(target.isActive())
+                .isTrue();
+
+        verify(userRepository, never())
+                .findAll();
+
+        verify(userRepository, never())
+                .save(target);
     }
     private User user(
             UUID id,
