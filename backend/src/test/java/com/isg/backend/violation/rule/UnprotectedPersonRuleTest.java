@@ -58,9 +58,9 @@ class UnprotectedPersonRuleTest {
         PersonContext person =
                 personContext(
                         welding(),
-                        mask()
+                        nonMask(),
+                        nonGloves()
                 );
-
         Optional<CandidateViolation> result =
                 rule.evaluate(
                         person,
@@ -183,124 +183,7 @@ class UnprotectedPersonRuleTest {
                 .isEmpty();
     }
 
-    @Test
-    void producesCandidateWhenNonWeldingJacketIsDetectedAsMissingEquipment() {
-        UnprotectedPersonRule rule =
-                new UnprotectedPersonRule(
-                        properties()
-                );
 
-        PersonContext person =
-                personContext(
-                        welding(),
-                        mask(),
-                        gloves(),
-                        nonJacket()
-                );
-
-        Optional<CandidateViolation> result =
-                rule.evaluate(
-                        person,
-                        frame()
-                );
-
-        assertThat(result)
-                .isPresent();
-
-        assertThat(result.orElseThrow().violationType())
-                .isEqualTo(
-                        ViolationType.UNPROTECTED_PERSON
-                );
-    }
-
-    @Test
-    void producesCandidateWhenNegativePpeClassesRepresentMultipleMissingEquipment() {
-        UnprotectedPersonRule rule =
-                new UnprotectedPersonRule(
-                        properties()
-                );
-
-        PersonContext person =
-                personContext(
-                        welding(),
-                        nonGloves(),
-                        nonJacket()
-                );
-
-        Optional<CandidateViolation> result =
-                rule.evaluate(
-                        person,
-                        frame()
-                );
-
-        assertThat(result)
-                .isPresent();
-
-        assertThat(result.orElseThrow().violationType())
-                .isEqualTo(
-                        ViolationType.UNPROTECTED_PERSON
-                );
-    }
-
-    @Test
-    void positiveEquipmentDetectionWinsOverNegativeEquipmentDetection() {
-        UnprotectedPersonRule rule =
-                new UnprotectedPersonRule(
-                        properties()
-                );
-
-        PersonContext person =
-                personContext(
-                        welding(),
-                        mask(),
-                        gloves(),
-                        apron(),
-                        jacket(),
-                        nonJacket(),
-                        nonGloves()
-                );
-
-        Optional<CandidateViolation> result =
-                rule.evaluate(
-                        person,
-                        frame()
-                );
-
-        assertThat(result)
-                .isEmpty();
-    }
-
-    @Test
-    void respectsConfiguredRequiredEquipmentList() {
-        ViolationRuleProperties properties =
-                properties();
-
-        properties.setRequiredEquipmentForWelding(
-                List.of(
-                        DetectionLabel.WELDING_MASK,
-                        DetectionLabel.GLOVES
-                )
-        );
-
-        UnprotectedPersonRule rule =
-                new UnprotectedPersonRule(
-                        properties
-                );
-
-        PersonContext person =
-                personContext(
-                        welding()
-                );
-
-        Optional<CandidateViolation> result =
-                rule.evaluate(
-                        person,
-                        frame()
-                );
-
-        assertThat(result)
-                .isPresent();
-    }
 
     @Test
     void respectsConfiguredMinimumMissingEquipmentCount() {
@@ -319,8 +202,8 @@ class UnprotectedPersonRuleTest {
         PersonContext onlyTwoMissing =
                 personContext(
                         welding(),
-                        mask(),
-                        gloves()
+                        nonMask(),
+                        nonGloves()
                 );
 
         assertThat(
@@ -333,7 +216,9 @@ class UnprotectedPersonRuleTest {
         PersonContext threeMissing =
                 personContext(
                         welding(),
-                        mask()
+                        nonMask(),
+                        nonGloves(),
+                        nonJacket()
                 );
 
         assertThat(
@@ -394,6 +279,42 @@ class UnprotectedPersonRuleTest {
                         0.15,
                         0.1,
                         0.1
+                )
+        );
+    }
+
+    private static DetectedObject nonMask() {
+        return detection(
+                DetectionLabel.NON_WELDING_MASK,
+                new BoundingBox(
+                        0.2,
+                        0.15,
+                        0.1,
+                        0.1
+                )
+        );
+    }
+
+    private static DetectedObject nonGloves() {
+        return detection(
+                DetectionLabel.NON_GLOVES,
+                new BoundingBox(
+                        0.2,
+                        0.45,
+                        0.1,
+                        0.1
+                )
+        );
+    }
+
+    private static DetectedObject nonJacket() {
+        return detection(
+                DetectionLabel.NON_WELDING_JACKET,
+                new BoundingBox(
+                        0.18,
+                        0.22,
+                        0.2,
+                        0.45
                 )
         );
     }

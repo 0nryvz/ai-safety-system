@@ -54,8 +54,8 @@ class ViolationRuleEngineIntegrationTest {
                 frame(
                         person(),
                         welding(),
-                        nonGloves(),
                         nonWeldingMask(),
+                        nonGloves(),
                         nonWeldingJacket()
                 );
 
@@ -231,7 +231,6 @@ class ViolationRuleEngineIntegrationTest {
         );
     }
 
-
     private static DetectedObject nonWeldingMask() {
         return new DetectedObject(
                 DetectionLabel.NON_WELDING_MASK,
@@ -246,7 +245,6 @@ class ViolationRuleEngineIntegrationTest {
                 null
         );
     }
-
 
     private static DetectedObject gloves() {
         return new DetectedObject(
@@ -263,7 +261,6 @@ class ViolationRuleEngineIntegrationTest {
         );
     }
 
-
     private static DetectedObject nonGloves() {
         return new DetectedObject(
                 DetectionLabel.NON_GLOVES,
@@ -278,7 +275,6 @@ class ViolationRuleEngineIntegrationTest {
                 null
         );
     }
-
 
     private static DetectedObject weldingApron() {
         return new DetectedObject(
@@ -310,8 +306,6 @@ class ViolationRuleEngineIntegrationTest {
                 null
         );
     }
-
-
     private static DetectedObject nonWeldingJacket() {
         return new DetectedObject(
                 DetectionLabel.NON_WELDING_JACKET,

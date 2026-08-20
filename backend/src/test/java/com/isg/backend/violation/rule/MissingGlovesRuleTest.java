@@ -106,7 +106,8 @@ class MissingGlovesRuleTest {
                         "track-worker-1",
                         person(),
                         List.of(
-                                welding()
+                                welding(),
+                                nonGloves()
                         )
                 );
 
@@ -229,6 +230,20 @@ class MissingGlovesRuleTest {
         );
     }
 
+    private static DetectedObject nonGloves() {
+        return new DetectedObject(
+                DetectionLabel.NON_GLOVES,
+                "non_gloves",
+                0.91,
+                new BoundingBox(
+                        0.2,
+                        0.45,
+                        0.1,
+                        0.1
+                ),
+                null
+        );
+    }
 
     private static DetectionFrame frame() {
         return new DetectionFrame(
