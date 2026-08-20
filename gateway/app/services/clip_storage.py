@@ -26,6 +26,7 @@ class ClipStorageResult:
 
 
 class ClipStorage(Protocol):
+
     def store_finalized_clip(
             self,
             *,
@@ -34,4 +35,14 @@ class ClipStorage(Protocol):
             finalized_mp4_path: Path,
             clip_started_at: datetime,
     ) -> ClipStorageResult:
+        ...
+
+    def store_cover_image(
+            self,
+            *,
+            violation_id: str,
+            recording_id: str,
+            image_bytes: bytes,
+            captured_at: datetime,
+    ) -> str:
         ...

@@ -48,30 +48,16 @@ docker exec isg-postgres psql -U isg_user -d isg_restore_demo -c "\dt"
 
 > Aktif gelistirme veritabaninin uzerine restore yapilmamalidir. Restore islemi bos bir hedef veritabanina yapilmalidir.
 
-## MVP Local Calistirma
+## Canonical MVP Runtime Contract
 
-### Canonical servis adresleri
+Local ve MVP runtime icin tek source of truth root `.env` dosyasidir.
 
-| Servis | Adres |
-| --- | --- |
-| PostgreSQL | `localhost:5432` |
-| MinIO API | `http://localhost:9000` |
-| MinIO Console | `http://localhost:9001` |
-| Spring Backend | `http://localhost:8080` |
-| Camera Ingestion Gateway | `http://localhost:8000` |
-| AI Worker | `http://localhost:8001` |
+Ornek dosya:
 
-### Ortak runtime sozlesmesi
+```text
+.env.example
 
-Local/demo referans degerleri root `.env.example` dosyasinda tutulur.
-
-- Backend internal key: `INTERNAL_API_KEY`
-- Backend -> Gateway: `RECORDING_GATEWAY_BASE_URL=http://localhost:8000`
-- MinIO endpoint: `MINIO_ENDPOINT=http://localhost:9000`
-- MinIO bucket: `MINIO_BUCKET=violation-media`
-
-> Root `.env` Docker Compose tarafindan otomatik okunur. Spring Backend, Gateway ve AI Worker kendi environment/config mekanizmalarini kullanir. Gercek production secret degerleri repository'ye commit edilmemelidir.
-
+## Local Calistirma
 
 ### Gereksinimler
 - Java 21
@@ -101,3 +87,13 @@ Ornek admin kullanicisi: admin@isgvision.local
 
 ### Backend testlerini calistir
 .\backend\mvnw.cmd -f backend\pom.xml test
+
+
+---
+
+## 6. Hızlı config smoke
+
+Önce root’ta:
+
+```powershell
+. .\scripts\import-env.ps1

@@ -42,7 +42,8 @@ public class RecordingStatusCallbackBridgeAdapter
         if (callback.status() == RecordingStatus.READY) {
             callbackPort.recordingReady(
                     callback.violationId(),
-                    changedAt
+                    changedAt,
+                    callback.coverImageKey()
             );
             return;
         }

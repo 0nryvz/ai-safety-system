@@ -54,6 +54,10 @@ async def test_send_callback_ready_payload_and_header_and_endpoint() -> None:
             size_bytes=1_048_576,
             checksum="sha256:abcd",
             retry_count=2,
+            cover_image_key=(
+                "violations/2026/08/"
+                "violation-1/cover.jpg"
+            ),
         )
     )
 
@@ -75,6 +79,10 @@ async def test_send_callback_ready_payload_and_header_and_endpoint() -> None:
         "sizeBytes": 1_048_576,
         "checksum": "sha256:abcd",
         "retryCount": 2,
+        "coverImageKey": (
+            "violations/2026/08/"
+            "violation-1/cover.jpg"
+        ),
     }
 
 

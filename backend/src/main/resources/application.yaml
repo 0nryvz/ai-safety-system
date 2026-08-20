@@ -1,6 +1,10 @@
+server:
+  port: ${BACKEND_PORT:8080}
+
 spring:
   profiles:
     active: local
+
   application:
     name: backend
 
@@ -20,6 +24,7 @@ spring:
     open-in-view: false
     show-sql: true
 
+
 application:
   security:
     jwt:
@@ -27,32 +32,32 @@ application:
       expiration: 900000
       refresh-token:
         expiration: 604800000
+
     internal:
-      api-key: ${INTERNAL_API_KEY:local-dev-internal-key}
+      api-key: ${INTERNAL_API_KEY:change-me-local-internal-key}
+
 
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{correlationId}] %-5level %logger{36} - %msg%n"
+
   level:
     org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
 
 recording:
   command:
     pre-buffer-seconds: ${RECORDING_COMMAND_PRE_BUFFER_SECONDS:5}
     post-buffer-seconds: ${RECORDING_COMMAND_POST_BUFFER_SECONDS:3}
     max-clip-seconds: ${RECORDING_COMMAND_MAX_CLIP_SECONDS:30}
+
   gateway:
     base-url: ${RECORDING_GATEWAY_BASE_URL:http://localhost:8000}
     connect-timeout: ${RECORDING_GATEWAY_CONNECT_TIMEOUT:1s}
     read-timeout: ${RECORDING_GATEWAY_READ_TIMEOUT:2s}
     max-retries: ${RECORDING_GATEWAY_MAX_RETRIES:2}
-
-violation:
-  temporal:
-    silence-timeout: ${VIOLATION_TEMPORAL_SILENCE_TIMEOUT:5s}
-    silence-sweep-interval: ${VIOLATION_TEMPORAL_SILENCE_SWEEP_INTERVAL:1s}
 
   playback:
     minio:
@@ -62,3 +67,8 @@ violation:
       bucket: ${MINIO_BUCKET:violation-media}
       expiry: ${RECORDING_PLAYBACK_MINIO_EXPIRY:5m}
 
+
+violation:
+  temporal:
+    silence-timeout: ${VIOLATION_TEMPORAL_SILENCE_TIMEOUT:5s}
+    silence-sweep-interval: ${VIOLATION_TEMPORAL_SILENCE_SWEEP_INTERVAL:1s}
