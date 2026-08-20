@@ -19,8 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -54,17 +54,42 @@ public class ReferenceImageService {
 
         validateFile(file);
 
+        String contentType =
+                normalizedContentType(file);
+
         String objectKey =
                 buildObjectKey(cameraId);
 
-        try (InputStream inputStream =
-                     file.getInputStream()) {
+        try (BufferedInputStream inputStream =
+                     new BufferedInputStream(
+                             file.getInputStream()
+                     )) {
+
+            /*
+             * İlk 12 byte JPEG, PNG ve WebP imza kontrolü
+             * için yeterlidir.
+             *
+             * mark/reset sayesinde doğrulamadan sonra stream
+             * tekrar başa alınır ve ObjectStoragePort dosyanın
+             * tamamını yükler.
+             */
+            inputStream.mark(12);
+
+            byte[] header =
+                    inputStream.readNBytes(12);
+
+            validateImageSignature(
+                    header,
+                    contentType
+            );
+
+            inputStream.reset();
 
             objectStoragePort.putObject(
                     objectKey,
                     inputStream,
                     file.getSize(),
-                    normalizedContentType(file)
+                    contentType
             );
 
         } catch (IOException ex) {
@@ -207,6 +232,89 @@ public class ReferenceImageService {
                     "Yalnızca JPEG, PNG veya WebP görüntü yüklenebilir."
             );
         }
+    }
+
+    private void validateImageSignature(
+            byte[] header,
+            String contentType
+    ) {
+        boolean valid =
+                switch (contentType) {
+                    case "image/jpeg" ->
+                            hasBytes(
+                                    header,
+                                    0,
+                                    0xFF,
+                                    0xD8,
+                                    0xFF
+                            );
+
+                    case "image/png" ->
+                            hasBytes(
+                                    header,
+                                    0,
+                                    0x89,
+                                    0x50,
+                                    0x4E,
+                                    0x47,
+                                    0x0D,
+                                    0x0A,
+                                    0x1A,
+                                    0x0A
+                            );
+
+                    case "image/webp" ->
+                            hasBytes(
+                                    header,
+                                    0,
+                                    'R',
+                                    'I',
+                                    'F',
+                                    'F'
+                            )
+                                    && hasBytes(
+                                    header,
+                                    8,
+                                    'W',
+                                    'E',
+                                    'B',
+                                    'P'
+                            );
+
+                    default ->
+                            false;
+                };
+
+        if (!valid) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Dosya içeriği belirtilen görüntü türüyle eşleşmiyor."
+            );
+        }
+    }
+
+    private boolean hasBytes(
+            byte[] data,
+            int offset,
+            int... expected
+    ) {
+        if (data == null
+                || data.length < offset + expected.length) {
+            return false;
+        }
+
+        for (
+                int index = 0;
+                index < expected.length;
+                index++
+        ) {
+            if ((data[offset + index] & 0xFF)
+                    != expected[index]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private String normalizedContentType(

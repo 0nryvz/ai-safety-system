@@ -31,8 +31,17 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ReferenceImageServiceTest {
@@ -106,7 +115,7 @@ class ReferenceImageServiceTest {
                         "file",
                         "reference.png",
                         "image/png",
-                        new byte[]{1, 2, 3, 4}
+                        validPngBytes()
                 );
 
         String expectedKey =
@@ -143,7 +152,7 @@ class ReferenceImageServiceTest {
                         "file",
                         "first.jpg",
                         "image/jpeg",
-                        new byte[]{1, 2, 3}
+                        validJpegBytes()
                 );
 
         MockMultipartFile second =
@@ -151,7 +160,7 @@ class ReferenceImageServiceTest {
                         "file",
                         "second.jpg",
                         "image/jpeg",
-                        new byte[]{4, 5, 6}
+                        validJpegBytes()
                 );
 
         String expectedKey =
@@ -346,6 +355,76 @@ class ReferenceImageServiceTest {
     }
 
     @Test
+    void spoofedImageContentTypeReturnsBadRequest() {
+        stubAuthorizedCamera();
+
+        MockMultipartFile file =
+                new MockMultipartFile(
+                        "file",
+                        "fake.png",
+                        "image/png",
+                        new byte[]{
+                                'n',
+                                'o',
+                                't',
+                                '-',
+                                'a',
+                                'n',
+                                '-',
+                                'i',
+                                'm',
+                                'a',
+                                'g',
+                                'e'
+                        }
+                );
+
+        assertThatThrownBy(
+                () ->
+                        referenceImageService
+                                .uploadReferenceImage(
+                                        cameraId,
+                                        file
+                                )
+        )
+                .isInstanceOfSatisfying(
+                        ResponseStatusException.class,
+                        ex -> {
+                            assertThat(
+                                    ex.getStatusCode()
+                            )
+                                    .isEqualTo(
+                                            HttpStatus.BAD_REQUEST
+                                    );
+
+                            assertThat(
+                                    ex.getReason()
+                            )
+                                    .isEqualTo(
+                                            "Dosya içeriği belirtilen görüntü türüyle eşleşmiyor."
+                                    );
+                        }
+                );
+
+        verify(
+                objectStoragePort,
+                never()
+        )
+                .putObject(
+                        anyString(),
+                        any(InputStream.class),
+                        anyLong(),
+                        anyString()
+                );
+
+        verify(
+                cameraRepository,
+                never()
+        )
+                .save(any(Camera.class));
+    }
+
+    @Test
     void unauthorizedDepartmentCannotUploadReferenceImage() {
         stubUnauthorizedCamera();
 
@@ -354,7 +433,7 @@ class ReferenceImageServiceTest {
                         "file",
                         "reference.png",
                         "image/png",
-                        new byte[]{1, 2, 3}
+                        validPngBytes()
                 );
 
         assertThatThrownBy(
@@ -415,7 +494,7 @@ class ReferenceImageServiceTest {
                         "file",
                         "reference.png",
                         "image/png",
-                        new byte[]{1, 2, 3}
+                        validPngBytes()
                 );
 
         assertThatThrownBy(
@@ -451,7 +530,7 @@ class ReferenceImageServiceTest {
                         "file",
                         "reference.webp",
                         "image/webp",
-                        new byte[]{1, 2, 3}
+                        validWebpBytes()
                 );
 
         doThrow(
@@ -608,6 +687,57 @@ class ReferenceImageServiceTest {
                 .createGetUrl(
                         anyString()
                 );
+    }
+
+    private byte[] validPngBytes() {
+        return new byte[]{
+                (byte) 0x89,
+                0x50,
+                0x4E,
+                0x47,
+                0x0D,
+                0x0A,
+                0x1A,
+                0x0A,
+                0x01,
+                0x02,
+                0x03,
+                0x04
+        };
+    }
+
+    private byte[] validJpegBytes() {
+        return new byte[]{
+                (byte) 0xFF,
+                (byte) 0xD8,
+                (byte) 0xFF,
+                (byte) 0xE0,
+                0x00,
+                0x10,
+                0x4A,
+                0x46,
+                0x49,
+                0x46,
+                0x00,
+                0x01
+        };
+    }
+
+    private byte[] validWebpBytes() {
+        return new byte[]{
+                'R',
+                'I',
+                'F',
+                'F',
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                'W',
+                'E',
+                'B',
+                'P'
+        };
     }
 
     private void stubCurrentUser() {
