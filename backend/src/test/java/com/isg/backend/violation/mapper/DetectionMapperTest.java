@@ -131,7 +131,7 @@ class DetectionMapperTest {
     void rejectsUnsupportedLabel() {
         DetectionItem item =
                 new DetectionItem(
-                        "visor_open",
+                        "unsupported_label",
                         new BigDecimal("0.90"),
                         new BoundingBox(
                                 new BigDecimal("0.10"),
