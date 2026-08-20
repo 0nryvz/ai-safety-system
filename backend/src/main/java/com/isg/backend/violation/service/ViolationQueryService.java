@@ -7,6 +7,7 @@ import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
 import com.isg.backend.violation.domain.ViolationType;
 import com.isg.backend.violation.exception.ViolationNotFoundException;
+import com.isg.backend.violation.exception.InvalidViolationQueryException;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
 import com.isg.backend.violation.infrastructure.persistence.ViolationDetailProjection;
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
@@ -14,6 +15,7 @@ import com.isg.backend.violation.infrastructure.persistence.ViolationSpecificati
 import com.isg.backend.violation.query.ViolationDetailResponse;
 import com.isg.backend.violation.query.ViolationListItem;
 import com.isg.backend.violation.query.ViolationQueryFilter;
+import com.isg.backend.recording.domain.RecordingStatus;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,8 +23,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -73,16 +77,53 @@ public class ViolationQueryService {
                         userId
                 );
 
-        return violationRepository.findAll(
+        Set<UUID> recordingViolationIds =
+                resolveRecordingFilterIds(
+                        filter.recordingStatus()
+                );
+
+        Page<ViolationJpaEntity> violations =
+                violationRepository.findAll(
                         ViolationSpecifications.fromFilter(
                                 filter,
-                                accessibleDepartmentIds
+                                accessibleDepartmentIds,
+                                recordingViolationIds
                         ),
                         pageable
-                )
-                .map(
-                        this::toListItem
                 );
+
+        Map<UUID, RecordingQueryResult> recordings =
+                resolveRecordings(
+                        violations.getContent()
+                );
+
+        return violations.map(
+                violation -> toListItem(
+                        violation,
+                        recordings.get(
+                                violation.getId()
+                        )
+                )
+        );
+    }
+
+    private void validateRecordingStatus(
+            String recordingStatus
+    ) {
+        if (recordingStatus == null) {
+            return;
+        }
+
+        try {
+            RecordingStatus.valueOf(
+                    recordingStatus
+            );
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidViolationQueryException(
+                    "Unsupported recordingStatus: "
+                            + recordingStatus
+            );
+        }
     }
 
     public ViolationDetailResponse findDetail(
@@ -127,8 +168,7 @@ public class ViolationQueryService {
 
         RecordingQueryResult recording =
                 resolveRecording(
-                        violationId,
-                        lifecycleStatus
+                        violationId
                 );
 
         String coverImageKey =
@@ -161,17 +201,29 @@ public class ViolationQueryService {
                 ),
                 projection.getReviewedBy(),
                 projection.getReviewedAt(),
-                recording.recordingStatus(),
-                recording.clipReady(),
-                recording.playbackUrl(),
+                recording != null
+                        ? recording.recordingStatus()
+                        : null,
+                recording != null
+                        && recording.clipReady(),
+                recording != null
+                        ? recording.playbackUrl()
+                        : null,
                 coverImageKey,
-                coverImageReady
+                coverImageReady,
+                projection.getVersion()
         );
     }
 
     private ViolationListItem toListItem(
-            ViolationJpaEntity violation
+            ViolationJpaEntity violation,
+            RecordingQueryResult recording
     ) {
+        String recordingStatus =
+                recording != null
+                        ? recording.recordingStatus()
+                        : null;
+
         return new ViolationListItem(
                 violation.getId(),
                 violation.getCameraId(),
@@ -182,13 +234,85 @@ public class ViolationQueryService {
                 violation.getConfidence()
                         .doubleValue(),
                 violation.getLifecycleStatus(),
-                violation.getReviewStatus()
+                violation.getReviewStatus(),
+                recordingStatus,
+                violation.getUpdatedAt()
+        );
+    }
+
+    private Set<UUID> resolveRecordingFilterIds(
+            String recordingStatus
+    ) {
+        if (recordingStatus == null) {
+            return Set.of();
+        }
+
+        RecordingQueryPort recordingQueryPort =
+                recordingQueryPortProvider.getIfAvailable();
+
+        if (recordingQueryPort == null) {
+            throw new IllegalStateException(
+                    "Recording query adapter is required for recordingStatus filtering"
+            );
+        }
+
+        try {
+            Set<UUID> violationIds =
+                    recordingQueryPort.findViolationIdsByRecordingStatus(
+                            recordingStatus
+                    );
+
+            return Set.copyOf(
+                    Objects.requireNonNull(
+                            violationIds,
+                            "recording violation ids must not be null"
+                    )
+            );
+
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidViolationQueryException(
+                    "Unsupported recordingStatus: "
+                            + recordingStatus
+            );
+        }
+    }
+
+    private Map<UUID, RecordingQueryResult> resolveRecordings(
+            List<ViolationJpaEntity> violations
+    ) {
+        if (violations.isEmpty()) {
+            return Map.of();
+        }
+
+        RecordingQueryPort recordingQueryPort =
+                recordingQueryPortProvider.getIfAvailable();
+
+        if (recordingQueryPort == null) {
+            return Map.of();
+        }
+
+        List<UUID> violationIds =
+                violations.stream()
+                        .map(
+                                ViolationJpaEntity::getId
+                        )
+                        .toList();
+
+        Map<UUID, RecordingQueryResult> recordings =
+                recordingQueryPort.findByViolationIds(
+                        violationIds
+                );
+
+        return Map.copyOf(
+                Objects.requireNonNull(
+                        recordings,
+                        "recording results must not be null"
+                )
         );
     }
 
     private RecordingQueryResult resolveRecording(
-            UUID violationId,
-            ViolationLifecycleStatus lifecycleStatus
+            UUID violationId
     ) {
         RecordingQueryPort recordingQueryPort =
                 recordingQueryPortProvider.getIfAvailable();
@@ -204,29 +328,6 @@ public class ViolationQueryService {
             }
         }
 
-        /*
-         * BE-4 query adapter henüz bağlı değilse yalnızca
-         * lifecycle durumundan güvenli bir durum bilgisi
-         * türetilir. Playback URL BE-3 tarafından üretilmez.
-         */
-        if (lifecycleStatus
-                == ViolationLifecycleStatus.COMPLETED) {
-            return new RecordingQueryResult(
-                    "READY",
-                    true,
-                    null
-            );
-        }
-
-        if (lifecycleStatus
-                == ViolationLifecycleStatus.ERROR) {
-            return RecordingQueryResult.notReady(
-                    "ERROR"
-            );
-        }
-
-        return RecordingQueryResult.notReady(
-                "REQUESTED"
-        );
+        return null;
     }
 }

@@ -5,6 +5,7 @@ import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
 import com.isg.backend.violation.domain.ViolationStatusKind;
 import com.isg.backend.violation.exception.ViolationNotFoundException;
+import com.isg.backend.violation.exception.ViolationVersionConflictException;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationStatusHistoryRepository;
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
@@ -72,6 +73,9 @@ class ViolationReviewServiceTest {
         ViolationJpaEntity violation =
                 mock(ViolationJpaEntity.class);
 
+        when(violation.getVersion())
+                .thenReturn(0L);
+
         when(violation.getId())
                 .thenReturn(
                         violationId
@@ -84,8 +88,7 @@ class ViolationReviewServiceTest {
 
         when(violation.getReviewStatus())
                 .thenReturn(
-                        ViolationReviewStatus.UNREVIEWED,
-                        ViolationReviewStatus.CONFIRMED
+                        ViolationReviewStatus.UNREVIEWED
                 );
 
         when(violation.getReviewedBy())
@@ -123,8 +126,9 @@ class ViolationReviewServiceTest {
                 reviewService.review(
                         new ViolationReviewCommand(
                                 violationId,
-                                ViolationReviewStatus.CONFIRMED,
-                                reviewerId
+                                ViolationReviewStatus.REVIEWED,
+                                reviewerId,
+                                0L
                         )
                 );
 
@@ -136,7 +140,7 @@ class ViolationReviewServiceTest {
         verify(violation)
                 .review(
                         eq(
-                                ViolationReviewStatus.CONFIRMED
+                                ViolationReviewStatus.REVIEWED
                         ),
                         eq(
                                 reviewerId
@@ -174,9 +178,8 @@ class ViolationReviewServiceTest {
 
         assertThat(history.getToStatus())
                 .isEqualTo(
-                        "CONFIRMED"
+                        "REVIEWED"
                 );
-
         assertThat(history.getChangedBy())
                 .isEqualTo(
                         reviewerId
@@ -202,6 +205,9 @@ class ViolationReviewServiceTest {
         ViolationJpaEntity violation =
                 mock(ViolationJpaEntity.class);
 
+        when(violation.getVersion())
+                .thenReturn(0L);
+
         when(violation.getDepartmentId())
                 .thenReturn(
                         departmentId
@@ -226,8 +232,9 @@ class ViolationReviewServiceTest {
                 () -> reviewService.review(
                         new ViolationReviewCommand(
                                 violationId,
-                                ViolationReviewStatus.CONFIRMED,
-                                reviewerId
+                                ViolationReviewStatus.REVIEWED,
+                                reviewerId,
+                                0L
                         )
                 )
         )
@@ -264,6 +271,9 @@ class ViolationReviewServiceTest {
         ViolationJpaEntity violation =
                 mock(ViolationJpaEntity.class);
 
+        when(violation.getVersion())
+                .thenReturn(0L);
+
         when(violation.getId())
                 .thenReturn(
                         violationId
@@ -276,7 +286,7 @@ class ViolationReviewServiceTest {
 
         when(violation.getReviewStatus())
                 .thenReturn(
-                        ViolationReviewStatus.FALSE_ALARM
+                        ViolationReviewStatus.REVIEWED
                 );
 
         when(violation.getReviewedBy())
@@ -302,8 +312,9 @@ class ViolationReviewServiceTest {
         reviewService.review(
                 new ViolationReviewCommand(
                         violationId,
-                        ViolationReviewStatus.FALSE_ALARM,
-                        reviewerId
+                        ViolationReviewStatus.REVIEWED,
+                        reviewerId,
+                        0L
                 )
         );
 
@@ -344,6 +355,9 @@ class ViolationReviewServiceTest {
 
         ViolationJpaEntity violation =
                 mock(ViolationJpaEntity.class);
+
+        when(violation.getVersion())
+                .thenReturn(0L);
 
         when(violation.getId())
                 .thenReturn(
@@ -390,8 +404,9 @@ class ViolationReviewServiceTest {
         reviewService.review(
                 new ViolationReviewCommand(
                         violationId,
-                        ViolationReviewStatus.FALSE_ALARM,
-                        reviewerId
+                        ViolationReviewStatus.REVIEWED,
+                        reviewerId,
+                        0L
                 )
         );
 
@@ -412,11 +427,19 @@ class ViolationReviewServiceTest {
 
     @Test
     void commandRejectsUnreviewedAsReviewResult() {
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID reviewerId =
+                UUID.randomUUID();
+
         assertThatThrownBy(
                 () -> new ViolationReviewCommand(
-                        UUID.randomUUID(),
+                        violationId,
                         ViolationReviewStatus.UNREVIEWED,
-                        UUID.randomUUID()
+                        reviewerId,
+                        0L
                 )
         )
                 .isInstanceOf(
@@ -425,6 +448,81 @@ class ViolationReviewServiceTest {
                 .hasMessageContaining(
                         "REVIEWED"
                 );
+    }
+
+    @Test
+    void versionConflictThrowsExceptionAndDoesNotPersistReview() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID reviewerId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getVersion())
+                .thenReturn(5L);
+
+        when(violation.getDepartmentId())
+                .thenReturn(
+                        departmentId
+                );
+
+        when(authorizationService.canAccessDepartment(
+                reviewerId,
+                departmentId
+        )).thenReturn(
+                true
+        );
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(
+                        violation
+                )
+        );
+
+        assertThatThrownBy(
+                () -> reviewService.review(
+                        new ViolationReviewCommand(
+                                violationId,
+                                ViolationReviewStatus.CONFIRMED,
+                                reviewerId,
+                                4L
+                        )
+                )
+        )
+                .isInstanceOf(
+                        ViolationVersionConflictException.class
+                );
+
+        verify(
+                violation,
+                never()
+        ).review(
+                any(),
+                any(),
+                any()
+        );
+
+        verify(
+                violationRepository,
+                never()
+        ).save(
+                any()
+        );
+
+        verify(
+                statusHistoryRepository,
+                never()
+        ).save(
+                any()
+        );
     }
 
     @ParameterizedTest
@@ -450,6 +548,9 @@ class ViolationReviewServiceTest {
 
         ViolationJpaEntity violation =
                 mock(ViolationJpaEntity.class);
+
+        when(violation.getVersion())
+                .thenReturn(0L);
 
         when(violation.getId())
                 .thenReturn(
@@ -509,7 +610,8 @@ class ViolationReviewServiceTest {
                         new ViolationReviewCommand(
                                 violationId,
                                 reviewStatus,
-                                reviewerId
+                                reviewerId,
+                                0L
                         )
                 );
 

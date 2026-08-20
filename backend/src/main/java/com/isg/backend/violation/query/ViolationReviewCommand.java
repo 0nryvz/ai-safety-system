@@ -8,7 +8,8 @@ import java.util.UUID;
 public record ViolationReviewCommand(
         UUID violationId,
         ViolationReviewStatus reviewStatus,
-        UUID reviewerId
+        UUID reviewerId,
+        long version
 ) {
 
     public ViolationReviewCommand {
@@ -30,6 +31,12 @@ public record ViolationReviewCommand(
         if (reviewStatus == ViolationReviewStatus.UNREVIEWED) {
             throw new IllegalArgumentException(
                     "reviewStatus must be REVIEWED, CONFIRMED or FALSE_ALARM"
+            );
+        }
+
+        if (version < 0) {
+            throw new IllegalArgumentException(
+                    "version must not be negative"
             );
         }
     }

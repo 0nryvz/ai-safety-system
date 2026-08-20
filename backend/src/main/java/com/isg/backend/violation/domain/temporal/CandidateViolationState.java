@@ -38,6 +38,57 @@ public class CandidateViolationState {
         this.confirmed = false;
     }
 
+    public static CandidateViolationState recoveredConfirmed(
+            Instant candidateStartedAt,
+            Instant lastSeenAt,
+            double confidence
+    ) {
+        Objects.requireNonNull(
+                candidateStartedAt,
+                "candidateStartedAt must not be null"
+        );
+
+        Objects.requireNonNull(
+                lastSeenAt,
+                "lastSeenAt must not be null"
+        );
+
+        if (lastSeenAt.isBefore(candidateStartedAt)) {
+            throw new IllegalArgumentException(
+                    "lastSeenAt must not be before candidateStartedAt"
+            );
+        }
+
+        CandidateViolationState state =
+                new CandidateViolationState(
+                        candidateStartedAt,
+                        lastSeenAt,
+                        confidence
+                );
+
+        state.markConfirmed();
+
+        return state;
+    }
+
+    private CandidateViolationState(
+            Instant candidateStartedAt,
+            Instant lastSeenAt,
+            double confidence
+    ) {
+        this.candidateStartedAt =
+                candidateStartedAt;
+
+        this.lastSeenAt =
+                lastSeenAt;
+
+        this.confidenceSum =
+                confidence;
+
+        this.observationCount = 1L;
+        this.confirmed = false;
+    }
+
     public void observe(
             CandidateViolation candidate
     ) {

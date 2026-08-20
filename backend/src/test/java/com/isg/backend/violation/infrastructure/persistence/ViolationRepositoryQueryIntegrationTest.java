@@ -19,6 +19,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -40,6 +41,9 @@ class ViolationRepositoryQueryIntegrationTest {
     private UUID violationA;
     private UUID violationB;
     private UUID violationC;
+
+    private UUID recordingA;
+    private UUID recordingB;
 
     @BeforeEach
     void setUp() {
@@ -135,6 +139,51 @@ class ViolationRepositoryQueryIntegrationTest {
                 ViolationLifecycleStatus.ACTIVE,
                 ViolationReviewStatus.UNREVIEWED
         );
+    }
+
+    @Test
+    void filtersByRecordingStatus() {
+
+        insertRecording(
+                violationA,
+                "READY",
+                "clips/violation-a.mp4"
+        );
+
+        insertRecording(
+                violationB,
+                "PROCESSING",
+                null
+        );
+
+        List<ViolationJpaEntity> result =
+                find(
+                        new ViolationQueryFilter(
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                "READY"
+                        ),
+                        List.of(
+                                departmentA,
+                                departmentB
+                        ),
+                        Set.of(
+                                violationA
+                        )
+                );
+
+        assertThat(result)
+                .extracting(
+                        ViolationJpaEntity::getId
+                )
+                .containsExactly(
+                        violationA
+                );
     }
 
     @Test
@@ -500,6 +549,20 @@ class ViolationRepositoryQueryIntegrationTest {
         );
     }
 
+    private List<ViolationJpaEntity> find(
+            ViolationQueryFilter filter,
+            List<UUID> accessibleDepartmentIds,
+            Set<UUID> recordingViolationIds
+    ) {
+        return violationRepository.findAll(
+                ViolationSpecifications.fromFilter(
+                        filter,
+                        accessibleDepartmentIds,
+                        recordingViolationIds
+                )
+        );
+    }
+
     private ViolationQueryFilter emptyFilter() {
         return new ViolationQueryFilter(
                 null,
@@ -634,6 +697,47 @@ class ViolationRepositoryQueryIntegrationTest {
                 reviewStatus.name(),
                 startedAtDb,
                 reviewedAtDb
+        );
+    }
+
+    private void insertRecording(
+            UUID violationId,
+            String status,
+            String objectKey
+    ) {
+        boolean ready =
+                "READY".equals(status);
+
+        OffsetDateTime readyAt =
+                ready
+                        ? OffsetDateTime.ofInstant(
+                        Instant.parse(
+                                "2026-08-11T10:05:00Z"
+                        ),
+                        ZoneOffset.UTC
+                )
+                        : null;
+
+        jdbcTemplate.update(
+                """
+                INSERT INTO recordings (
+                    violation_id,
+                    status,
+                    object_key,
+                    duration_ms,
+                    size_bytes,
+                    ready_at,
+                    retry_count,
+                    version
+                )
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0)
+                """,
+                violationId,
+                status,
+                objectKey,
+                ready ? 5000 : null,
+                ready ? 1024L : null,
+                readyAt
         );
     }
 }
