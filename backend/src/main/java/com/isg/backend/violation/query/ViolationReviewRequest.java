@@ -7,7 +7,10 @@ import jakarta.validation.constraints.NotNull;
 
 public record ViolationReviewRequest(
         @NotNull
-        ViolationReviewStatus reviewStatus
+        ViolationReviewStatus reviewStatus,
+
+        @NotNull
+        Long version
 ) {
 
     @JsonIgnore

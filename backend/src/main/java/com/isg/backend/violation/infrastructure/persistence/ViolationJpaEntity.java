@@ -186,6 +186,10 @@ public class ViolationJpaEntity {
         return id;
     }
 
+    public long getVersion() {
+        return version;
+    }
+
     public UUID getCameraId() {
         return cameraId;
     }

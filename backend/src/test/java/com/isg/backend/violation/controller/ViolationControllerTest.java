@@ -301,7 +301,8 @@ class ViolationControllerTest {
                         reviewerId,
                         Instant.parse(
                                 "2026-08-11T20:00:00Z"
-                        )
+                        ),
+                        0L
                 );
 
         when(reviewService.review(
@@ -316,7 +317,8 @@ class ViolationControllerTest {
                 controller.reviewViolation(
                         violationId,
                         new ViolationReviewRequest(
-                                ViolationReviewStatus.FALSE_ALARM
+                                ViolationReviewStatus.FALSE_ALARM,
+                                0L
                         ),
                         authentication
                 );

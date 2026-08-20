@@ -3,6 +3,7 @@ package com.isg.backend.shared.web;
 import com.isg.backend.violation.exception.InvalidViolationQueryException;
 import com.isg.backend.violation.exception.UnsupportedDetectionLabelException;
 import com.isg.backend.violation.exception.ViolationNotFoundException;
+import com.isg.backend.violation.exception.ViolationVersionConflictException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -126,6 +127,20 @@ public class GlobalExceptionHandler {
                 HttpStatus.NOT_FOUND,
                 "VIOLATION_NOT_FOUND",
                 "Violation not found.",
+                req,
+                Map.of()
+        );
+    }
+
+    @ExceptionHandler(ViolationVersionConflictException.class)
+    public ResponseEntity<ApiErrorResponse> violationVersionConflict(
+            ViolationVersionConflictException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.CONFLICT,
+                "VIOLATION_VERSION_CONFLICT",
+                ex.getMessage(),
                 req,
                 Map.of()
         );

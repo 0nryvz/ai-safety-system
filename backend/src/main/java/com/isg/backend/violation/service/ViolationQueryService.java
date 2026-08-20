@@ -185,7 +185,8 @@ public class ViolationQueryService {
                 recording.clipReady(),
                 recording.playbackUrl(),
                 coverImageKey,
-                coverImageReady
+                coverImageReady,
+                projection.getVersion()
         );
     }
 
