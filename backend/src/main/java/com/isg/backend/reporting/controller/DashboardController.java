@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -40,6 +42,20 @@ public class DashboardController {
             @RequestParam LocalDate to,
             @RequestParam(defaultValue = "DAY") String bucket
     ) {
+        if (from.isAfter(to)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "'from' must be on or before 'to'."
+            );
+        }
+
+        if (!"DAY".equalsIgnoreCase(bucket)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Unsupported bucket: " + bucket
+            );
+        }
+
         User user = currentUser();
 
         return ResponseEntity.ok(
@@ -56,6 +72,18 @@ public class DashboardController {
     public ResponseEntity<List<DashboardDistributionResponse>> getDistribution(
             @RequestParam String groupBy
     ) {
+        boolean supported =
+                "TYPE".equalsIgnoreCase(groupBy)
+                        || "CAMERA".equalsIgnoreCase(groupBy)
+                        || "DEPARTMENT".equalsIgnoreCase(groupBy);
+
+        if (!supported) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Unsupported groupBy: " + groupBy
+            );
+        }
+
         User user = currentUser();
 
         return ResponseEntity.ok(
