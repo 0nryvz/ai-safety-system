@@ -78,7 +78,7 @@ public class SecurityConfig {
                         .requestMatchers("/internal/v1/**").permitAll()
 
                         // 3. User Uç Noktaları
-                        .requestMatchers("/api/v1/users/me").authenticated()
+                        .requestMatchers("/api/v1/users/me", "/api/v1/users/me/departments").authenticated()
                         .requestMatchers("/api/v1/users/**").hasRole("ADMIN")
 
                         // 3.1. Kamera Yönetim Uç Noktaları (Mutasyonlar ADMIN'e özel, listeleme/detay rollerine açık)
