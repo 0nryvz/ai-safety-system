@@ -15,7 +15,8 @@ public record ViolationQueryFilter(
         UUID cameraId,
         UUID departmentId,
         ViolationLifecycleStatus lifecycleStatus,
-        ViolationReviewStatus reviewStatus
+        ViolationReviewStatus reviewStatus,
+        String recordingStatus
 ) {
 
     public ViolationQueryFilter {
@@ -26,5 +27,26 @@ public record ViolationQueryFilter(
                     "from must not be after to"
             );
         }
+    }
+
+    public ViolationQueryFilter(
+            Instant from,
+            Instant to,
+            ViolationType type,
+            UUID cameraId,
+            UUID departmentId,
+            ViolationLifecycleStatus lifecycleStatus,
+            ViolationReviewStatus reviewStatus
+    ) {
+        this(
+                from,
+                to,
+                type,
+                cameraId,
+                departmentId,
+                lifecycleStatus,
+                reviewStatus,
+                null
+        );
     }
 }

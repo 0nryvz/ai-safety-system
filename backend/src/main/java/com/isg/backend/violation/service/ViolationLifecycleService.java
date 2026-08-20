@@ -42,7 +42,6 @@ import java.util.UUID;
  * <p>Physical segmentation, segment object keys and segment metadata are owned
  * by Backend 4.</p>
  */
-
 @Service
 public class ViolationLifecycleService
         implements RecordingStatusCallbackPort {
@@ -133,7 +132,9 @@ public class ViolationLifecycleService
                         modelVersion,
                         ViolationLifecycleStatus.ACTIVE,
                         ViolationReviewStatus.UNREVIEWED,
-                        confirmedViolation.candidateStartedAt()
+                        confirmedViolation.candidateStartedAt(),
+                        confirmedViolation.stateKey().subjectKey(),
+                        cameraSessionRecordId
                 );
 
         ViolationJpaEntity savedViolation =

@@ -89,6 +89,39 @@ public class ActiveViolationRegistry {
         );
     }
 
+    public void restore(
+            ViolationStateKey stateKey,
+            UUID violationId
+    ) {
+        Objects.requireNonNull(
+                stateKey,
+                "stateKey must not be null"
+        );
+
+        Objects.requireNonNull(
+                violationId,
+                "violationId must not be null"
+        );
+
+        UUID existing =
+                activeViolations.putIfAbsent(
+                        stateKey,
+                        violationId
+                );
+
+        if (existing != null
+                && !existing.equals(violationId)) {
+            throw new IllegalStateException(
+                    "Active violation state key is already mapped to another violation. stateKey="
+                            + stateKey
+                            + ", existingViolationId="
+                            + existing
+                            + ", recoveredViolationId="
+                            + violationId
+            );
+        }
+    }
+
     public int size() {
         return activeViolations.size();
     }

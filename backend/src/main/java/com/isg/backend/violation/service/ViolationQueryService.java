@@ -21,8 +21,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -73,16 +75,34 @@ public class ViolationQueryService {
                         userId
                 );
 
-        return violationRepository.findAll(
+        Set<UUID> recordingViolationIds =
+                resolveRecordingFilterIds(
+                        filter.recordingStatus()
+                );
+
+        Page<ViolationJpaEntity> violations =
+                violationRepository.findAll(
                         ViolationSpecifications.fromFilter(
                                 filter,
-                                accessibleDepartmentIds
+                                accessibleDepartmentIds,
+                                recordingViolationIds
                         ),
                         pageable
-                )
-                .map(
-                        this::toListItem
                 );
+
+        Map<UUID, RecordingQueryResult> recordings =
+                resolveRecordings(
+                        violations.getContent()
+                );
+
+        return violations.map(
+                violation -> toListItem(
+                        violation,
+                        recordings.get(
+                                violation.getId()
+                        )
+                )
+        );
     }
 
     public ViolationDetailResponse findDetail(
@@ -170,8 +190,16 @@ public class ViolationQueryService {
     }
 
     private ViolationListItem toListItem(
-            ViolationJpaEntity violation
+            ViolationJpaEntity violation,
+            RecordingQueryResult recording
     ) {
+        RecordingQueryResult resolvedRecording =
+                recording != null
+                        ? recording
+                        : fallbackRecording(
+                                violation.getLifecycleStatus()
+                );
+
         return new ViolationListItem(
                 violation.getId(),
                 violation.getCameraId(),
@@ -182,7 +210,72 @@ public class ViolationQueryService {
                 violation.getConfidence()
                         .doubleValue(),
                 violation.getLifecycleStatus(),
-                violation.getReviewStatus()
+                violation.getReviewStatus(),
+                resolvedRecording.recordingStatus(),
+                violation.getUpdatedAt()
+        );
+    }
+
+    private Set<UUID> resolveRecordingFilterIds(
+            String recordingStatus
+    ) {
+        if (recordingStatus == null) {
+            return Set.of();
+        }
+
+        RecordingQueryPort recordingQueryPort =
+                recordingQueryPortProvider.getIfAvailable();
+
+        if (recordingQueryPort == null) {
+            throw new IllegalStateException(
+                    "Recording query adapter is required for recordingStatus filtering"
+            );
+        }
+
+        Set<UUID> violationIds =
+                recordingQueryPort.findViolationIdsByRecordingStatus(
+                        recordingStatus
+                );
+
+        return Set.copyOf(
+                Objects.requireNonNull(
+                        violationIds,
+                        "recording violation ids must not be null"
+                )
+        );
+    }
+
+    private Map<UUID, RecordingQueryResult> resolveRecordings(
+            List<ViolationJpaEntity> violations
+    ) {
+        if (violations.isEmpty()) {
+            return Map.of();
+        }
+
+        RecordingQueryPort recordingQueryPort =
+                recordingQueryPortProvider.getIfAvailable();
+
+        if (recordingQueryPort == null) {
+            return Map.of();
+        }
+
+        List<UUID> violationIds =
+                violations.stream()
+                        .map(
+                                ViolationJpaEntity::getId
+                        )
+                        .toList();
+
+        Map<UUID, RecordingQueryResult> recordings =
+                recordingQueryPort.findByViolationIds(
+                        violationIds
+                );
+
+        return Map.copyOf(
+                Objects.requireNonNull(
+                        recordings,
+                        "recording results must not be null"
+                )
         );
     }
 
@@ -204,11 +297,14 @@ public class ViolationQueryService {
             }
         }
 
-        /*
-         * BE-4 query adapter henüz bağlı değilse yalnızca
-         * lifecycle durumundan güvenli bir durum bilgisi
-         * türetilir. Playback URL BE-3 tarafından üretilmez.
-         */
+        return fallbackRecording(
+                lifecycleStatus
+        );
+    }
+
+    private RecordingQueryResult fallbackRecording(
+            ViolationLifecycleStatus lifecycleStatus
+    ) {
         if (lifecycleStatus
                 == ViolationLifecycleStatus.COMPLETED) {
             return new RecordingQueryResult(

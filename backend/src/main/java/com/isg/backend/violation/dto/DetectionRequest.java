@@ -2,7 +2,6 @@ package com.isg.backend.violation.dto;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 
@@ -31,7 +30,7 @@ public record DetectionRequest(
         @PositiveOrZero
         Long inferenceMs,
 
-        @NotEmpty
+        @NotNull
         List<@Valid DetectionItem> detections
 ) {
 }
