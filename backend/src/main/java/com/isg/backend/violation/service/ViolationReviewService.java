@@ -95,7 +95,7 @@ public class ViolationReviewService {
         );
 
         ViolationJpaEntity savedViolation =
-                violationRepository.save(
+                violationRepository.saveAndFlush(
                         violation
                 );
 

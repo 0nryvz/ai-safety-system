@@ -4,6 +4,7 @@ import com.isg.backend.violation.exception.InvalidViolationQueryException;
 import com.isg.backend.violation.exception.UnsupportedDetectionLabelException;
 import com.isg.backend.violation.exception.ViolationNotFoundException;
 import com.isg.backend.violation.exception.ViolationVersionConflictException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -158,6 +159,20 @@ public class GlobalExceptionHandler {
                 HttpStatus.CONFLICT,
                 "VIOLATION_VERSION_CONFLICT",
                 ex.getMessage(),
+                req,
+                Map.of()
+        );
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiErrorResponse> optimisticLockConflict(
+            ObjectOptimisticLockingFailureException ex,
+            HttpServletRequest req
+    ) {
+        return build(
+                HttpStatus.CONFLICT,
+                "VIOLATION_VERSION_CONFLICT",
+                "Violation version conflict",
                 req,
                 Map.of()
         );
