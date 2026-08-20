@@ -4,9 +4,11 @@ import { RealtimeClient } from './RealtimeClient'
 import { bindRealtimeToAuth } from './realtimeAuthBridge'
 import type { RealtimeMessageHandler, RealtimeRecoveryCallback } from './realtimeTypes'
 import { RealtimeEventStore } from './RealtimeEventStore'
+import { recoverRealtimeState, type RealtimeRecoverySnapshotLoader } from './realtimeRecovery'
 
 const messageListeners = new Set<RealtimeMessageHandler>()
 const recoveryListeners = new Set<RealtimeRecoveryCallback>()
+let recoverySnapshotLoader: RealtimeRecoverySnapshotLoader | null = null
 
 export const realtimeEventStore = new RealtimeEventStore({
   onDiagnostic: (diagnostic) => {
@@ -27,6 +29,10 @@ function publishMessage(message: Parameters<RealtimeMessageHandler>[0]) {
 }
 
 async function publishRecoveryRequired() {
+  if (recoverySnapshotLoader) {
+    await recoverRealtimeState(realtimeEventStore, recoverySnapshotLoader)
+  }
+
   const recoveryTasks = Array.from(recoveryListeners, (listener) =>
     Promise.resolve().then(listener),
   )
@@ -74,4 +80,12 @@ export function subscribeToRealtimeRecovery(listener: RealtimeRecoveryCallback) 
   return () => {
     recoveryListeners.delete(listener)
   }
+}
+
+export function setRealtimeRecoverySnapshotLoader(loader: RealtimeRecoverySnapshotLoader | null) {
+  recoverySnapshotLoader = loader
+}
+
+export function clearRealtimeRecoverySnapshotLoader() {
+  recoverySnapshotLoader = null
 }

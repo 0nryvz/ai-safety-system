@@ -117,4 +117,54 @@ describe('RealtimeEventStore', () => {
     expect(store.getSnapshot().byId).toEqual({})
     expect(store.ingest(alertBody)).toBe(true)
   })
+
+  it('reconciles the store with a newer recovery snapshot', () => {
+    const store = new RealtimeEventStore()
+    const listener = vi.fn()
+
+    store.subscribe(listener)
+    store.ingest(alertBody)
+    listener.mockClear()
+
+    expect(
+      store.reconcile([
+        {
+          violationId: 'violation-1',
+          lifecycleStatus: 'COMPLETED',
+          recordingStatus: 'READY',
+          updatedAt: '2026-08-17T12:05:00Z',
+        },
+      ]),
+    ).toBe(true)
+
+    expect(store.getSnapshot().byId['violation-1']).toMatchObject({
+      lifecycleStatus: 'COMPLETED',
+      recordingStatus: 'READY',
+      lastEventAt: '2026-08-17T12:05:00Z',
+    })
+
+    expect(listener).toHaveBeenCalledOnce()
+  })
+
+  it('does not publish when a recovery snapshot does not change the store', () => {
+    const store = new RealtimeEventStore()
+    const listener = vi.fn()
+
+    store.subscribe(listener)
+    store.ingest(alertBody)
+    listener.mockClear()
+
+    expect(
+      store.reconcile([
+        {
+          violationId: 'violation-1',
+          lifecycleStatus: 'COMPLETED',
+          recordingStatus: 'READY',
+          updatedAt: '2026-08-17T11:59:00Z',
+        },
+      ]),
+    ).toBe(false)
+
+    expect(listener).not.toHaveBeenCalled()
+  })
 })

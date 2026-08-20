@@ -4,8 +4,11 @@ import {
   createCamera,
   getCamera,
   getCameras,
+  getRestrictedZone,
   updateCamera,
+  updateRestrictedZone,
   type CameraResponse,
+  type RestrictedZone,
 } from './cameraService'
 
 const cameras: CameraResponse[] = [
@@ -99,5 +102,44 @@ describe('cameraService', () => {
     expect(putSpy).toHaveBeenCalledWith(`/cameras/${cameras[0].id}`, request)
 
     expect(result).toEqual(updatedCamera)
+  })
+
+  it('loads a restricted zone by camera id', async () => {
+    const restrictedZone: RestrictedZone = {
+      name: 'Kaynak hattı',
+      polygon: [
+        { x: 0.1, y: 0.2 },
+        { x: 0.8, y: 0.2 },
+        { x: 0.8, y: 0.7 },
+      ],
+    }
+
+    const getSpy = vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: restrictedZone,
+    })
+
+    const result = await getRestrictedZone(cameras[0].id)
+
+    expect(getSpy).toHaveBeenCalledWith(`/cameras/${cameras[0].id}/restricted-zone`)
+    expect(result).toEqual(restrictedZone)
+  })
+
+  it('updates a restricted zone for a camera', async () => {
+    const restrictedZone: RestrictedZone = {
+      name: 'Kaynak hattı',
+      polygon: [
+        { x: 0.1, y: 0.2 },
+        { x: 0.8, y: 0.2 },
+        { x: 0.8, y: 0.7 },
+      ],
+    }
+
+    const putSpy = vi.spyOn(apiClient, 'put').mockResolvedValue({
+      data: undefined,
+    })
+
+    await updateRestrictedZone(cameras[0].id, restrictedZone)
+
+    expect(putSpy).toHaveBeenCalledWith(`/cameras/${cameras[0].id}/restricted-zone`, restrictedZone)
   })
 })

@@ -5,6 +5,7 @@ export const ROUTE_PATHS = {
   violations: '/violations',
   violationDetail: '/violations/:id',
   adminCameras: '/admin/cameras',
+  restrictedZoneEditor: '/admin/cameras/:cameraId/restricted-zone',
   adminUsers: '/admin/users',
 } as const
 
@@ -53,6 +54,12 @@ export const appRouteConfig: AppRouteConfig[] = [
   {
     id: 'adminCameras',
     path: ROUTE_PATHS.adminCameras,
+    owner: 'FE2',
+    access: 'admin',
+  },
+  {
+    id: 'restrictedZoneEditor',
+    path: ROUTE_PATHS.restrictedZoneEditor,
     owner: 'FE2',
     access: 'admin',
   },

@@ -10,6 +10,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
+import com.isg.backend.recording.application.port.PlaybackUrlPort;
+import com.isg.backend.violation.exception.CoverImageNotReadyException;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -27,7 +29,9 @@ class ViolationMediaAccessServiceTest {
     private SpringDataViolationRepository violationRepository;
     private AuthorizationService authorizationService;
     private RecordingMediaAccessService recordingMediaAccessService;
+    private PlaybackUrlPort playbackUrlPort;
     private ViolationMediaAccessService service;
+
 
     @BeforeEach
     void setUp() {
@@ -40,12 +44,17 @@ class ViolationMediaAccessServiceTest {
         recordingMediaAccessService =
                 mock(RecordingMediaAccessService.class);
 
+        playbackUrlPort =
+                mock(PlaybackUrlPort.class);
+
         service =
                 new ViolationMediaAccessService(
                         violationRepository,
                         authorizationService,
-                        recordingMediaAccessService
+                        recordingMediaAccessService,
+                        playbackUrlPort
                 );
+
     }
 
     @Test
@@ -225,6 +234,151 @@ class ViolationMediaAccessServiceTest {
                 recordingMediaAccessService
         ).createClipUrl(
                 violationId
+        );
+    }
+
+    @Test
+    void returnsCoverUrlWhenCoverImageIsReady() {
+        UUID userId =
+                UUID.randomUUID();
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        String coverImageKey =
+                "violations/2026/08/"
+                        + violationId
+                        + "/cover.jpg";
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(
+                violation.getDepartmentId()
+        ).thenReturn(
+                departmentId
+        );
+
+        when(
+                violation.getCoverImageKey()
+        ).thenReturn(
+                coverImageKey
+        );
+
+        when(
+                violationRepository.findById(
+                        violationId
+                )
+        ).thenReturn(
+                Optional.of(
+                        violation
+                )
+        );
+
+        when(
+                authorizationService.canAccessDepartment(
+                        userId,
+                        departmentId
+                )
+        ).thenReturn(
+                true
+        );
+
+        PresignedPlaybackUrl expected =
+                new PresignedPlaybackUrl(
+                        "http://localhost:9000/cover-presigned",
+                        Instant.parse(
+                                "2026-08-18T18:05:00Z"
+                        )
+                );
+
+        when(
+                playbackUrlPort.createGetUrl(
+                        coverImageKey
+                )
+        ).thenReturn(
+                expected
+        );
+
+        PresignedPlaybackUrl result =
+                service.createCoverUrl(
+                        userId,
+                        violationId
+                );
+
+        assertThat(
+                result
+        ).isEqualTo(
+                expected
+        );
+
+        verify(
+                playbackUrlPort
+        ).createGetUrl(
+                coverImageKey
+        );
+    }
+
+    @Test
+    void rejectsCoverUrlWhenCoverImageIsNotReady() {
+        UUID userId =
+                UUID.randomUUID();
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(
+                violation.getDepartmentId()
+        ).thenReturn(
+                departmentId
+        );
+
+        when(
+                violation.getCoverImageKey()
+        ).thenReturn(
+                null
+        );
+
+        when(
+                violationRepository.findById(
+                        violationId
+                )
+        ).thenReturn(
+                Optional.of(
+                        violation
+                )
+        );
+
+        when(
+                authorizationService.canAccessDepartment(
+                        userId,
+                        departmentId
+                )
+        ).thenReturn(
+                true
+        );
+
+        assertThatThrownBy(
+                () ->
+                        service.createCoverUrl(
+                                userId,
+                                violationId
+                        )
+        ).isInstanceOf(
+                CoverImageNotReadyException.class
+        );
+
+        verifyNoInteractions(
+                playbackUrlPort
         );
     }
 }

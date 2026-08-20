@@ -6,6 +6,10 @@ import {
   realtimeViolationReducer,
   type RealtimeViolationState,
 } from './realtimeViolationReducer'
+import {
+  reconcileRealtimeViolations,
+  type RealtimeRecoverySnapshot,
+} from './realtimeRecoveryReconciler'
 
 export interface RealtimeEventStoreDiagnostic {
   code: 'INVALID_PAYLOAD' | 'UNKNOWN_ENUM_VALUE'
@@ -103,6 +107,19 @@ export class RealtimeEventStore {
       type: 'DISMISS',
       violationId,
     })
+
+    if (nextState === this.state) {
+      return false
+    }
+
+    this.state = nextState
+    this.publish()
+
+    return true
+  }
+
+  reconcile(snapshots: RealtimeRecoverySnapshot[]): boolean {
+    const nextState = reconcileRealtimeViolations(this.state, snapshots)
 
     if (nextState === this.state) {
       return false

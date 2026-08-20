@@ -87,6 +87,14 @@ def _build_callback_json(
             }
         )
 
+        if (
+                payload.cover_image_key is not None
+                and payload.cover_image_key.strip()
+        ):
+            callback_json["coverImageKey"] = (
+                payload.cover_image_key
+            )
+
         return callback_json
 
     if payload.status == "ERROR":
