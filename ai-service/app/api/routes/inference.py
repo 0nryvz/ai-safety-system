@@ -100,7 +100,7 @@ async def receive_frame(
             sessionId=x_session_id,
             frameTimestamp=_parse_frame_timestamp(x_frame_timestamp),
             modelVersion=settings.ai_model_version,
-            inferenceMs=result.inference_ms,
+            inferenceMs=round(result.inference_ms),
             detections=detection_items,
         )
     except ValidationError as exc:
@@ -120,6 +120,22 @@ async def receive_frame(
             exc.status_code,
             exc,
         )
+        if (
+            exc.status_code is not None
+            and 400 <= exc.status_code < 500
+        ):
+            raise HTTPException(
+                status_code=exc.status_code,
+                detail=(
+                    "Backend detection request rejected "
+                    f"with status={exc.status_code}"
+                ),
+            ) from exc
+
+        raise HTTPException(
+            status_code=502,
+            detail="Backend detection forwarding failed",
+        ) from exc
 
     return JSONResponse(
         status_code=202,
