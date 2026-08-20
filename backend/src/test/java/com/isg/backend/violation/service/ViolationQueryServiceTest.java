@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -58,6 +59,155 @@ class ViolationQueryServiceTest {
                         violationRepository,
                         authorizationService,
                         recordingQueryPortProvider
+                );
+    }
+
+    @Test
+    void usesBulkRecordingQueryForListWithoutNPlusOne() {
+        UUID userId =
+                UUID.randomUUID();
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        UUID cameraId =
+                UUID.randomUUID();
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getId())
+                .thenReturn(
+                        violationId
+                );
+
+        when(violation.getCameraId())
+                .thenReturn(
+                        cameraId
+                );
+
+        when(violation.getDepartmentId())
+                .thenReturn(
+                        departmentId
+                );
+
+        when(violation.getViolationType())
+                .thenReturn(
+                        ViolationType.MISSING_WELDING_MASK
+                );
+
+        when(violation.getStartedAt())
+                .thenReturn(
+                        Instant.parse(
+                                "2026-08-20T10:00:00Z"
+                        )
+                );
+
+        when(violation.getConfidence())
+                .thenReturn(
+                        new BigDecimal(
+                                "0.9500"
+                        )
+                );
+
+        when(violation.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.ACTIVE
+                );
+
+        when(violation.getReviewStatus())
+                .thenReturn(
+                        ViolationReviewStatus.UNREVIEWED
+                );
+
+        when(authorizationService.accessibleDepartmentIds(
+                userId
+        )).thenReturn(
+                List.of(
+                        departmentId
+                )
+        );
+
+        PageRequest pageable =
+                PageRequest.of(
+                        0,
+                        20
+                );
+
+        when(violationRepository.findAll(
+                any(Specification.class),
+                org.mockito.ArgumentMatchers.eq(
+                        pageable
+                )
+        )).thenReturn(
+                new PageImpl<>(
+                        List.of(
+                                violation
+                        ),
+                        pageable,
+                        1
+                )
+        );
+
+        RecordingQueryPort recordingQueryPort =
+                mock(RecordingQueryPort.class);
+
+        when(recordingQueryPortProvider.getIfAvailable())
+                .thenReturn(
+                        recordingQueryPort
+                );
+
+        when(recordingQueryPort.findByViolationIds(
+                List.of(
+                        violationId
+                )
+        )).thenReturn(
+                Map.of(
+                        violationId,
+                        RecordingQueryResult.ready(
+                                "https://example.test/clip"
+                        )
+                )
+        );
+
+        Page<ViolationListItem> result =
+                queryService.findViolations(
+                        userId,
+                        new ViolationQueryFilter(
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                        ),
+                        pageable
+                );
+
+        ViolationListItem item =
+                result.getContent()
+                        .getFirst();
+
+        assertThat(item.recordingStatus())
+                .isEqualTo(
+                        "READY"
+                );
+
+        verify(recordingQueryPort)
+                .findByViolationIds(
+                        List.of(
+                                violationId
+                        )
+                );
+
+        verify(recordingQueryPort,
+                org.mockito.Mockito.never())
+                .findByViolationId(
+                        any()
                 );
     }
 
@@ -414,6 +564,118 @@ class ViolationQueryServiceTest {
     }
 
     @Test
+    void returnsNullRecordingStatusWhenRecordingDoesNotExist() {
+        UUID userId = UUID.randomUUID();
+        UUID violationId = UUID.randomUUID();
+        UUID departmentId = UUID.randomUUID();
+
+        ViolationJpaEntity violation =
+                mock(ViolationJpaEntity.class);
+
+        when(violation.getId())
+                .thenReturn(violationId);
+
+        when(violation.getDepartmentId())
+                .thenReturn(departmentId);
+
+        when(violation.getCameraId())
+                .thenReturn(UUID.randomUUID());
+
+        when(violation.getViolationType())
+                .thenReturn(
+                        ViolationType.MISSING_WELDING_MASK
+                );
+
+        when(violation.getStartedAt())
+                .thenReturn(
+                        Instant.parse(
+                                "2026-08-20T06:00:00Z"
+                        )
+                );
+
+        when(violation.getConfidence())
+                .thenReturn(
+                        new BigDecimal("0.9500")
+                );
+
+        when(violation.getLifecycleStatus())
+                .thenReturn(
+                        ViolationLifecycleStatus.COMPLETED
+                );
+
+        when(violation.getReviewStatus())
+                .thenReturn(
+                        ViolationReviewStatus.UNREVIEWED
+                );
+
+        when(violation.getUpdatedAt())
+                .thenReturn(
+                        Instant.parse(
+                                "2026-08-20T06:10:00Z"
+                        )
+                );
+
+        when(authorizationService.accessibleDepartmentIds(
+                userId
+        )).thenReturn(
+                List.of(departmentId)
+        );
+
+        RecordingQueryPort recordingQueryPort =
+                mock(RecordingQueryPort.class);
+
+        when(recordingQueryPortProvider.getIfAvailable())
+                .thenReturn(recordingQueryPort);
+
+        when(recordingQueryPort.findByViolationIds(
+                List.of(violationId)
+        )).thenReturn(
+                Map.of()
+        );
+
+        PageRequest pageable =
+                PageRequest.of(
+                        0,
+                        20
+                );
+
+        when(violationRepository.findAll(
+                any(Specification.class),
+                org.mockito.ArgumentMatchers.eq(pageable)
+        )).thenReturn(
+                new PageImpl<>(
+                        List.of(violation),
+                        pageable,
+                        1
+                )
+        );
+
+
+        Page<ViolationListItem> result =
+                queryService.findViolations(
+                        userId,
+                        new ViolationQueryFilter(
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                        ),
+                        pageable
+                );
+
+
+        ViolationListItem item =
+                result.getContent()
+                        .getFirst();
+
+        assertThat(item.recordingStatus())
+                .isNull();
+    }
+
+    @Test
     void returnsAuthorizedProjectedDetailWithoutPlaybackUrlWhenRecordingAdapterIsMissing() {
         UUID userId =
                 UUID.randomUUID();
@@ -529,12 +791,10 @@ class ViolationQueryServiceTest {
                 );
 
         assertThat(result.recordingStatus())
-                .isEqualTo(
-                        "READY"
-                );
+                .isNull();
 
         assertThat(result.clipReady())
-                .isTrue();
+                .isFalse();
 
         assertThat(result.playbackUrl())
                 .isNull();
