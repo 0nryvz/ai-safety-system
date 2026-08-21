@@ -41,7 +41,12 @@ class Settings(BaseSettings):
         default=0.25,
         alias="WELDING_CONFIDENCE_THRESHOLD",
     )
-
+    welding_mask_confidence_threshold: float = Field(
+    default=0.40,
+    alias="WELDING_MASK_CONFIDENCE_THRESHOLD",
+    ge=0.0,
+    le=1.0,
+)
     non_gloves_confidence_threshold: float = Field(
         default=0.40,
         alias="NON_GLOVES_CONFIDENCE_THRESHOLD",
