@@ -87,7 +87,7 @@ services:
 
       BACKEND_BASE_URL: ${BACKEND_BASE_URL:-http://host.docker.internal:8080}
       BACKEND_DETECTIONS_PATH: ${BACKEND_DETECTIONS_PATH:-/internal/v1/detections}
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-benim-gizli-anahtarim-123}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-change-me-local-internal-key}
 
       AI_CLASS_MAPPING_PATH: config/class_mapping.json
 
