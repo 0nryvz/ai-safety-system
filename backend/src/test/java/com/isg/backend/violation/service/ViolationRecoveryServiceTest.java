@@ -114,8 +114,7 @@ class ViolationRecoveryServiceTest {
         when(
                 repository.findByLifecycleStatusIn(
                         List.of(
-                                ViolationLifecycleStatus.ACTIVE,
-                                ViolationLifecycleStatus.PREPARING
+                                ViolationLifecycleStatus.ACTIVE
                         )
                 )
         ).thenReturn(
@@ -211,7 +210,6 @@ class ViolationRecoveryServiceTest {
         when(
                 repository.findByLifecycleStatusIn(
                         List.of(
-                                ViolationLifecycleStatus.ACTIVE,
                                 ViolationLifecycleStatus.PREPARING
                         )
                 )
@@ -290,7 +288,6 @@ class ViolationRecoveryServiceTest {
         when(
                 repository.findByLifecycleStatusIn(
                         List.of(
-                                ViolationLifecycleStatus.ACTIVE,
                                 ViolationLifecycleStatus.PREPARING
                         )
                 )
@@ -328,5 +325,19 @@ class ViolationRecoveryServiceTest {
                         org.mockito.ArgumentMatchers.any(),
                         org.mockito.ArgumentMatchers.eq("RECOVERY_ERROR")
                 );
+
+        ViolationStateKey key =
+                new ViolationStateKey(
+                        cameraId,
+                        sessionId,
+                        ViolationType.MISSING_GLOVES,
+                        "track-1"
+                );
+
+        assertThat(
+                registry.find(key)
+        )
+                .isEmpty();
     }
+
 }

@@ -1,10 +1,10 @@
 package com.isg.backend.violation.service;
 
-import com.isg.backend.violation.domain.ViolationLifecycleStatus;
-import com.isg.backend.violation.domain.temporal.ViolationStateKey;
 import com.isg.backend.violation.application.port.RecordingQueryPort;
 import com.isg.backend.violation.application.port.RecordingQueryResult;
 import com.isg.backend.violation.application.port.RecordingStatusCallbackPort;
+import com.isg.backend.violation.domain.ViolationLifecycleStatus;
+import com.isg.backend.violation.domain.temporal.ViolationStateKey;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
 import org.springframework.stereotype.Service;
@@ -30,11 +30,20 @@ public class ViolationRecoveryService {
             RecordingQueryPort recordingQueryPort,
             RecordingStatusCallbackPort recordingStatusCallbackPort
     ) {
-        this.violationRepository = violationRepository;
-        this.activeViolationRegistry = activeViolationRegistry;
-        this.temporalConfirmationService = temporalConfirmationService;
-        this.recordingQueryPort = recordingQueryPort;
-        this.recordingStatusCallbackPort = recordingStatusCallbackPort;
+        this.violationRepository =
+                violationRepository;
+
+        this.activeViolationRegistry =
+                activeViolationRegistry;
+
+        this.temporalConfirmationService =
+                temporalConfirmationService;
+
+        this.recordingQueryPort =
+                recordingQueryPort;
+
+        this.recordingStatusCallbackPort =
+                recordingStatusCallbackPort;
     }
 
     @Transactional
@@ -43,7 +52,13 @@ public class ViolationRecoveryService {
         List<ViolationJpaEntity> activeViolations =
                 violationRepository.findByLifecycleStatusIn(
                         List.of(
-                                ViolationLifecycleStatus.ACTIVE,
+                                ViolationLifecycleStatus.ACTIVE
+                        )
+                );
+
+        List<ViolationJpaEntity> preparingViolations =
+                violationRepository.findByLifecycleStatusIn(
+                        List.of(
                                 ViolationLifecycleStatus.PREPARING
                         )
                 );
@@ -52,72 +67,96 @@ public class ViolationRecoveryService {
 
         for (ViolationJpaEntity violation : activeViolations) {
 
-            UUID sourceSessionId =
-                    violation.getSourceSessionId();
-
-            RecordingQueryResult recording =
-                    recordingQueryPort.findByViolationId(
-                            violation.getId()
-                    ).orElse(null);
-
-            if (recording != null) {
-
-                if ("READY".equals(recording.recordingStatus())) {
-
-                    recordingStatusCallbackPort.recordingReady(
-                            violation.getId(),
-                            Instant.now()
-                    );
-                }
-
-                if ("ERROR".equals(recording.recordingStatus())) {
-
-                    recordingStatusCallbackPort.recordingError(
-                            violation.getId(),
-                            Instant.now(),
-                            "RECOVERY_ERROR"
-                    );
-                }
-            }
-
-            String subjectKey =
-                    violation.getSubjectKey();
-
-            if (sourceSessionId == null) {
-                continue;
-            }
-
-            if (subjectKey == null
-                    || subjectKey.isBlank()) {
-                continue;
-            }
-
-            ViolationStateKey stateKey =
-                    new ViolationStateKey(
-                            violation.getCameraId(),
-                            sourceSessionId,
-                            violation.getViolationType(),
-                            subjectKey
-                    );
-
-            activeViolationRegistry.restore(
-                    stateKey,
-                    violation.getId()
+            restoreActiveViolation(
+                    violation
             );
 
-            Instant startedAt =
-                    violation.getStartedAt();
+            recoveredCount++;
+        }
 
-            temporalConfirmationService.restoreConfirmedState(
-                    stateKey,
-                    startedAt,
-                    startedAt,
-                    violation.getConfidence().doubleValue()
+        for (ViolationJpaEntity violation : preparingViolations) {
+
+            reconcilePreparingViolation(
+                    violation
             );
 
             recoveredCount++;
         }
 
         return recoveredCount;
+    }
+
+    private void restoreActiveViolation(
+            ViolationJpaEntity violation
+    ) {
+        UUID sourceSessionId =
+                violation.getSourceSessionId();
+
+        String subjectKey =
+                violation.getSubjectKey();
+
+        if (sourceSessionId == null) {
+            return;
+        }
+
+        if (subjectKey == null
+                || subjectKey.isBlank()) {
+            return;
+        }
+
+        ViolationStateKey stateKey =
+                new ViolationStateKey(
+                        violation.getCameraId(),
+                        sourceSessionId,
+                        violation.getViolationType(),
+                        subjectKey
+                );
+
+        activeViolationRegistry.restore(
+                stateKey,
+                violation.getId()
+        );
+
+        Instant startedAt =
+                violation.getStartedAt();
+
+        temporalConfirmationService.restoreConfirmedState(
+                stateKey,
+                startedAt,
+                startedAt,
+                violation.getConfidence().doubleValue()
+        );
+    }
+
+    private void reconcilePreparingViolation(
+            ViolationJpaEntity violation
+    ) {
+        RecordingQueryResult recording =
+                recordingQueryPort.findByViolationId(
+                        violation.getId()
+                ).orElse(null);
+
+        if (recording == null) {
+            return;
+        }
+
+        if ("READY".equals(
+                recording.recordingStatus()
+        )) {
+            recordingStatusCallbackPort.recordingReady(
+                    violation.getId(),
+                    Instant.now()
+            );
+        }
+
+        if ("ERROR".equals(
+                recording.recordingStatus()
+        )) {
+            recordingStatusCallbackPort.recordingError(
+                    violation.getId(),
+                    Instant.now(),
+                    "RECOVERY_ERROR"
+            );
+        }
     }
 }
