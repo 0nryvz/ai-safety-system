@@ -153,6 +153,14 @@ public class ViolationNotificationService {
                             clock
                     );
 
+            violation.markAlertSent(
+                    notificationSentAt
+            );
+
+            violationRepository.save(
+                    violation
+            );
+
             Duration latency =
                     Duration.between(
                             event.confirmedAt(),

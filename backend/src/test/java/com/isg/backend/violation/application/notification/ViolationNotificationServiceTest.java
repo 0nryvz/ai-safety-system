@@ -231,6 +231,13 @@ class ViolationNotificationServiceTest {
                 .isLessThanOrEqualTo(
                         2000.0
                 );
+
+        verify(
+                violationRepository
+        )
+                .save(
+                        violation
+                );
     }
 
     @Test
