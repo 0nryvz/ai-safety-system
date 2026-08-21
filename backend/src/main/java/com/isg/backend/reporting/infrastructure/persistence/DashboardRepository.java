@@ -84,7 +84,7 @@ public class DashboardRepository {
                 (
                     SELECT COUNT(*)
                     FROM cameras c
-                    WHERE c.status IN ('ONLINE', 'DEGRADED')
+                    WHERE c.status IN ('ONLINE', 'WEAK')
                       AND c.department_id IN (:departmentIds)
                 ),
 
