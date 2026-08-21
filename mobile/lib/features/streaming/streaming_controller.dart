@@ -11,6 +11,7 @@ import '../camera/camera_permission_service.dart';
 import '../session/camera_option.dart';
 import '../session/camera_session_service.dart';
 import 'camera_frame_service.dart';
+import 'publish_session_store.dart';
 import 'stream_metrics.dart';
 import 'streaming_state.dart';
 
@@ -65,6 +66,9 @@ class StreamingController extends Notifier<StreamingState> {
   final List<DateTime> _sentFrameTimestamps = [];
   /// Stop sonrası Gateway close'un bitmesini bekler; bitmeden yeni open 409 üretir.
   Future<void>? _stopCleanupFuture;
+
+  /// Yayın oturumu kimliği — yalnızca manuel Start'ta yenilenir; reconnect korur.
+  final PublishSessionStore _publishSession = PublishSessionStore();
 
   /// Son bilinen Gateway oturumu (dispose/409 kurtarma için state'ten bağımsız).
   String? _activeGatewaySessionId;
@@ -488,35 +492,75 @@ class StreamingController extends Notifier<StreamingState> {
         return;
       }
 
-      // Kullanıcı stop-start yaptığında yeni oturum açılır; reconnect de yeni
-      // sessionId üretir çünkü Gateway eski oturumu kapatılmış sayar.
-      final sessionId = _identity.newSessionId();
+      // Manuel Start → yeni UUID. Automatic reconnect → mevcut kimlik korunur.
+      final String sessionId;
+      if (automaticReconnect) {
+        final existing = _publishSession.sessionForAutomaticReconnect() ??
+            _activeGatewaySessionId;
+        if (existing == null) {
+          _update(
+            (s) => s.copyWith(
+              isStreaming: false,
+              connection: StreamConnectionState.offline,
+              errorMessage: 'Yeniden bağlanacak oturum kimliği bulunamadı.',
+            ),
+          );
+          _afterStartFailure(automaticReconnect);
+          return;
+        }
+        sessionId = existing;
+      } else {
+        sessionId = _publishSession.beginManualSession(_identity.newSessionId);
+      }
 
-      final opened = await _sessionService.openSession(
+      var opened = await _sessionService.openSession(
         cameraId: cameraId,
         sessionId: sessionId,
         sessionToken: AppConfig.cameraKey,
       );
 
+      // Gateway oturumu düşmüşse aynı sessionId ile recovery open.
       if (!opened.isSuccess &&
-          opened.failure?.kind == GatewayFailureKind.sessionConflict) {
-        // Stop cleanup yarışı veya takılı oturum: bilinen oturumu kapatıp bir kez daha dene.
-        final staleSession = _activeGatewaySessionId;
-        final staleCamera = _activeGatewayCameraId ?? cameraId;
-        if (staleSession != null) {
-          await _sessionService.closeSession(
-            cameraId: staleCamera,
-            sessionId: staleSession,
-          );
-        }
-        final retried = await _sessionService.openSession(
+          opened.failure?.kind == GatewayFailureKind.sessionNotFound) {
+        opened = await _sessionService.openSession(
           cameraId: cameraId,
           sessionId: sessionId,
           sessionToken: AppConfig.cameraKey,
         );
-        if (!retried.isSuccess) {
-          _handleSessionOpenFailure(retried.failure!, automaticReconnect);
-          return;
+      }
+
+      if (!opened.isSuccess &&
+          opened.failure?.kind == GatewayFailureKind.sessionConflict) {
+        if (automaticReconnect) {
+          // Reconnect'te yeni kimlik üretme / eskiyi kapatma yok; aynı ID ile bir kez daha dene.
+          opened = await _sessionService.openSession(
+            cameraId: cameraId,
+            sessionId: sessionId,
+            sessionToken: AppConfig.cameraKey,
+          );
+          if (!opened.isSuccess) {
+            _handleSessionOpenFailure(opened.failure!, automaticReconnect);
+            return;
+          }
+        } else {
+          // Manuel Start: takılı oturum — bilinen oturumu kapatıp aynı yeni kimlikle dene.
+          final staleSession = _activeGatewaySessionId;
+          final staleCamera = _activeGatewayCameraId ?? cameraId;
+          if (staleSession != null) {
+            await _sessionService.closeSession(
+              cameraId: staleCamera,
+              sessionId: staleSession,
+            );
+          }
+          opened = await _sessionService.openSession(
+            cameraId: cameraId,
+            sessionId: sessionId,
+            sessionToken: AppConfig.cameraKey,
+          );
+          if (!opened.isSuccess) {
+            _handleSessionOpenFailure(opened.failure!, automaticReconnect);
+            return;
+          }
         }
       } else if (!opened.isSuccess) {
         _handleSessionOpenFailure(opened.failure!, automaticReconnect);
@@ -944,7 +988,11 @@ class StreamingController extends Notifier<StreamingState> {
   }
 
   void _scheduleReconnect() {
-    if (_manualStop || _isAppInBackground || _isReconnecting) {
+    if (!ReconnectEligibility.canSchedule(
+      manualStop: _manualStop,
+      isAppInBackground: _isAppInBackground,
+      alreadyReconnecting: _isReconnecting,
+    )) {
       return;
     }
 
@@ -1002,14 +1050,11 @@ class StreamingController extends Notifier<StreamingState> {
     _update((s) => s.copyWith(isBusy: true));
 
     try {
-      final oldSessionId = state.sessionId;
-      final oldCameraId = state.cameraId;
-
+      // Yerel stream'i durdur; Gateway oturumunu /close etme ve sessionId'yi
+      // değiştirme. openSession aynı kimlikle idempotent reconnect olur.
       _streamGeneration++;
 
-      _update(
-        (s) => s.copyWith(isStreaming: false, clearSessionId: true),
-      );
+      _update((s) => s.copyWith(isStreaming: false));
 
       _frameService.cancelUploads();
 
@@ -1026,13 +1071,6 @@ class StreamingController extends Notifier<StreamingState> {
 
       await _waitForActiveFrameCallbacks();
       await _frameService.waitForPendingUploads();
-
-      if (oldSessionId != null && oldCameraId != null) {
-        await _sessionService.closeSession(
-          cameraId: oldCameraId,
-          sessionId: oldSessionId,
-        );
-      }
 
       _consecutiveFrameFailures = 0;
       _stopFpsMonitoring();
@@ -1072,8 +1110,11 @@ class StreamingController extends Notifier<StreamingState> {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
 
-    final sessionId = state.sessionId;
-    final cameraId = state.cameraId;
+    final sessionId = _publishSession.sessionId ?? state.sessionId;
+    final cameraId = state.cameraId ?? _activeGatewayCameraId;
+
+    // Manuel Stop davranışı: yayın kimliğini temizle (reconnect koruması biter).
+    _publishSession.clear();
 
     _streamGeneration++;
     _frameService.cancelUploads();

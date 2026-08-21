@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MVP: gerçek cihazda HTTP (Tailscale / LAN / adb reverse) ile Gateway erişimi.
+  Production HTTPS sertleştirme bu yapılandırmanın kapsamı dışındadır.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

@@ -35,6 +35,11 @@ flutter run \
 Emülatörde host makine `10.0.2.2` üzerinden görünür; bu iki değer varsayılan
 olarak `10.0.2.2` kullanır, yani emülatörde `--dart-define` vermeden çalışır.
 
+Release APK (`flutter build apk --release`) ana `AndroidManifest.xml` içinde
+`INTERNET` izni ve MVP cleartext HTTP (`usesCleartextTraffic` +
+`network_security_config`) taşır; böylece gerçek telefonda Tailscale/LAN/adb
+reverse ile Gateway HTTP erişimi güvenilir kalır.
+
 ---
 
 ## Yapılandırma
