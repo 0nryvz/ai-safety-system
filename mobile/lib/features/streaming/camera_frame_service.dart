@@ -4,8 +4,30 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/config/app_config.dart';
+import '../../core/error/gateway_failure.dart';
 import '../../core/network/api_client.dart';
-import 'jpeg_encoder_worker.dart';
+import 'native_jpeg_encoder.dart';
+
+/// Bir karenin akıbeti. `skipped` hata değildir: yayın durdurulduğu veya
+/// yeniden bağlanıldığı için geçersizleşen kareleri ifade eder.
+enum FrameOutcome { sent, skipped, failed }
+
+class FrameUploadResult {
+  final FrameOutcome outcome;
+  final GatewayFailure? failure;
+
+  const FrameUploadResult.sent()
+      : outcome = FrameOutcome.sent,
+        failure = null;
+
+  const FrameUploadResult.skipped()
+      : outcome = FrameOutcome.skipped,
+        failure = null;
+
+  const FrameUploadResult.failed(this.failure) : outcome = FrameOutcome.failed;
+
+  bool get isSent => outcome == FrameOutcome.sent;
+}
 
 /// Stream callback içinde CameraImage'den alınan kopya.
 /// CameraImage buffer'ı callback biter bitmez geri verilir.
@@ -43,10 +65,6 @@ class RawYuvFrame {
 }
 
 class CameraFrameService {
-  /// AI modeli imgsz=640 ile eğitildi; kaynak daha küçükse olduğu gibi gider.
-  static const int targetEncodeWidth = 640;
-  static const int jpegQuality = 70;
-
   final ApiClient _apiClient;
   final NativeJpegEncoder _encoder;
 
@@ -74,9 +92,7 @@ class CameraFrameService {
     _uploadEpoch++;
 
     for (final ready in _readyFrames.values) {
-      if (!ready.result.isCompleted) {
-        ready.result.complete(false);
-      }
+      ready.complete(const FrameUploadResult.skipped());
     }
 
     _readyFrames.clear();
@@ -98,7 +114,7 @@ class CameraFrameService {
 
     // Tam sayı adımla küçültüldüğü için yukarı yuvarlamak hedefin çok altına
     // düşürür (720 -> 360). Aşağı yuvarlayıp hedefin altına inmemeyi seçiyoruz.
-    final step = (srcW ~/ targetEncodeWidth).clamp(1, 16);
+    final step = (srcW ~/ AppConfig.targetEncodeWidth).clamp(1, 16);
 
     final yPlane = cameraImage.planes[0];
     final uPlane = cameraImage.planes[1];
@@ -119,7 +135,7 @@ class CameraFrameService {
     );
   }
 
-  Future<bool> encodeAndUpload({
+  Future<FrameUploadResult> encodeAndUpload({
     required String cameraId,
     required String sessionId,
     required DateTime frameTimestamp,
@@ -150,7 +166,7 @@ class CameraFrameService {
         sourceWidth: frame.sourceWidth,
         sourceHeight: frame.sourceHeight,
         step: frame.step,
-        quality: jpegQuality,
+        quality: AppConfig.jpegQuality,
       );
 
       encodeStopwatch.stop();
@@ -173,18 +189,18 @@ class CameraFrameService {
       _readyFrames[sequence] = ready;
       unawaited(_drainUploadQueue());
 
-      final uploaded = await ready.result.future;
+      final result = await ready.result.future;
 
       totalStopwatch.stop();
 
-      return uploaded;
+      return result;
     } catch (e) {
       totalStopwatch.stop();
 
       unawaited(_registerSkip(sequence, epoch));
 
       if (epoch != _uploadEpoch) {
-        return false;
+        return const FrameUploadResult.skipped();
       }
 
       if (AppConfig.frameDiagnostics) {
@@ -195,7 +211,10 @@ class CameraFrameService {
         );
       }
 
-      return false;
+      // Encode hatası ağ hatası değil; yeniden denenebilir sayılır.
+      return FrameUploadResult.failed(
+        GatewayFailure.network(detail: e.toString()),
+      );
     } finally {
       _pendingUploads--;
 
@@ -209,9 +228,9 @@ class CameraFrameService {
 
   /// Sıra numarasında boşluk kalırsa kuyruk kilitlenir; atlanan kareler de
   /// kaydedilmeli.
-  Future<bool> _registerSkip(int sequence, int epoch) {
+  Future<FrameUploadResult> _registerSkip(int sequence, int epoch) {
     if (_readyFrames.containsKey(sequence)) {
-      return Future.value(false);
+      return Future.value(const FrameUploadResult.skipped());
     }
 
     final skipped = _ReadyFrame(
@@ -249,13 +268,8 @@ class CameraFrameService {
 
         _nextUploadSequence++;
 
-        if (ready.epoch != _uploadEpoch) {
-          ready.complete(false);
-          continue;
-        }
-
-        if (ready.jpegBytes == null) {
-          ready.complete(false);
+        if (ready.epoch != _uploadEpoch || ready.jpegBytes == null) {
+          ready.complete(const FrameUploadResult.skipped());
           continue;
         }
 
@@ -281,12 +295,23 @@ class CameraFrameService {
             );
           }
 
-          ready.complete(response.statusCode == 202);
+          ready.complete(
+            response.statusCode == 202
+                ? const FrameUploadResult.sent()
+                : FrameUploadResult.failed(
+                    GatewayFailure.fromStatusCode(response.statusCode),
+                  ),
+          );
         } catch (e) {
           if (AppConfig.frameDiagnostics) {
             debugPrint('FRAME PERF | UPLOAD ERROR | error=$e');
           }
-          ready.complete(false);
+
+          ready.complete(
+            FrameUploadResult.failed(
+              GatewayFailure.network(detail: e.toString()),
+            ),
+          );
         }
       }
     } finally {
@@ -333,7 +358,7 @@ class _ReadyFrame {
   final int epoch;
   final int encodeMs;
   final String label;
-  final Completer<bool> result = Completer<bool>();
+  final Completer<FrameUploadResult> result = Completer<FrameUploadResult>();
 
   _ReadyFrame({
     required this.cameraId,
@@ -345,7 +370,7 @@ class _ReadyFrame {
     required this.label,
   });
 
-  void complete(bool value) {
+  void complete(FrameUploadResult value) {
     if (!result.isCompleted) {
       result.complete(value);
     }

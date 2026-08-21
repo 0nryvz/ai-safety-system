@@ -1,9 +1,19 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../config/app_config.dart';
+
 class ApiClient {
-  static const String baseUrl = 'http://10.0.2.2:8000';
+  static const String baseUrl = AppConfig.gatewayBaseUrl;
+
+  /// Keep-alive: her frame için yeni TCP bağlantısı açmamak için.
+  final http.Client _client;
+
+  ApiClient({
+    http.Client? client,
+  }) : _client = client ?? http.Client();
 
   Future<http.Response> postJson({
     required String path,
@@ -11,46 +21,51 @@ class ApiClient {
   }) async {
     final uri = Uri.parse('$baseUrl$path');
 
-    return http.post(
+    return _client.post(
       uri,
       headers: {
         'Content-Type': 'application/json',
+        'Connection': 'keep-alive',
       },
       body: jsonEncode(body),
     );
   }
+
   Future<http.Response> postHeartbeat({
-  required String path,
-  required String cameraId,
-}) async {
-  final uri = Uri.parse('$baseUrl$path');
+    required String path,
+    required String cameraId,
+  }) async {
+    final uri = Uri.parse('$baseUrl$path');
 
-  return http.post(
-    uri,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: jsonEncode({
-      'camera_id': cameraId,
-    }),
-  );
-}
-Future<http.Response> postClose({
-  required String path,
-  required String cameraId,
-}) async {
-  final uri = Uri.parse('$baseUrl$path');
+    return _client.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Connection': 'keep-alive',
+      },
+      body: jsonEncode({
+        'cameraId': cameraId,
+      }),
+    );
+  }
 
-  return http.post(
-    uri,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: jsonEncode({
-      'camera_id': cameraId,
-    }),
-  );
-}
+  Future<http.Response> postClose({
+    required String path,
+    required String cameraId,
+  }) async {
+    final uri = Uri.parse('$baseUrl$path');
+
+    return _client.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Connection': 'keep-alive',
+      },
+      body: jsonEncode({
+        'cameraId': cameraId,
+      }),
+    );
+  }
 
   Future<http.Response> postJpeg({
     required String path,
@@ -60,14 +75,20 @@ Future<http.Response> postClose({
   }) async {
     final uri = Uri.parse('$baseUrl$path');
 
-    return http.post(
+    return _client.post(
       uri,
       headers: {
         'Content-Type': 'image/jpeg',
+        'Connection': 'keep-alive',
         'X-Camera-Id': cameraId,
-        'X-Frame-Timestamp': frameTimestamp.toUtc().toIso8601String(),
+        'X-Frame-Timestamp':
+            frameTimestamp.toUtc().toIso8601String(),
       },
       body: jpegBytes,
     );
+  }
+
+  void close() {
+    _client.close();
   }
 }
