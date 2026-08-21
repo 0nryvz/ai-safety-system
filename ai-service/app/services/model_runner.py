@@ -2,9 +2,20 @@
 ModelRunner: model yükleme ve inference çalıştırma sorumluluğu tek burada.
 
 Adım 0 handoff sonucu:
-    model: yolo26s.pt (Ultralytics YOLO), imgsz=640, 6 class
-    names: ['Person', 'gloves', 'welding', 'welding_apron', 'welding_jacket', 'welding_mask']
+    model: best.pt (Ultralytics YOLO), imgsz=640, 9 class
+    names: [
+        'Person',
+        'gloves',
+        'non_gloves',
+        'non_welding_jacket',
+        'non_welding_mask',
+        'welding',
+        'welding_apron',
+        'welding_jacket',
+        'welding_mask',
+    ]
 """
+
 from __future__ import annotations
 
 import logging
