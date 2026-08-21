@@ -1,7 +1,6 @@
 package com.isg.backend.violation.application.notification;
 
-import com.isg.backend.modules.camera.api.dto.CameraResponse;
-import com.isg.backend.modules.camera.application.CameraService;
+import com.isg.backend.camera.service.CameraQueryService;
 import com.isg.backend.violation.application.event.ViolationRecordingUpdatedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
 import com.isg.backend.violation.application.port.DepartmentNameResolver;
@@ -42,7 +41,7 @@ class ViolationNotificationServiceTest {
     private NotificationRecipientResolver recipientResolver;
     private DepartmentNameResolver departmentNameResolver;
     private SpringDataViolationRepository violationRepository;
-    private CameraService cameraService;
+    private CameraQueryService cameraQueryService;
     private SimpleMeterRegistry meterRegistry;
     private Clock clock;
 
@@ -62,8 +61,8 @@ class ViolationNotificationServiceTest {
         violationRepository =
                 mock(SpringDataViolationRepository.class);
 
-        cameraService =
-                mock(CameraService.class);
+        cameraQueryService =
+                mock(CameraQueryService.class);
 
         meterRegistry =
                 new SimpleMeterRegistry();
@@ -77,7 +76,7 @@ class ViolationNotificationServiceTest {
                         recipientResolver,
                         departmentNameResolver,
                         violationRepository,
-                        cameraService,
+                        cameraQueryService,
                         meterRegistry,
                         clock
                 );
@@ -120,14 +119,12 @@ class ViolationNotificationServiceTest {
                 )
         );
 
-        when(cameraService.getCameraById(
+        when(cameraQueryService.findCameraName(
                 cameraId
         )).thenReturn(
-                CameraResponse.builder()
-                        .id(cameraId)
-                        .name("Kaynak Kamera 1")
-                        .departmentId(departmentId)
-                        .build()
+                Optional.of(
+                        "Kaynak Kamera 1"
+                )
         );
 
         when(departmentNameResolver.resolveDepartmentName(
@@ -270,14 +267,12 @@ class ViolationNotificationServiceTest {
                 )
         );
 
-        when(cameraService.getCameraById(
+        when(cameraQueryService.findCameraName(
                 cameraId
         )).thenReturn(
-                CameraResponse.builder()
-                        .id(cameraId)
-                        .name("Kaynak Kamera 1")
-                        .departmentId(departmentId)
-                        .build()
+                Optional.of(
+                        "Kaynak Kamera 1"
+                )
         );
 
         when(departmentNameResolver.resolveDepartmentName(
@@ -381,14 +376,12 @@ class ViolationNotificationServiceTest {
                 )
         );
 
-        when(cameraService.getCameraById(
+        when(cameraQueryService.findCameraName(
                 cameraId
         )).thenReturn(
-                CameraResponse.builder()
-                        .id(cameraId)
-                        .name("Kaynak Kamera 1")
-                        .departmentId(departmentId)
-                        .build()
+                Optional.of(
+                        "Kaynak Kamera 1"
+                )
         );
 
         when(departmentNameResolver.resolveDepartmentName(
