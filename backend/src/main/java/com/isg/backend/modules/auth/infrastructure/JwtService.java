@@ -7,6 +7,7 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import jakarta.annotation.PostConstruct;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
@@ -22,6 +23,32 @@ public class JwtService {
 
     @Value("${application.security.jwt.expiration}")
     private long jwtExpiration;
+
+    @PostConstruct
+    void validateConfiguration() {
+        if (secretKey == null || secretKey.isBlank()) {
+            throw new IllegalStateException(
+                    "JWT secret must be configured as valid Base64"
+            );
+        }
+
+        final byte[] keyBytes;
+
+        try {
+            keyBytes = Decoders.BASE64.decode(secretKey);
+        } catch (RuntimeException exception) {
+            throw new IllegalStateException(
+                    "JWT secret must be valid Base64",
+                    exception
+            );
+        }
+
+        if (keyBytes.length < 32) {
+            throw new IllegalStateException(
+                    "JWT secret must decode to at least 32 bytes"
+            );
+        }
+    }
 
     // Sadece email (username) bazlı token üretimi
     public String generateToken(UserDetails userDetails) {
