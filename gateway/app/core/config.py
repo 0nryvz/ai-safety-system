@@ -52,6 +52,16 @@ class Settings(BaseSettings):
 
     session_lifecycle_internal_api_key: str = ""
 
+    session_stale_timeout_seconds: float = Field(
+        default=30.0,
+        gt=0,
+    )
+
+    session_cleanup_interval_seconds: float = Field(
+        default=5.0,
+        gt=0,
+    )
+
     frame_queue_max_frames: int = Field(
         default=30,
         ge=1,
@@ -297,6 +307,8 @@ class Settings(BaseSettings):
         extra="ignore",
         populate_by_name=True,
     )
+
+
 
 
 
