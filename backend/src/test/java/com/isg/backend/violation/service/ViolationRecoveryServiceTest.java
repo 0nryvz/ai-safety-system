@@ -12,6 +12,7 @@ import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationR
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -246,6 +247,201 @@ class ViolationRecoveryServiceTest {
                         org.mockito.ArgumentMatchers.eq(violationId),
                         org.mockito.ArgumentMatchers.any()
                 );
+    }
+
+    @Test
+    void preparingAndActiveSameStateKeyDoesNotCauseRecoveryConflict() {
+
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID sessionId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        Instant startedAt =
+                Instant.parse(
+                        "2026-08-19T10:00:00Z"
+                );
+
+        ViolationJpaEntity preparing =
+                new ViolationJpaEntity(
+                        UUID.randomUUID(),
+                        cameraId,
+                        departmentId,
+                        sessionId,
+                        UUID.randomUUID(),
+                        ViolationType.MISSING_GLOVES,
+                        startedAt,
+                        BigDecimal.valueOf(0.90),
+                        "model-v1",
+                        ViolationLifecycleStatus.PREPARING,
+                        ViolationReviewStatus.UNREVIEWED,
+                        startedAt,
+                        "track-1",
+                        sessionId
+                );
+
+        UUID activeId =
+                UUID.randomUUID();
+
+        ViolationJpaEntity active =
+                new ViolationJpaEntity(
+                        activeId,
+                        cameraId,
+                        departmentId,
+                        sessionId,
+                        UUID.randomUUID(),
+                        ViolationType.MISSING_GLOVES,
+                        startedAt,
+                        BigDecimal.valueOf(0.90),
+                        "model-v1",
+                        ViolationLifecycleStatus.ACTIVE,
+                        ViolationReviewStatus.UNREVIEWED,
+                        startedAt,
+                        "track-1",
+                        sessionId
+                );
+
+
+        when(
+                repository.findByLifecycleStatusIn(
+                        List.of(
+                                ViolationLifecycleStatus.ACTIVE
+                        )
+                )
+        ).thenReturn(
+                List.of(active)
+        );
+
+
+        when(
+                repository.findByLifecycleStatusIn(
+                        List.of(
+                                ViolationLifecycleStatus.PREPARING
+                        )
+                )
+        ).thenReturn(
+                List.of(preparing)
+        );
+
+
+        assertThatCode(
+                () -> service.recoverInterruptedViolations()
+        )
+                .doesNotThrowAnyException();
+
+
+        ViolationStateKey key =
+                new ViolationStateKey(
+                        cameraId,
+                        sessionId,
+                        ViolationType.MISSING_GLOVES,
+                        "track-1"
+                );
+
+
+        assertThat(
+                registry.find(key)
+        )
+                .contains(
+                        activeId
+                );
+    }
+
+    @Test
+    void duplicatePreparingStateKeysDoNotBreakRecovery() {
+
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID sessionId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        Instant startedAt =
+                Instant.parse(
+                        "2026-08-19T10:00:00Z"
+                );
+
+
+        ViolationJpaEntity first =
+                new ViolationJpaEntity(
+                        UUID.randomUUID(),
+                        cameraId,
+                        departmentId,
+                        sessionId,
+                        UUID.randomUUID(),
+                        ViolationType.MISSING_GLOVES,
+                        startedAt,
+                        BigDecimal.valueOf(0.90),
+                        "model-v1",
+                        ViolationLifecycleStatus.PREPARING,
+                        ViolationReviewStatus.UNREVIEWED,
+                        startedAt,
+                        "track-1",
+                        sessionId
+                );
+
+
+        ViolationJpaEntity second =
+                new ViolationJpaEntity(
+                        UUID.randomUUID(),
+                        cameraId,
+                        departmentId,
+                        sessionId,
+                        UUID.randomUUID(),
+                        ViolationType.MISSING_GLOVES,
+                        startedAt,
+                        BigDecimal.valueOf(0.85),
+                        "model-v1",
+                        ViolationLifecycleStatus.PREPARING,
+                        ViolationReviewStatus.UNREVIEWED,
+                        startedAt,
+                        "track-1",
+                        sessionId
+                );
+
+
+        when(
+                repository.findByLifecycleStatusIn(
+                        List.of(
+                                ViolationLifecycleStatus.ACTIVE
+                        )
+                )
+        ).thenReturn(
+                List.of()
+        );
+
+
+        when(
+                repository.findByLifecycleStatusIn(
+                        List.of(
+                                ViolationLifecycleStatus.PREPARING
+                        )
+                )
+        ).thenReturn(
+                List.of(
+                        first,
+                        second
+                )
+        );
+
+
+        assertThatCode(
+                () -> service.recoverInterruptedViolations()
+        )
+                .doesNotThrowAnyException();
+
+
+        assertThat(
+                registry.size()
+        )
+                .isZero();
     }
 
     @Test
