@@ -105,14 +105,42 @@ class MissingGlovesRuleTest {
 
 
     @Test
-    void doesNotProduceCandidateWhenWeldingPersonHasNoMissingGlovesDetection() {
-
+    void producesCandidateWhenWeldingPersonHasNoGlovesDetection() {
         PersonContext person =
                 new PersonContext(
                         "track-worker-1",
                         person(),
                         List.of(
                                 welding()
+                        )
+                );
+
+        Optional<CandidateViolation> result =
+                rule.evaluate(
+                        person,
+                        frame()
+                );
+
+        assertThat(result)
+                .isPresent();
+
+        assertThat(
+                result.orElseThrow()
+                        .violationType()
+        ).isEqualTo(
+                ViolationType.MISSING_GLOVES
+        );
+    }
+
+    @Test
+    void doesNotProduceCandidateWhenWeldingPersonHasGloves() {
+        PersonContext person =
+                new PersonContext(
+                        "track-worker-1",
+                        person(),
+                        List.of(
+                                welding(),
+                                gloves()
                         )
                 );
 
