@@ -88,7 +88,7 @@ INSERT INTO cameras
                                                                                          'CAM-WELDING-003',
                                                                                          '11111111-0000-4000-8000-000000000001',
                                                                                          'Kaynak hatti 1 - malzeme girisi',
-                                                                                         'DEGRADED',
+                                                                                         'WEAK',
                                                                                          true,
                                                                                          now() - interval '40 seconds')
     ON CONFLICT (id) DO NOTHING;
