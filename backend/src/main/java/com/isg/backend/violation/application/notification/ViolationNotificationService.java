@@ -11,7 +11,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -22,10 +21,6 @@ import java.util.List;
 import java.util.Objects;
 
 @Service
-@ConditionalOnBean({
-        NotificationRecipientResolver.class,
-        DepartmentNameResolver.class
-})
 public class ViolationNotificationService {
 
     private static final Logger logger =
