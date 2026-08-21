@@ -13,6 +13,7 @@ import java.util.Base64;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JwtServiceTest {
@@ -126,6 +127,47 @@ class JwtServiceTest {
                 )
         )
                 .isInstanceOf(SignatureException.class);
+    }
+
+    @Test
+    void validSecretPassesStartupValidation() {
+        JwtService service = createJwtService(
+                SECRET_KEY,
+                900_000L
+        );
+
+        assertThatCode(service::validateConfiguration)
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void invalidBase64SecretFailsStartupValidation() {
+        JwtService service = createJwtService(
+                "%%%not-base64%%%",
+                900_000L
+        );
+
+        assertThatThrownBy(service::validateConfiguration)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Base64");
+    }
+
+    @Test
+    void tooShortSecretFailsStartupValidation() {
+        String shortSecret = Base64.getEncoder()
+                .encodeToString(
+                        "too-short"
+                                .getBytes(StandardCharsets.UTF_8)
+                );
+
+        JwtService service = createJwtService(
+                shortSecret,
+                900_000L
+        );
+
+        assertThatThrownBy(service::validateConfiguration)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("32");
     }
 
     private JwtService createJwtService(
