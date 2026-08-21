@@ -80,7 +80,7 @@ public class ViolationNotificationService {
                                 INITIAL_ALERT_LATENCY_METRIC
                         )
                         .description(
-                                "Time from violation confirmation to first successful WebSocket alert delivery"
+                                "Time from violation confirmation to first successful WebSocket alert dispatch"
                         )
                         .tag(
                                 "channel",
@@ -257,7 +257,7 @@ public class ViolationNotificationService {
 
             } catch (RuntimeException exception) {
                 logger.error(
-                        "WebSocket violation notification delivery failed. violationId={}, recipient={}",
+                        "WebSocket violation notification dispatch failed. violationId={}, recipient={}",
                         violationId,
                         recipient,
                         exception
