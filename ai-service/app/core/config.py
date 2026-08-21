@@ -42,8 +42,13 @@ class Settings(BaseSettings):
         alias="WELDING_CONFIDENCE_THRESHOLD",
     )
 
+    gloves_confidence_threshold: float = Field(
+        default=0.35,
+        alias="GLOVES_CONFIDENCE_THRESHOLD",
+    )
+
     non_gloves_confidence_threshold: float = Field(
-        default=0.40,
+        default=0.30,
         alias="NON_GLOVES_CONFIDENCE_THRESHOLD",
     )
 

@@ -25,15 +25,53 @@ public class MissingWeldingMaskRule implements ViolationRule {
                         DetectionLabel.WELDING
                 );
 
-        boolean missingWeldingMask =
+        if (!isWelding) {
+            return Optional.empty();
+        }
+
+        boolean hasNonWeldingMask =
                 person.hasDetection(
                         DetectionLabel.NON_WELDING_MASK
                 );
 
-        if (!isWelding || !missingWeldingMask) {
+        /*
+         * Explicit negative detection always wins.
+         */
+        if (hasNonWeldingMask) {
+            return candidate(
+                    person,
+                    frame
+            );
+        }
+
+        /*
+         * A welding-mask detection is accepted as worn PPE
+         * only when it belongs to this person and its center
+         * is inside the person's upper/head region.
+         */
+        boolean hasValidWeldingMask =
+                PpeSpatialRules
+                        .hasWeldingMaskInHeadZone(
+                                person
+                        );
+
+        if (hasValidWeldingMask) {
             return Optional.empty();
         }
 
+        /*
+         * Welding exists but no valid worn mask exists.
+         */
+        return candidate(
+                person,
+                frame
+        );
+    }
+
+    private Optional<CandidateViolation> candidate(
+            PersonContext person,
+            DetectionFrame frame
+    ) {
         return Optional.of(
                 new CandidateViolation(
                         frame.eventId(),

@@ -25,15 +25,42 @@ public class MissingGlovesRule implements ViolationRule {
                         DetectionLabel.WELDING
                 );
 
-        boolean missingGloves =
+        if (!isWelding) {
+            return Optional.empty();
+        }
+
+        boolean hasNonGloves =
                 person.hasDetection(
                         DetectionLabel.NON_GLOVES
                 );
 
-        if (!isWelding || !missingGloves) {
+        if (hasNonGloves) {
+            return candidate(
+                    person,
+                    frame
+            );
+        }
+
+        boolean hasValidGloves =
+                PpeSpatialRules
+                        .hasGlovesInWeldingZone(
+                                person
+                        );
+
+        if (hasValidGloves) {
             return Optional.empty();
         }
 
+        return candidate(
+                person,
+                frame
+        );
+    }
+
+    private Optional<CandidateViolation> candidate(
+            PersonContext person,
+            DetectionFrame frame
+    ) {
         return Optional.of(
                 new CandidateViolation(
                         frame.eventId(),

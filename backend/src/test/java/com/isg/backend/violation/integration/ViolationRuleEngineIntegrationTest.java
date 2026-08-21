@@ -71,8 +71,10 @@ class ViolationRuleEngineIntegrationTest {
                 .contains(
                         ViolationType.MISSING_WELDING_MASK,
                         ViolationType.MISSING_GLOVES,
-                        ViolationType.MISSING_WELDING_APRON,
                         ViolationType.UNPROTECTED_PERSON
+                )
+                .doesNotContain(
+                        ViolationType.MISSING_WELDING_APRON
                 );
     }
 

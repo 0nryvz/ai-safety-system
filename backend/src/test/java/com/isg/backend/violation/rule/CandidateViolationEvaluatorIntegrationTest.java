@@ -135,6 +135,217 @@ class CandidateViolationEvaluatorIntegrationTest {
                 );
     }
 
+    @Test
+    void producesMissingGlovesWhenGlovesBelongToAnotherPerson() {
+
+        CandidateViolationEvaluator evaluator =
+                evaluator();
+
+        DetectedObject weldingPerson =
+                new DetectedObject(
+                        DetectionLabel.PERSON,
+                        "person",
+                        0.95,
+                        new BoundingBox(
+                                0.05,
+                                0.10,
+                                0.35,
+                                0.80
+                        ),
+                        "worker-1"
+                );
+
+        DetectedObject otherPerson =
+                new DetectedObject(
+                        DetectionLabel.PERSON,
+                        "person",
+                        0.95,
+                        new BoundingBox(
+                                0.55,
+                                0.10,
+                                0.35,
+                                0.80
+                        ),
+                        "worker-2"
+                );
+
+        DetectedObject welding =
+                detection(
+                        DetectionLabel.WELDING,
+                        "welding",
+                        new BoundingBox(
+                                0.15,
+                                0.40,
+                                0.10,
+                                0.10
+                        )
+                );
+
+        DetectedObject gloves =
+                detection(
+                        DetectionLabel.GLOVES,
+                        "gloves",
+                        new BoundingBox(
+                                0.65,
+                                0.45,
+                                0.10,
+                                0.10
+                        )
+                );
+
+        List<CandidateViolation> result =
+                evaluator.evaluate(
+                        frame(
+                                weldingPerson,
+                                otherPerson,
+                                welding,
+                                gloves
+                        )
+                );
+
+        assertThat(result)
+                .extracting(
+                        CandidateViolation::violationType
+                )
+                .contains(
+                        ViolationType.MISSING_GLOVES
+                );
+    }
+
+    @Test
+    void producesMissingWeldingMaskWhenMaskBelongsToAnotherPerson() {
+
+        CandidateViolationEvaluator evaluator =
+                evaluator();
+
+        DetectedObject weldingPerson =
+                new DetectedObject(
+                        DetectionLabel.PERSON,
+                        "person",
+                        0.95,
+                        new BoundingBox(
+                                0.05,
+                                0.10,
+                                0.35,
+                                0.80
+                        ),
+                        "worker-1"
+                );
+
+        DetectedObject otherPerson =
+                new DetectedObject(
+                        DetectionLabel.PERSON,
+                        "person",
+                        0.95,
+                        new BoundingBox(
+                                0.55,
+                                0.10,
+                                0.35,
+                                0.80
+                        ),
+                        "worker-2"
+                );
+
+        DetectedObject welding =
+                detection(
+                        DetectionLabel.WELDING,
+                        "welding",
+                        new BoundingBox(
+                                0.15,
+                                0.40,
+                                0.10,
+                                0.10
+                        )
+                );
+
+        DetectedObject weldingMask =
+                detection(
+                        DetectionLabel.WELDING_MASK,
+                        "welding_mask",
+                        new BoundingBox(
+                                0.65,
+                                0.15,
+                                0.10,
+                                0.10
+                        )
+                );
+
+        List<CandidateViolation> result =
+                evaluator.evaluate(
+                        frame(
+                                weldingPerson,
+                                otherPerson,
+                                welding,
+                                weldingMask
+                        )
+                );
+
+        assertThat(result)
+                .extracting(
+                        CandidateViolation::violationType
+                )
+                .contains(
+                        ViolationType.MISSING_WELDING_MASK
+                );
+    }
+
+    @Test
+    void doesNotProduceMissingGlovesWhenGlovesBelongToWeldingPerson() {
+
+        CandidateViolationEvaluator evaluator =
+                evaluator();
+
+        List<CandidateViolation> result =
+                evaluator.evaluate(
+                        frame(
+                                person(),
+                                welding(),
+                                detection(
+                                        DetectionLabel.GLOVES,
+                                        "gloves",
+                                        new BoundingBox(
+                                                0.2,
+                                                0.45,
+                                                0.1,
+                                                0.1
+                                        )
+                                )
+                        )
+                );
+
+        assertThat(result)
+                .extracting(
+                        CandidateViolation::violationType
+                )
+                .doesNotContain(
+                        ViolationType.MISSING_GLOVES
+                );
+    }
+
+    @Test
+    void doesNotProduceMissingWeldingMaskWhenMaskBelongsToWeldingPerson() {
+
+        CandidateViolationEvaluator evaluator =
+                evaluator();
+
+        List<CandidateViolation> result =
+                evaluator.evaluate(
+                        frame(
+                                person(),
+                                welding(),
+                                weldingMask()
+                        )
+                );
+
+        assertThat(result)
+                .extracting(
+                        CandidateViolation::violationType
+                )
+                .doesNotContain(
+                        ViolationType.MISSING_WELDING_MASK
+                );
+    }
+
     private CandidateViolationEvaluator evaluator() {
 
         ViolationRuleProperties properties =
