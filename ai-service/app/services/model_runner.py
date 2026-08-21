@@ -103,7 +103,11 @@ class ModelRunner:
         model_confidence_floor = min(
             self._settings.confidence_threshold,
             self._settings.welding_confidence_threshold,
+
             self._settings.gloves_confidence_threshold,
+
+            self._settings.welding_mask_confidence_threshold,
+
             self._settings.non_gloves_confidence_threshold,
         )
 
@@ -137,7 +141,10 @@ class ModelRunner:
                     threshold = (
                         self._settings.welding_confidence_threshold
                     )
-
+                elif normalized_label == "welding_mask":
+                   threshold = (
+                       self._settings.welding_mask_confidence_threshold
+                   )
                 elif normalized_label == "non_gloves":
                     threshold = (
                         self._settings.non_gloves_confidence_threshold
