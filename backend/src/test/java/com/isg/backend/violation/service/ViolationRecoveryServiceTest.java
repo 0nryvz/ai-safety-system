@@ -445,6 +445,125 @@ class ViolationRecoveryServiceTest {
     }
 
     @Test
+    void doesNotRestorePreparingWhenSameStateKeyHasActiveViolation() {
+
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID sessionId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        Instant startedAt =
+                Instant.parse(
+                        "2026-08-19T10:00:00Z"
+                );
+
+
+        ViolationStateKey stateKey =
+                new ViolationStateKey(
+                        cameraId,
+                        sessionId,
+                        ViolationType.MISSING_GLOVES,
+                        "track-1"
+                );
+
+
+        UUID activeViolationId =
+                UUID.randomUUID();
+
+        UUID preparingViolationId =
+                UUID.randomUUID();
+
+
+        ViolationJpaEntity activeViolation =
+                new ViolationJpaEntity(
+                        activeViolationId,
+                        cameraId,
+                        departmentId,
+                        sessionId,
+                        UUID.randomUUID(),
+                        ViolationType.MISSING_GLOVES,
+                        startedAt,
+                        BigDecimal.valueOf(0.90),
+                        "model-v1",
+                        ViolationLifecycleStatus.ACTIVE,
+                        ViolationReviewStatus.UNREVIEWED,
+                        startedAt,
+                        "track-1",
+                        sessionId
+                );
+
+
+        ViolationJpaEntity preparingViolation =
+                new ViolationJpaEntity(
+                        preparingViolationId,
+                        cameraId,
+                        departmentId,
+                        sessionId,
+                        UUID.randomUUID(),
+                        ViolationType.MISSING_GLOVES,
+                        startedAt,
+                        BigDecimal.valueOf(0.90),
+                        "model-v1",
+                        ViolationLifecycleStatus.PREPARING,
+                        ViolationReviewStatus.UNREVIEWED,
+                        startedAt,
+                        "track-1",
+                        sessionId
+                );
+
+
+        when(
+                repository.findByLifecycleStatusIn(
+                        List.of(
+                                ViolationLifecycleStatus.ACTIVE
+                        )
+                )
+        ).thenReturn(
+                List.of(activeViolation)
+        );
+
+
+        when(
+                repository.findByLifecycleStatusIn(
+                        List.of(
+                                ViolationLifecycleStatus.PREPARING
+                        )
+                )
+        ).thenReturn(
+                List.of(preparingViolation)
+        );
+
+
+        when(
+                recordingQueryPort.findByViolationId(
+                        preparingViolationId
+                )
+        ).thenReturn(
+                java.util.Optional.empty()
+        );
+
+
+        int recovered =
+                service.recoverInterruptedViolations();
+
+
+        assertThat(recovered)
+                .isEqualTo(2);
+
+
+        assertThat(
+                registry.find(stateKey)
+        )
+                .contains(
+                        activeViolationId
+                );
+    }
+
+    @Test
     void errorRecordingStateIsReconciledDuringRecovery() {
 
         UUID violationId =
