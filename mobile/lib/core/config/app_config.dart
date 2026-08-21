@@ -64,7 +64,7 @@ class AppConfig {
 
   static const int targetFps = int.fromEnvironment(
     'TARGET_FPS',
-    defaultValue: 12,
+    defaultValue: 8,
   );
 
   /// Gönderim hızının altına düşülmemesi gereken taban.
@@ -77,26 +77,26 @@ class AppConfig {
   /// Kareler bu genişliğe indirgenir. Gateway sınırı 2 MiB.
   static const int targetEncodeWidth = int.fromEnvironment(
     'ENCODE_WIDTH',
-    defaultValue: 200,
+    defaultValue: 128,
   );
 
   /// Min-FPS korumasındayken geçici küçültme.
   static const int degradedEncodeWidth = int.fromEnvironment(
     'ENCODE_WIDTH_DEGRADED',
-    defaultValue: 160,
+    defaultValue: 96,
   );
 
   static const int jpegQuality = int.fromEnvironment(
     'JPEG_QUALITY',
-    defaultValue: 40,
+    defaultValue: 32,
   );
 
   static const int degradedJpegQuality = int.fromEnvironment(
     'JPEG_QUALITY_DEGRADED',
-    defaultValue: 35,
+    defaultValue: 28,
   );
 
-  /// MethodChannel encode eşzamanlılığı. Yüksek değer thrash yapar.
+  /// MethodChannel encode eşzamanlılığı. 8 FPS @ ~125ms için 3 slot payı.
   static const int maxConcurrentEncodes = int.fromEnvironment(
     'MAX_CONCURRENT_ENCODES',
     defaultValue: 3,
@@ -105,20 +105,20 @@ class AppConfig {
   /// HTTP gönderim eşzamanlılığı (encode'dan bağımsız).
   static const int maxConcurrentHttpUploads = int.fromEnvironment(
     'MAX_CONCURRENT_UPLOADS',
-    defaultValue: 8,
+    defaultValue: 6,
   );
 
   /// Geriye dönük isim — encode slot limiti.
   static const int maxConcurrentFrameUploads = maxConcurrentEncodes;
 
-  /// Sabit kabul temposu (~12 FPS hedef).
+  /// Sabit metronom temposu. 10 agresif; Tecno'da 8 daha kararlı (≥ min 5).
   static const int pacedFps = int.fromEnvironment(
     'PACED_FPS',
-    defaultValue: 12,
+    defaultValue: 8,
   );
 
   static Duration get paceInterval => Duration(
-        milliseconds: (1000 / pacedFps).round().clamp(50, 200),
+        milliseconds: (1000 / pacedFps).round().clamp(80, 250),
       );
 
   /// Hedef FPS aralığı (%20 tolerans). Taban altına inildiğinde bu sınır

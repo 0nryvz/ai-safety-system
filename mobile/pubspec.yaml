@@ -1,5 +1,5 @@
 name: camera_stream_app
-description: VIGIL — fabrika kamerası operatör uygulaması (ISG Vision)
+description: STRIX — fabrika kamerası operatör uygulaması (ISG Vision)
 
 publish_to: 'none'
 
@@ -15,10 +15,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   camera: ^0.11.2
   flutter_riverpod: ^2.6.1
-  web_socket_channel: ^3.0.3
   http: ^1.6.0
   uuid: ^4.5.1
-  image: ^4.9.1
   google_fonts: ^6.2.1
 
 dev_dependencies:
@@ -30,9 +28,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: assets/brand/vigil_app_icon.png
-  adaptive_icon_background: "#0B1220"
-  adaptive_icon_foreground: assets/brand/vigil_app_icon.png
+  image_path: assets/brand/strix_app_icon.png
+  adaptive_icon_background: "#F5F6F8"
+  adaptive_icon_foreground: assets/brand/strix_app_icon.png
 
 flutter:
   uses-material-design: true

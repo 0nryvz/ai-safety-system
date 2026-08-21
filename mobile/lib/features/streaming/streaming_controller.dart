@@ -15,21 +15,14 @@ import 'publish_session_store.dart';
 import 'stream_metrics.dart';
 import 'streaming_state.dart';
 
-/// Geriye dönük uyumluluk için boş liste; gerçek kameralar controller içinde
-/// Activity hazır olduktan sonra keşfedilir.
-final availableCamerasProvider = Provider<List<CameraDescription>>(
-  (ref) => const <CameraDescription>[],
-);
-
+/// Kamera yaşam döngüsü, Gateway oturumu ve kare aktarımının tek sahibi.
+/// Widget'lar burada tutulan durumu okur; kendi bağlantı bayraklarını
+/// tutmazlar. Böylece farklı widget'ların çelişkili durum göstermesi engellenir.
 final streamingControllerProvider =
     NotifierProvider<StreamingController, StreamingState>(
   StreamingController.new,
 );
 
-/// Kamera yaşam döngüsü, Gateway oturumu ve kare aktarımının tek sahibi.
-///
-/// Widget'lar burada tutulan durumu okur; kendi bağlantı bayraklarını
-/// tutmazlar. Böylece farklı widget'ların çelişkili durum göstermesi engellenir.
 class StreamingController extends Notifier<StreamingState> {
   late final CameraSessionService _sessionService;
   late final CameraFrameService _frameService;
@@ -61,9 +54,13 @@ class StreamingController extends Notifier<StreamingState> {
   bool _isAppInBackground = false;
   bool _disposed = false;
 
-  DateTime? _lastAcceptedFrameAt;
+  /// Metronom: bir sonraki kabul zamanı. Slot doluyken vuruş atlanır (burst yok).
+  DateTime? _nextFrameDueAt;
   final List<DateTime> _cameraFrameTimestamps = [];
   final List<DateTime> _sentFrameTimestamps = [];
+  double _smoothedCameraFps = 0;
+  double _smoothedSendFps = 0;
+  bool _fpsWarm = false;
   /// Stop sonrası Gateway close'un bitmesini bekler; bitmeden yeni open 409 üretir.
   Future<void>? _stopCleanupFuture;
 
@@ -237,16 +234,34 @@ class StreamingController extends Notifier<StreamingState> {
     );
   }
 
+  /// Operatör kamera değiştirirken kalıcı atamayı temizler.
+  Future<void> clearCameraAssignment() async {
+    if (state.isStreaming) {
+      await stopStreaming();
+    }
+
+    await _identity.clearAssignment();
+
+    _update(
+      (s) => s.copyWith(
+        isCameraAssigned: false,
+        clearCameraMeta: true,
+        clearError: true,
+      ),
+    );
+  }
+
   int _preferredCameraIndex() {
     if (_cameras.isEmpty) {
       return 0;
     }
 
-    final frontIndex = _cameras.indexWhere(
-      (camera) => camera.lensDirection == CameraLensDirection.front,
+    // Fabrika simülasyonu için arka kamera varsayılan.
+    final backIndex = _cameras.indexWhere(
+      (camera) => camera.lensDirection == CameraLensDirection.back,
     );
 
-    return frontIndex >= 0 ? frontIndex : 0;
+    return backIndex >= 0 ? backIndex : 0;
   }
 
   // ------------------------------------------------------------------
@@ -716,17 +731,15 @@ class StreamingController extends Notifier<StreamingState> {
     }
 
     final now = DateTime.now();
-    _cameraFrameTimestamps.add(now);
-
-    // Encode slot doluysa bırak — upload HTTP'yi bekleme (eski darboğaz).
-    if (_activeFrameUploads >= AppConfig.maxConcurrentEncodes) {
-      _metrics.recordDropped();
+    final due = _nextFrameDueAt;
+    if (due != null && now.isBefore(due)) {
       return;
     }
 
-    final lastAccepted = _lastAcceptedFrameAt;
-    if (lastAccepted != null &&
-        now.difference(lastAccepted) < AppConfig.paceInterval) {
+    // Slot doluysa bekle — saati ilerletme (eski davranış FPS'i 5'e çekiyordu).
+    // Slot açılınca tek kare alınır, sonra yine paceInterval uygulanır.
+    if (_activeFrameUploads >= AppConfig.maxConcurrentEncodes) {
+      _metrics.recordDropped();
       return;
     }
 
@@ -746,7 +759,9 @@ class StreamingController extends Notifier<StreamingState> {
       return;
     }
 
-    _lastAcceptedFrameAt = now;
+    // Pipeline temposu — kamera ve gönderim göstergesi aynı kaynak.
+    _cameraFrameTimestamps.add(now);
+    _nextFrameDueAt = now.add(AppConfig.paceInterval);
     _activeFrameUploads++;
     _activeFrameCallbacks++;
 
@@ -915,14 +930,17 @@ class StreamingController extends Notifier<StreamingState> {
 
   void _startFpsMonitoring() {
     _fpsTimer?.cancel();
-    _lastAcceptedFrameAt = null;
+    _nextFrameDueAt = null;
     _cameraFrameTimestamps.clear();
     _sentFrameTimestamps.clear();
+    _smoothedCameraFps = 0;
+    _smoothedSendFps = 0;
+    _fpsWarm = false;
 
     _update((s) => s.copyWith(cameraFps: 0, sendFps: 0));
 
     _fpsTimer = Timer.periodic(
-      const Duration(milliseconds: 200),
+      const Duration(seconds: 1),
       (_) => _refreshFps(),
     );
   }
@@ -930,9 +948,12 @@ class StreamingController extends Notifier<StreamingState> {
   void _stopFpsMonitoring() {
     _fpsTimer?.cancel();
     _fpsTimer = null;
-    _lastAcceptedFrameAt = null;
+    _nextFrameDueAt = null;
     _cameraFrameTimestamps.clear();
     _sentFrameTimestamps.clear();
+    _smoothedCameraFps = 0;
+    _smoothedSendFps = 0;
+    _fpsWarm = false;
 
     _update((s) => s.copyWith(cameraFps: 0, sendFps: 0));
   }
@@ -943,7 +964,7 @@ class StreamingController extends Notifier<StreamingState> {
     }
 
     final now = DateTime.now();
-    const window = Duration(seconds: 1);
+    const window = Duration(seconds: 2);
 
     _cameraFrameTimestamps.removeWhere(
       (at) => now.difference(at) > window,
@@ -952,10 +973,36 @@ class StreamingController extends Notifier<StreamingState> {
       (at) => now.difference(at) > window,
     );
 
+    final rawCamera = (_cameraFrameTimestamps.length / 2.0)
+        .clamp(0.0, AppConfig.pacedFps + 0.5);
+    final rawSend = (_sentFrameTimestamps.length / 2.0)
+        .clamp(0.0, AppConfig.pacedFps + 0.5);
+
+    if (_fpsWarm) {
+      _smoothedCameraFps = _smoothedCameraFps * 0.7 + rawCamera * 0.3;
+      _smoothedSendFps = _smoothedSendFps * 0.7 + rawSend * 0.3;
+    } else {
+      _smoothedCameraFps = rawCamera;
+      _smoothedSendFps = rawSend;
+      _fpsWarm = true;
+    }
+
+    final cameraFps = _smoothedCameraFps.round().clamp(0, AppConfig.pacedFps);
+    final sendFps = _smoothedSendFps.round().clamp(0, AppConfig.pacedFps);
+
+    // Değişmeyen FPS için tüm dashboard'u yeniden çizme — main isolate'i yorar.
+    if (state.cameraFps == cameraFps &&
+        state.sendFps == sendFps &&
+        state.sentFrames == _metrics.sentFrames &&
+        state.failedFrames == _metrics.failedFrames &&
+        state.droppedFrames == _metrics.droppedFrames) {
+      return;
+    }
+
     _update(
       (s) => s.copyWith(
-        cameraFps: _cameraFrameTimestamps.length,
-        sendFps: _sentFrameTimestamps.length,
+        cameraFps: cameraFps,
+        sendFps: sendFps,
         sentFrames: _metrics.sentFrames,
         failedFrames: _metrics.failedFrames,
         droppedFrames: _metrics.droppedFrames,
@@ -1007,6 +1054,8 @@ class StreamingController extends Notifier<StreamingState> {
         ),
       );
 
+      // Gateway'de asılı oturum bırakma.
+      unawaited(stopStreaming(fromLifecycle: true));
       return;
     }
 
