@@ -29,12 +29,17 @@ class BackendAuthException implements Exception {
   String toString() => message;
 }
 
-/// Spring Boot backend (Backend 2) istemcisi — operasyon REST sınırı.
+/// Spring Boot backend (Backend 2) istemcisi — transport katmanı.
 ///
 /// Sözleşme:
-/// - `POST /api/v1/auth/login` → AuthResponse
-/// - `GET  /api/v1/users/me`   → UserResponse
-/// - `GET  /api/v1/cameras`    → CameraResponse[]
+/// - `POST /api/v1/auth/login`   → AuthResponse
+/// - `POST /api/v1/auth/refresh` → AuthResponse
+/// - `POST /api/v1/auth/logout`  → 200, gövdesiz
+/// - `GET  /api/v1/users/me`     → UserResponse
+/// - `GET  /api/v1/cameras`      → CameraResponse[]
+///
+/// Bu sınıf oturum durumu tutmaz ve refresh kararı vermez; 401 sonrası refresh
+/// ve retry tek sahibi olan `AuthenticatedApi` tarafından yürütülür.
 ///
 /// Gateway oturum token'ı ayrı kalır ([AppConfig.cameraKey]).
 class BackendClient {
@@ -99,6 +104,58 @@ class BackendClient {
       return AuthTokens.fromJson(body);
     } on FormatException {
       throw const BackendAuthException('Backend geçerli bir oturum döndürmedi.');
+    }
+  }
+
+  /// `POST /api/v1/auth/refresh` — gövde `TokenRequest` sözleşmesi.
+  Future<AuthTokens> refreshTokens(String refreshToken) async {
+    final http.Response response;
+
+    try {
+      response = await _client
+          .post(
+            Uri.parse('$baseUrl/api/v1/auth/refresh'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({'refreshToken': refreshToken}),
+          )
+          .timeout(_timeout);
+    } catch (_) {
+      throw ApiFailure.network;
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiFailure.fromStatusCode(response.statusCode);
+    }
+
+    try {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return AuthTokens.fromJson(body);
+    } on FormatException {
+      throw const ApiFailure(
+        kind: ApiFailureKind.unauthenticated,
+        message: 'Oturum yenilenemedi. Tekrar giriş yapın.',
+      );
+    }
+  }
+
+  /// `POST /api/v1/auth/logout` — refresh token'ı backendde iptal eder.
+  Future<void> logout(String refreshToken) async {
+    final http.Response response;
+
+    try {
+      response = await _client
+          .post(
+            Uri.parse('$baseUrl/api/v1/auth/logout'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({'refreshToken': refreshToken}),
+          )
+          .timeout(_timeout);
+    } catch (_) {
+      throw ApiFailure.network;
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiFailure.fromStatusCode(response.statusCode);
     }
   }
 

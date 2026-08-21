@@ -117,6 +117,88 @@ void main() {
     });
   });
 
+  group('refreshTokens', () {
+    test('refreshToken gövdede gider ve AuthResponse döner', () async {
+      late http.Request captured;
+
+      final client = BackendClient(
+        baseUrl: 'http://backend',
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            jsonEncode({
+              'accessToken': 'new-jwt',
+              'refreshToken': 'rt',
+              'tokenType': 'Bearer',
+            }),
+            200,
+          );
+        }),
+      );
+
+      final tokens = await client.refreshTokens('rt');
+
+      expect(captured.url.path, '/api/v1/auth/refresh');
+      expect(jsonDecode(captured.body), {'refreshToken': 'rt'});
+      expect(tokens.accessToken, 'new-jwt');
+    });
+
+    test('401 unauthenticated olarak yüzeye çıkar', () async {
+      final client = BackendClient(
+        baseUrl: 'http://backend',
+        client: MockClient((_) async => http.Response('', 401)),
+      );
+
+      expect(
+        () => client.refreshTokens('revoked'),
+        throwsA(
+          isA<ApiFailure>().having(
+            (e) => e.kind,
+            'kind',
+            ApiFailureKind.unauthenticated,
+          ),
+        ),
+      );
+    });
+  });
+
+  group('logout', () {
+    test('refreshToken gövdede gider', () async {
+      late http.Request captured;
+
+      final client = BackendClient(
+        baseUrl: 'http://backend',
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response('', 200);
+        }),
+      );
+
+      await client.logout('rt');
+
+      expect(captured.url.path, '/api/v1/auth/logout');
+      expect(jsonDecode(captured.body), {'refreshToken': 'rt'});
+    });
+
+    test('ağ hatası ApiFailure.network olur', () async {
+      final client = BackendClient(
+        baseUrl: 'http://backend',
+        client: MockClient((_) => throw Exception('no route')),
+      );
+
+      expect(
+        () => client.logout('rt'),
+        throwsA(
+          isA<ApiFailure>().having(
+            (e) => e.kind,
+            'kind',
+            ApiFailureKind.network,
+          ),
+        ),
+      );
+    });
+  });
+
   group('fetchCurrentUser', () {
     test('UserResponse alanlarını okur', () async {
       late http.Request captured;

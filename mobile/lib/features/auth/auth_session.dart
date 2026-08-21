@@ -28,6 +28,11 @@ class AuthSession {
 
   bool get isAdmin => roles.contains('ADMIN');
 
+  /// UI görünürlüğü yetkinin yerine geçmez; backend kararı esastır.
+  bool get canManageCameras => isAdmin;
+
+  bool get canManageUsers => isAdmin;
+
   AuthSession copyWith({
     String? accessToken,
     String? refreshToken,
