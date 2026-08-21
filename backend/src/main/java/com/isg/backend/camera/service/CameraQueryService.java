@@ -15,6 +15,10 @@ public interface CameraQueryService {
             UUID sessionId
     );
 
+    Optional<String> findCameraName(
+            UUID cameraId
+    );
+
     Optional<UUID> findDepartmentId(
             UUID cameraId
     );

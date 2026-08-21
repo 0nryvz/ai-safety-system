@@ -1,5 +1,6 @@
 package com.isg.backend.camera.service;
 
+import com.isg.backend.modules.camera.domain.entity.Camera;
 import com.isg.backend.modules.camera.domain.entity.CameraSession;
 import com.isg.backend.modules.camera.infrastructure.repository.CameraRepository;
 import com.isg.backend.modules.camera.infrastructure.repository.CameraSessionRepository;
@@ -51,6 +52,20 @@ public class DatabaseCameraQueryService
         ).map(
                 CameraSession::getId
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> findCameraName(
+            UUID cameraId
+    ) {
+        if (cameraId == null) {
+            return Optional.empty();
+        }
+
+        return cameraRepository
+                .findById(cameraId)
+                .map(Camera::getName);
     }
 
     @Override
