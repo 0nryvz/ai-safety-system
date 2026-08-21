@@ -29,10 +29,11 @@ class _CameraPageState extends ConsumerState<CameraPage>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final controller = ref.read(streamingControllerProvider.notifier);
       await controller.loadCameraIdentity();
-      await controller.initialize();
       if (mounted) {
         setState(() => _identityReady = true);
       }
+      // Kamera izni + liste Activity ayaktayken; UI'ı bloklamaz.
+      await controller.initialize();
     });
   }
 

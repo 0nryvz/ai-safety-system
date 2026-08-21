@@ -48,11 +48,15 @@ Hiçbir endpoint, kimlik veya kodlama parametresi koda gömülü değildir. Heps
 | `BACKEND_URL` | `http://10.0.2.2:8080` | Spring Boot backend (kamera listesi) |
 | `CAMERA_ID` | *(boş)* | Provizyonlanan kamera UUID'si |
 | `CAMERA_KEY` | `dev-session-token` | Gateway `sessionToken` değeri |
-| `TARGET_FPS` | `15` | Hedef gönderim hızı |
-| `ENCODE_WIDTH` | `320` | Karelerin indirgeneceği genişlik |
-| `JPEG_QUALITY` | `55` | JPEG kalitesi |
-| `MAX_CONCURRENT_UPLOADS` | `10` | Aynı anda havada olabilecek kare sayısı |
-| `MIN_FPS` | `5` | Gönderim FPS tabanı; altına inilince drop/throttle gevşer |
+| `TARGET_FPS` | `12` | Hedef gönderim hızı |
+| `PACED_FPS` | `12` | Kare kabul temposu |
+| `ENCODE_WIDTH` | `200` | Karelerin indirgeneceği genişlik |
+| `ENCODE_WIDTH_DEGRADED` | `160` | Acil min-FPS korumasında encode genişliği |
+| `JPEG_QUALITY` | `40` | JPEG kalitesi |
+| `JPEG_QUALITY_DEGRADED` | `35` | Acil min-FPS korumasında JPEG kalitesi |
+| `MAX_CONCURRENT_ENCODES` | `3` | Aynı anda native JPEG encode sayısı |
+| `MAX_CONCURRENT_UPLOADS` | `8` | Aynı anda havada olabilecek HTTP gönderimi |
+| `MIN_FPS` | `5` | Gönderim FPS tabanı |
 | `FRAME_DIAGNOSTICS` | `false` | Kare başına encode/upload süresi loglar |
 
 `FRAME_DIAGNOSTICS` saniyede 15 satır ürettiği için yalnızca ölçüm alırken

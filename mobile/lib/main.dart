@@ -1,28 +1,17 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
-import 'features/streaming/streaming_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  List<CameraDescription> cameras;
-
-  try {
-    cameras = await availableCameras();
-  } catch (_) {
-    // İzin verilmemişse liste alınamaz; izin akışı ekranda yürütülür.
-    cameras = const [];
-  }
-
+  // availableCameras() Activity hazır olmadan çağrılmamalı; Tecno/HiOS'ta
+  // ProcessCameraProvider native çöküşüne yol açıyor. Kamera listesi UI
+  // ayağa kalktıktan ve izin alındıktan sonra StreamingController'da yüklenir.
   runApp(
-    ProviderScope(
-      overrides: [
-        availableCamerasProvider.overrideWithValue(cameras),
-      ],
-      child: const CameraStreamApp(),
+    const ProviderScope(
+      child: CameraStreamApp(),
     ),
   );
 }

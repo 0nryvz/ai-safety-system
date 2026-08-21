@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,7 +14,8 @@ import 'camera_frame_service.dart';
 import 'stream_metrics.dart';
 import 'streaming_state.dart';
 
-/// Cihazda bulunan kameralar. `main()` içinde gerçek listeyle override edilir.
+/// Geriye dönük uyumluluk için boş liste; gerçek kameralar controller içinde
+/// Activity hazır olduktan sonra keşfedilir.
 final availableCamerasProvider = Provider<List<CameraDescription>>(
   (ref) => const <CameraDescription>[],
 );
@@ -32,7 +34,8 @@ class StreamingController extends Notifier<StreamingState> {
   late final CameraFrameService _frameService;
   late final CameraIdentity _identity;
   late final CameraPermissionService _permissions;
-  late final List<CameraDescription> _cameras;
+  List<CameraDescription> _cameras = const [];
+  bool _servicesReady = false;
 
   final StreamMetrics _metrics = StreamMetrics();
 
@@ -71,13 +74,14 @@ class StreamingController extends Notifier<StreamingState> {
 
   @override
   StreamingState build() {
-    _sessionService = CameraSessionService();
-    _frameService = CameraFrameService();
-    _identity = CameraIdentity();
-    _permissions = const CameraPermissionService();
-    _cameras = ref.watch(availableCamerasProvider);
-
-    ref.onDispose(_disposeResources);
+    if (!_servicesReady) {
+      _sessionService = CameraSessionService();
+      _frameService = CameraFrameService();
+      _identity = CameraIdentity();
+      _permissions = const CameraPermissionService();
+      _servicesReady = true;
+      ref.onDispose(_disposeResources);
+    }
 
     return StreamingState(
       availableCameraCount: _cameras.length,
@@ -108,7 +112,21 @@ class StreamingController extends Notifier<StreamingState> {
       return;
     }
 
+    await _discoverCameras();
     await initializeCamera(_preferredCameraIndex());
+  }
+
+  /// Kamera listesini Activity ayaktayken alır. main()'de erken çağrı Tecno'da
+  /// native crash üretiyordu.
+  Future<void> _discoverCameras() async {
+    try {
+      final cameras = await availableCameras();
+      _cameras = cameras;
+      _update((s) => s.copyWith(availableCameraCount: cameras.length));
+    } catch (_) {
+      _cameras = const [];
+      _update((s) => s.copyWith(availableCameraCount: 0));
+    }
   }
 
   /// İzin verilmemişse ister; kalıcı rette ayarlara yönlendirme aksiyonunu açar.
@@ -171,6 +189,7 @@ class StreamingController extends Notifier<StreamingState> {
 
   Future<void> requestPermissionAgain() async {
     if (await _ensurePermission()) {
+      await _discoverCameras();
       await initializeCamera(state.selectedCameraIndex);
     }
   }
@@ -256,8 +275,8 @@ class StreamingController extends Notifier<StreamingState> {
 
       final controller = CameraController(
         _cameras[cameraIndex],
-        // low: ImageAnalysis daha hafif; arka kamera + emülatörde medium
-        // GC ve 1–4 FPS'e düşüyordu. Önizleme yeterli, hedef ≥5 FPS gönderim.
+        // low: ImageAnalysis hafif kalır; medium Tecno'da YUV kopyası/GC ile
+        // gönderim FPS'ini düşürüyordu. Encode genişliği kaliteyi taşır.
         ResolutionPreset.low,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.yuv420,
@@ -655,27 +674,15 @@ class StreamingController extends Notifier<StreamingState> {
     final now = DateTime.now();
     _cameraFrameTimestamps.add(now);
 
-    // Son 1 sn'deki gönderim hızı tabanın altındaysa drop/throttle uygulanmaz;
-    // aksi halde kuyruk sınırı belleği korur.
-    final recentSendFps = _sentFrameTimestamps
-        .where((at) => now.difference(at) <= const Duration(seconds: 1))
-        .length;
-    final protectMinFps = recentSendFps < AppConfig.minFps;
-
-    final uploadLimit = protectMinFps
-        ? AppConfig.maxConcurrentFrameUploads * 2
-        : AppConfig.maxConcurrentFrameUploads;
-
-    if (_activeFrameUploads >= uploadLimit) {
+    // Encode slot doluysa bırak — upload HTTP'yi bekleme (eski darboğaz).
+    if (_activeFrameUploads >= AppConfig.maxConcurrentEncodes) {
       _metrics.recordDropped();
       return;
     }
 
     final lastAccepted = _lastAcceptedFrameAt;
-    if (!protectMinFps &&
-        lastAccepted != null &&
-        now.difference(lastAccepted) < AppConfig.minFrameInterval) {
-      _metrics.recordDropped();
+    if (lastAccepted != null &&
+        now.difference(lastAccepted) < AppConfig.paceInterval) {
       return;
     }
 
@@ -686,15 +693,16 @@ class StreamingController extends Notifier<StreamingState> {
       return;
     }
 
-    // Yalnızca plane kopyası; CameraImage buffer'ı hemen serbest kalır.
-    final rawFrame = _frameService.extractFrame(image);
+    final rawFrame = _frameService.extractFrame(
+      image,
+      encodeWidth: AppConfig.targetEncodeWidth,
+    );
 
     if (rawFrame == null) {
       return;
     }
 
     _lastAcceptedFrameAt = now;
-    _sentFrameTimestamps.add(now);
     _activeFrameUploads++;
     _activeFrameCallbacks++;
 
@@ -706,6 +714,7 @@ class StreamingController extends Notifier<StreamingState> {
         sessionId: sessionId,
         frameTimestamp: frameTimestamp,
         frame: rawFrame,
+        jpegQuality: AppConfig.jpegQuality,
         streamGeneration: streamGeneration,
       ),
     );
@@ -716,14 +725,46 @@ class StreamingController extends Notifier<StreamingState> {
     required String sessionId,
     required DateTime frameTimestamp,
     required RawYuvFrame frame,
+    required int jpegQuality,
     required int streamGeneration,
   }) async {
+    Uint8List? jpegBytes;
+
     try {
-      final result = await _frameService.encodeAndUpload(
+      jpegBytes = await _frameService.encodeJpeg(
+        frame,
+        jpegQuality: jpegQuality,
+      );
+    } catch (_) {
+      jpegBytes = null;
+    } finally {
+      // Encode bitti — yeni kare kabul edilebilir. Upload ayrı akar.
+      _activeFrameUploads--;
+      _activeFrameCallbacks--;
+      _completeFrameCallbacksIfNeeded();
+    }
+
+    if (streamGeneration != _streamGeneration ||
+        state.sessionId != sessionId ||
+        _manualStop ||
+        !state.isStreaming) {
+      return;
+    }
+
+    if (jpegBytes == null || jpegBytes.isEmpty) {
+      _metrics.recordFailed();
+      _handleFrameFailure(
+        const GatewayFailure.network(detail: 'jpeg_encode_failed'),
+      );
+      return;
+    }
+
+    try {
+      final result = await _frameService.uploadJpeg(
         cameraId: cameraId,
         sessionId: sessionId,
         frameTimestamp: frameTimestamp,
-        frame: frame,
+        jpegBytes: jpegBytes,
       );
 
       if (streamGeneration != _streamGeneration ||
@@ -736,6 +777,7 @@ class StreamingController extends Notifier<StreamingState> {
       switch (result.outcome) {
         case FrameOutcome.sent:
           _metrics.recordSent();
+          _sentFrameTimestamps.add(DateTime.now());
           _consecutiveFrameFailures = 0;
 
           if (state.connection != StreamConnectionState.connected &&
@@ -758,10 +800,6 @@ class StreamingController extends Notifier<StreamingState> {
       if (!_manualStop && state.isStreaming) {
         _handleFrameFailure(null);
       }
-    } finally {
-      _activeFrameUploads--;
-      _activeFrameCallbacks--;
-      _completeFrameCallbacksIfNeeded();
     }
   }
 
@@ -1143,7 +1181,14 @@ class StreamingController extends Notifier<StreamingState> {
   /// baştan hazırlanır. Böylece çift oturum açılmaz.
   void handleAppResumed() {
     _isAppInBackground = false;
-    unawaited(initializeCamera(state.selectedCameraIndex));
+    unawaited(_resumeCameras());
+  }
+
+  Future<void> _resumeCameras() async {
+    if (_cameras.isEmpty) {
+      await _discoverCameras();
+    }
+    await initializeCamera(state.selectedCameraIndex);
   }
 
   // ------------------------------------------------------------------
