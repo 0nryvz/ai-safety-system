@@ -5,9 +5,22 @@ import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../../features/session/camera_option.dart';
 
+enum BackendAuthFailureKind {
+  unreachable,
+  invalidCredentials,
+  other,
+}
+
 class BackendAuthException implements Exception {
   final String message;
-  const BackendAuthException(this.message);
+  final BackendAuthFailureKind kind;
+
+  const BackendAuthException(
+    this.message, {
+    this.kind = BackendAuthFailureKind.other,
+  });
+
+  bool get isUnreachable => kind == BackendAuthFailureKind.unreachable;
 
   @override
   String toString() => message;
@@ -51,15 +64,22 @@ class BackendClient {
     } catch (_) {
       throw const BackendAuthException(
         'Backend\'e ulaşılamıyor. Adresi ve ağı kontrol edin.',
+        kind: BackendAuthFailureKind.unreachable,
       );
     }
 
     if (response.statusCode == 401 || response.statusCode == 403) {
-      throw const BackendAuthException('E-posta veya şifre hatalı.');
+      throw const BackendAuthException(
+        'E-posta veya şifre hatalı.',
+        kind: BackendAuthFailureKind.invalidCredentials,
+      );
     }
 
     if (response.statusCode != 200) {
-      throw const BackendAuthException('Giriş yapılamadı.');
+      throw const BackendAuthException(
+        'Giriş yapılamadı.',
+        kind: BackendAuthFailureKind.other,
+      );
     }
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -81,17 +101,24 @@ class BackendClient {
         headers: {'Authorization': 'Bearer $accessToken'},
       ).timeout(_timeout);
     } catch (_) {
-      throw const BackendAuthException('Kamera listesi alınamadı.');
+      throw const BackendAuthException(
+        'Kamera listesi alınamadı.',
+        kind: BackendAuthFailureKind.unreachable,
+      );
     }
 
     if (response.statusCode == 401 || response.statusCode == 403) {
       throw const BackendAuthException(
         'Oturum süresi doldu. Tekrar giriş yapın.',
+        kind: BackendAuthFailureKind.invalidCredentials,
       );
     }
 
     if (response.statusCode != 200) {
-      throw const BackendAuthException('Kamera listesi alınamadı.');
+      throw const BackendAuthException(
+        'Kamera listesi alınamadı.',
+        kind: BackendAuthFailureKind.other,
+      );
     }
 
     final decoded = jsonDecode(response.body) as List<dynamic>;

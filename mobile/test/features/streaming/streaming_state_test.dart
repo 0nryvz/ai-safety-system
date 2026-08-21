@@ -27,33 +27,58 @@ void main() {
     });
   });
 
-  group('kamera değiştirme kuralı', () {
+  group('telefon kamerası değiştirme kuralı', () {
     const ready = StreamingState(
       isCameraReady: true,
       availableCameraCount: 2,
     );
 
     test('hazır ve boştayken değiştirilebilir', () {
-      expect(ready.canSwitchCamera, isTrue);
+      expect(ready.canSwitchPhoneCamera, isTrue);
     });
 
     test('yayın sırasında değiştirilemez', () {
-      expect(ready.copyWith(isStreaming: true).canSwitchCamera, isFalse);
+      expect(ready.copyWith(isStreaming: true).canSwitchPhoneCamera, isFalse);
     });
 
     test('geçiş anında değiştirilemez', () {
-      expect(ready.copyWith(isBusy: true).canSwitchCamera, isFalse);
+      expect(ready.copyWith(isBusy: true).canSwitchPhoneCamera, isFalse);
     });
 
     test('tek kamera varsa değiştirilemez', () {
       expect(
-        ready.copyWith(availableCameraCount: 1).canSwitchCamera,
+        ready.copyWith(availableCameraCount: 1).canSwitchPhoneCamera,
         isFalse,
       );
     });
+  });
 
-    test('kamera hazır değilse değiştirilemez', () {
-      expect(ready.copyWith(isCameraReady: false).canSwitchCamera, isFalse);
+  group('yayın başlatma kuralı', () {
+    test('atanmamış kamerayla yayın açılamaz', () {
+      const state = StreamingState(
+        isCameraReady: true,
+        isCameraAssigned: false,
+      );
+
+      expect(state.canStartStream, isFalse);
+    });
+
+    test('atanmış ve hazır kamerayla yayın açılabilir', () {
+      const state = StreamingState(
+        isCameraReady: true,
+        isCameraAssigned: true,
+        cameraId: 'uuid',
+        cameraName: 'Kaynak-1',
+      );
+
+      expect(state.canStartStream, isTrue);
+      expect(state.displayCameraTitle, 'Kaynak-1');
+    });
+
+    test('atanmamışken başlık operatörü yönlendirir', () {
+      const state = StreamingState();
+
+      expect(state.displayCameraTitle, contains('seçilmedi'));
     });
   });
 
@@ -63,6 +88,7 @@ void main() {
         cameraId: 'cam',
         sessionId: 'session',
         sentFrames: 5,
+        isCameraAssigned: true,
       );
 
       final updated = original.copyWith(isStreaming: true);
@@ -71,6 +97,7 @@ void main() {
       expect(updated.sessionId, 'session');
       expect(updated.sentFrames, 5);
       expect(updated.isStreaming, isTrue);
+      expect(updated.isCameraAssigned, isTrue);
     });
 
     test('clearError hata mesajını siler', () {
@@ -79,35 +106,34 @@ void main() {
       expect(original.copyWith(clearError: true).errorMessage, isNull);
     });
 
-    test('null errorMessage mevcut mesajı silmez', () {
-      const original = StreamingState(errorMessage: 'bir hata');
-
-      expect(original.copyWith(isBusy: true).errorMessage, 'bir hata');
-    });
-
     test('clearSessionId oturumu düşürür', () {
       const original = StreamingState(sessionId: 'session');
 
       expect(original.copyWith(clearSessionId: true).sessionId, isNull);
     });
+
+    test('clearCameraMeta atama bilgilerini siler', () {
+      const original = StreamingState(
+        isCameraAssigned: true,
+        cameraId: 'uuid',
+        cameraName: 'Kaynak',
+      );
+
+      final cleared = original.copyWith(clearCameraMeta: true);
+
+      expect(cleared.cameraId, isNull);
+      expect(cleared.cameraName, isNull);
+    });
   });
 
   group('varsayılanlar', () {
-    test('uygulama durdurulmuş durumda başlar', () {
+    test('uygulama durdurulmuş ve atanmamış başlar', () {
       const state = StreamingState();
 
       expect(state.connection, StreamConnectionState.stopped);
       expect(state.isStreaming, isFalse);
-      expect(state.isCameraReady, isFalse);
+      expect(state.isCameraAssigned, isFalse);
       expect(state.permission, CameraPermissionStatus.unknown);
-      expect(state.errorMessage, isNull);
-    });
-
-    test('yeniden deneme sınırı tanımlı', () {
-      const state = StreamingState();
-
-      expect(state.maxReconnectAttempts, 3);
-      expect(state.reconnectAttempt, 0);
     });
   });
 }

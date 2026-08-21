@@ -11,6 +11,9 @@ class ApiClient {
   /// Keep-alive: her frame için yeni TCP bağlantısı açmamak için.
   final http.Client _client;
 
+  static const Duration jsonTimeout = Duration(seconds: 8);
+  static const Duration jpegTimeout = Duration(seconds: 12);
+
   ApiClient({
     http.Client? client,
   }) : _client = client ?? http.Client();
@@ -21,14 +24,16 @@ class ApiClient {
   }) async {
     final uri = Uri.parse('$baseUrl$path');
 
-    return _client.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Connection': 'keep-alive',
-      },
-      body: jsonEncode(body),
-    );
+    return _client
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Connection': 'keep-alive',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(jsonTimeout);
   }
 
   Future<http.Response> postHeartbeat({
@@ -37,16 +42,18 @@ class ApiClient {
   }) async {
     final uri = Uri.parse('$baseUrl$path');
 
-    return _client.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Connection': 'keep-alive',
-      },
-      body: jsonEncode({
-        'cameraId': cameraId,
-      }),
-    );
+    return _client
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Connection': 'keep-alive',
+          },
+          body: jsonEncode({
+            'cameraId': cameraId,
+          }),
+        )
+        .timeout(jsonTimeout);
   }
 
   Future<http.Response> postClose({
@@ -55,16 +62,18 @@ class ApiClient {
   }) async {
     final uri = Uri.parse('$baseUrl$path');
 
-    return _client.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Connection': 'keep-alive',
-      },
-      body: jsonEncode({
-        'cameraId': cameraId,
-      }),
-    );
+    return _client
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Connection': 'keep-alive',
+          },
+          body: jsonEncode({
+            'cameraId': cameraId,
+          }),
+        )
+        .timeout(jsonTimeout);
   }
 
   Future<http.Response> postJpeg({
@@ -75,17 +84,18 @@ class ApiClient {
   }) async {
     final uri = Uri.parse('$baseUrl$path');
 
-    return _client.post(
-      uri,
-      headers: {
-        'Content-Type': 'image/jpeg',
-        'Connection': 'keep-alive',
-        'X-Camera-Id': cameraId,
-        'X-Frame-Timestamp':
-            frameTimestamp.toUtc().toIso8601String(),
-      },
-      body: jpegBytes,
-    );
+    return _client
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'image/jpeg',
+            'Connection': 'keep-alive',
+            'X-Camera-Id': cameraId,
+            'X-Frame-Timestamp': frameTimestamp.toUtc().toIso8601String(),
+          },
+          body: jpegBytes,
+        )
+        .timeout(jpegTimeout);
   }
 
   void close() {

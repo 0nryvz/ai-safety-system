@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'core/theme/vigil_brand.dart';
 import 'features/camera/camera_page.dart';
 
 class CameraStreamApp extends StatelessWidget {
@@ -9,11 +10,8 @@ class CameraStreamApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Camera Stream',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
+      title: '${VigilBrand.name} — ${VigilBrand.tagline}',
+      theme: VigilBrand.theme(),
       home: const CameraPage(),
     );
   }

@@ -7,6 +7,7 @@ import '../../core/config/app_config.dart';
 import '../../core/device/camera_identity.dart';
 import '../../core/error/gateway_failure.dart';
 import '../camera/camera_permission_service.dart';
+import '../session/camera_option.dart';
 import '../session/camera_session_service.dart';
 import 'camera_frame_service.dart';
 import 'stream_metrics.dart';
@@ -59,7 +60,12 @@ class StreamingController extends Notifier<StreamingState> {
   DateTime? _lastAcceptedFrameAt;
   final List<DateTime> _cameraFrameTimestamps = [];
   final List<DateTime> _sentFrameTimestamps = [];
+  /// Stop sonrası Gateway close'un bitmesini bekler; bitmeden yeni open 409 üretir.
   Future<void>? _stopCleanupFuture;
+
+  /// Son bilinen Gateway oturumu (dispose/409 kurtarma için state'ten bağımsız).
+  String? _activeGatewaySessionId;
+  String? _activeGatewayCameraId;
 
   CameraController? get cameraController => _cameraController;
 
@@ -95,7 +101,6 @@ class StreamingController extends Notifier<StreamingState> {
 
   Future<void> initialize() async {
     unawaited(_frameService.warmUp());
-    unawaited(loadCameraIdentity());
 
     final granted = await _ensurePermission();
 
@@ -110,8 +115,15 @@ class StreamingController extends Notifier<StreamingState> {
   Future<bool> _ensurePermission() async {
     var status = await _permissions.check();
 
-    if (status == CameraPermissionStatus.denied) {
+    if (status == CameraPermissionStatus.denied ||
+        status == CameraPermissionStatus.unknown) {
       status = await _permissions.request();
+    }
+
+    // Native kanal "already pending" gibi durumlarda unknown dönebilir;
+    // granted sanmadan bir kez daha check et.
+    if (status == CameraPermissionStatus.unknown) {
+      status = await _permissions.check();
     }
 
     _update(
@@ -123,8 +135,18 @@ class StreamingController extends Notifier<StreamingState> {
 
     switch (status) {
       case CameraPermissionStatus.granted:
-      case CameraPermissionStatus.unknown:
         return true;
+
+      case CameraPermissionStatus.unknown:
+        _update(
+          (s) => s.copyWith(
+            isCameraReady: false,
+            errorMessage:
+                'Kamera izni durumu okunamadı. Tekrar deneyin veya ayarlardan açın.',
+            canOpenSettings: true,
+          ),
+        );
+        return false;
 
       case CameraPermissionStatus.denied:
         _update(
@@ -155,22 +177,41 @@ class StreamingController extends Notifier<StreamingState> {
 
   Future<bool> openAppSettings() => _permissions.openAppSettings();
 
-  /// Kullanıcı Backend 2 listesinden kamera seçtiğinde çağrılır. Yayın
-  /// sırasında kamera değiştirilemez; önce durdurulmalıdır.
-  Future<void> selectBackendCamera(String cameraId) async {
+  /// Kullanıcı Backend 2 listesinden fabrika kamerası seçtiğinde çağrılır.
+  /// Yayın sırasında değiştirilemez; önce durdurulmalıdır.
+  Future<void> selectBackendCamera(CameraOption camera) async {
     if (state.isStreaming) {
       return;
     }
 
-    await _identity.select(cameraId);
+    final resolved = await _identity.select(camera);
 
-    _update((s) => s.copyWith(cameraId: cameraId, clearError: true));
+    _update(
+      (s) => s.copyWith(
+        isCameraAssigned: resolved.isAssigned,
+        cameraId: resolved.cameraId,
+        cameraName: resolved.cameraName,
+        cameraCode: resolved.cameraCode,
+        departmentName: resolved.departmentName,
+        clearError: true,
+      ),
+    );
   }
 
-  /// Uygulama açılışında seçili kamerayı ekranda gösterebilmek için.
+  /// Uygulama açılışında atanmış kamera kimliğini yükler.
   Future<void> loadCameraIdentity() async {
-    final cameraId = await _identity.resolve();
-    _update((s) => s.copyWith(cameraId: cameraId));
+    final resolved = await _identity.resolve();
+
+    _update(
+      (s) => s.copyWith(
+        isCameraAssigned: resolved.isAssigned,
+        cameraId: resolved.isAssigned ? resolved.cameraId : null,
+        cameraName: resolved.cameraName,
+        cameraCode: resolved.cameraCode,
+        departmentName: resolved.departmentName,
+        clearCameraMeta: !resolved.isAssigned,
+      ),
+    );
   }
 
   int _preferredCameraIndex() {
@@ -215,7 +256,9 @@ class StreamingController extends Notifier<StreamingState> {
 
       final controller = CameraController(
         _cameras[cameraIndex],
-        ResolutionPreset.medium,
+        // low: ImageAnalysis daha hafif; arka kamera + emülatörde medium
+        // GC ve 1–4 FPS'e düşüyordu. Önizleme yeterli, hedef ≥5 FPS gönderim.
+        ResolutionPreset.low,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
@@ -233,6 +276,7 @@ class StreamingController extends Notifier<StreamingState> {
         (s) => s.copyWith(
           selectedCameraIndex: cameraIndex,
           isCameraReady: true,
+          phoneLensLabel: _lensLabel(_cameras[cameraIndex].lensDirection),
           clearError: true,
         ),
       );
@@ -317,8 +361,8 @@ class StreamingController extends Notifier<StreamingState> {
     );
   }
 
-  Future<void> switchCamera() async {
-    if (!state.canSwitchCamera) {
+  Future<void> switchPhoneCamera() async {
+    if (!state.canSwitchPhoneCamera) {
       return;
     }
 
@@ -326,6 +370,12 @@ class StreamingController extends Notifier<StreamingState> {
 
     await initializeCamera(nextIndex);
   }
+
+  String _lensLabel(CameraLensDirection direction) => switch (direction) {
+        CameraLensDirection.front => 'Ön kamera',
+        CameraLensDirection.back => 'Arka kamera',
+        CameraLensDirection.external => 'Harici kamera',
+      };
 
   // ------------------------------------------------------------------
   // Yayın kontrolü
@@ -358,14 +408,34 @@ class StreamingController extends Notifier<StreamingState> {
       return;
     }
 
+    // Webcam gibi rastgele kimlikle yayın açılmaz; önce fabrika kamerası seçilir.
+    if (!state.isCameraAssigned) {
+      _update(
+        (s) => s.copyWith(
+          errorMessage:
+              'Önce simüle edilecek fabrika kamerasını seçin. '
+              'Bu telefon bir webcam değil; bir kamera kaydını temsil eder.',
+        ),
+      );
+      return;
+    }
+
     final pendingStop = _stopCleanupFuture;
     if (pendingStop != null) {
       try {
-        await pendingStop.timeout(const Duration(seconds: 2));
+        await pendingStop.timeout(const Duration(seconds: 8));
+        _stopCleanupFuture = null;
+      } on TimeoutException {
+        _update(
+          (s) => s.copyWith(
+            errorMessage:
+                'Önceki oturum hâlâ kapanıyor. Birkaç saniye sonra tekrar deneyin.',
+          ),
+        );
+        return;
       } catch (_) {
-        // Temizlik uzarsa yeni yayını bloklamıyoruz.
+        _stopCleanupFuture = null;
       }
-      _stopCleanupFuture = null;
     }
 
     if (!automaticReconnect) {
@@ -389,7 +459,15 @@ class StreamingController extends Notifier<StreamingState> {
     );
 
     try {
-      final cameraId = await _identity.resolve();
+      final cameraId = state.cameraId;
+      if (cameraId == null) {
+        _update(
+          (s) => s.copyWith(
+            errorMessage: 'Fabrika kamerası kimliği bulunamadı. Yeniden seçin.',
+          ),
+        );
+        return;
+      }
 
       // Kullanıcı stop-start yaptığında yeni oturum açılır; reconnect de yeni
       // sessionId üretir çünkü Gateway eski oturumu kapatılmış sayar.
@@ -401,10 +479,33 @@ class StreamingController extends Notifier<StreamingState> {
         sessionToken: AppConfig.cameraKey,
       );
 
-      if (!opened.isSuccess) {
+      if (!opened.isSuccess &&
+          opened.failure?.kind == GatewayFailureKind.sessionConflict) {
+        // Stop cleanup yarışı veya takılı oturum: bilinen oturumu kapatıp bir kez daha dene.
+        final staleSession = _activeGatewaySessionId;
+        final staleCamera = _activeGatewayCameraId ?? cameraId;
+        if (staleSession != null) {
+          await _sessionService.closeSession(
+            cameraId: staleCamera,
+            sessionId: staleSession,
+          );
+        }
+        final retried = await _sessionService.openSession(
+          cameraId: cameraId,
+          sessionId: sessionId,
+          sessionToken: AppConfig.cameraKey,
+        );
+        if (!retried.isSuccess) {
+          _handleSessionOpenFailure(retried.failure!, automaticReconnect);
+          return;
+        }
+      } else if (!opened.isSuccess) {
         _handleSessionOpenFailure(opened.failure!, automaticReconnect);
         return;
       }
+
+      _activeGatewaySessionId = sessionId;
+      _activeGatewayCameraId = cameraId;
 
       _update(
         (s) => s.copyWith(cameraId: cameraId, sessionId: sessionId),
@@ -507,13 +608,15 @@ class StreamingController extends Notifier<StreamingState> {
     _heartbeatTimer = Timer.periodic(
       const Duration(seconds: 10),
       (_) async {
+        final generation = _streamGeneration;
         final sessionId = state.sessionId;
         final cameraId = state.cameraId;
 
         if (sessionId == null ||
             cameraId == null ||
             _manualStop ||
-            _isAppInBackground) {
+            _isAppInBackground ||
+            !state.isStreaming) {
           return;
         }
 
@@ -521,6 +624,13 @@ class StreamingController extends Notifier<StreamingState> {
           cameraId: cameraId,
           sessionId: sessionId,
         );
+
+        if (_manualStop ||
+            _isAppInBackground ||
+            generation != _streamGeneration ||
+            state.sessionId != sessionId) {
+          return;
+        }
 
         if (!result.isSuccess) {
           _handleConnectionFailure(result.failure!);
@@ -545,14 +655,25 @@ class StreamingController extends Notifier<StreamingState> {
     final now = DateTime.now();
     _cameraFrameTimestamps.add(now);
 
-    // Sınırlı kuyruk: ağ yavaşsa yeni kareyi düşürüp belleği korur.
-    if (_activeFrameUploads >= AppConfig.maxConcurrentFrameUploads) {
+    // Son 1 sn'deki gönderim hızı tabanın altındaysa drop/throttle uygulanmaz;
+    // aksi halde kuyruk sınırı belleği korur.
+    final recentSendFps = _sentFrameTimestamps
+        .where((at) => now.difference(at) <= const Duration(seconds: 1))
+        .length;
+    final protectMinFps = recentSendFps < AppConfig.minFps;
+
+    final uploadLimit = protectMinFps
+        ? AppConfig.maxConcurrentFrameUploads * 2
+        : AppConfig.maxConcurrentFrameUploads;
+
+    if (_activeFrameUploads >= uploadLimit) {
       _metrics.recordDropped();
       return;
     }
 
     final lastAccepted = _lastAcceptedFrameAt;
-    if (lastAccepted != null &&
+    if (!protectMinFps &&
+        lastAccepted != null &&
         now.difference(lastAccepted) < AppConfig.minFrameInterval) {
       _metrics.recordDropped();
       return;
@@ -974,6 +1095,10 @@ class StreamingController extends Notifier<StreamingState> {
         sessionId: sessionId,
       );
     }
+    if (_activeGatewaySessionId == sessionId) {
+      _activeGatewaySessionId = null;
+      _activeGatewayCameraId = null;
+    }
   }
 
   // ------------------------------------------------------------------
@@ -984,12 +1109,26 @@ class StreamingController extends Notifier<StreamingState> {
   /// aktarım ve kamera kontrollü biçimde durdurulur.
   void handleAppPaused() {
     _isAppInBackground = true;
+    unawaited(_pauseForBackground());
+  }
 
+  Future<void> _pauseForBackground() async {
     if (state.isStreaming) {
-      unawaited(stopStreaming(fromLifecycle: true));
+      await stopStreaming(fromLifecycle: true);
+      final pending = _stopCleanupFuture;
+      if (pending != null) {
+        try {
+          await pending.timeout(const Duration(seconds: 8));
+        } catch (_) {}
+        _stopCleanupFuture = null;
+      }
     }
 
-    unawaited(_disposeCameraController());
+    await _disposeCameraController();
+
+    if (_disposed) {
+      return;
+    }
 
     _update(
       (s) => s.copyWith(
@@ -1024,6 +1163,19 @@ class StreamingController extends Notifier<StreamingState> {
 
     _fpsTimer?.cancel();
     _fpsTimer = null;
+
+    final sessionId = _activeGatewaySessionId ?? state.sessionId;
+    final cameraId = _activeGatewayCameraId ?? state.cameraId;
+    if (sessionId != null && cameraId != null) {
+      unawaited(
+        _sessionService.closeSession(
+          cameraId: cameraId,
+          sessionId: sessionId,
+        ),
+      );
+      _activeGatewaySessionId = null;
+      _activeGatewayCameraId = null;
+    }
 
     _frameService.cancelUploads();
     _frameService.dispose();
