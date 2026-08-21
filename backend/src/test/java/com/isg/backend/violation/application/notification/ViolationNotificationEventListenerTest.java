@@ -2,7 +2,6 @@ package com.isg.backend.violation.application.notification;
 
 import com.isg.backend.violation.application.event.ViolationRecordingUpdatedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
-import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationType;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.event.TransactionPhase;
@@ -55,22 +54,11 @@ class ViolationNotificationEventListenerTest {
                 );
 
         ViolationRecordingUpdatedEvent event =
-                new ViolationRecordingUpdatedEvent(
-                        UUID.randomUUID(),
-                        "ACTIVE",
-                        "READY",
-                        true,
-                        Instant.parse(
-                                "2026-08-21T00:00:00Z"
-                        ),
-                        null
-                );
-
+                recordingUpdatedEvent();
 
         listener.onViolationRecordingUpdated(
                 event
         );
-
 
         verify(notificationService)
                 .sendViolationUpdate(
@@ -80,7 +68,7 @@ class ViolationNotificationEventListenerTest {
 
 
     @Test
-    void consumesStartedEventAfterCommit()
+    void consumesStartedEventOnlyAfterTransactionCommit()
             throws NoSuchMethodException {
 
         assertAfterCommit(
@@ -91,7 +79,7 @@ class ViolationNotificationEventListenerTest {
 
 
     @Test
-    void consumesRecordingUpdateEventAfterCommit()
+    void consumesRecordingUpdateOnlyAfterTransactionCommit()
             throws NoSuchMethodException {
 
         assertAfterCommit(
@@ -118,10 +106,8 @@ class ViolationNotificationEventListenerTest {
                         TransactionalEventListener.class
                 );
 
-
         assertThat(annotation)
                 .isNotNull();
-
 
         assertThat(annotation.phase())
                 .isEqualTo(
@@ -132,15 +118,33 @@ class ViolationNotificationEventListenerTest {
 
     private ViolationStartedEvent startedEvent() {
 
+        Instant now =
+                Instant.parse(
+                        "2026-08-10T20:00:00Z"
+                );
+
         return new ViolationStartedEvent(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 ViolationType.MISSING_WELDING_MASK,
+                now
+        );
+    }
+
+
+    private ViolationRecordingUpdatedEvent recordingUpdatedEvent() {
+
+        return new ViolationRecordingUpdatedEvent(
+                UUID.randomUUID(),
+                "READY",
+                "clips/test.mp4",
+                true,
                 Instant.parse(
-                        "2026-08-21T00:00:00Z"
-                )
+                        "2026-08-10T20:00:10Z"
+                ),
+                "cover/test.jpg"
         );
     }
 }
