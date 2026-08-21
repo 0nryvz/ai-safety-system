@@ -73,9 +73,11 @@ Son güncelleme: 21 Ağustos 2026
   kaynakta toplandı; widget'lar kendi bağlantı boolean'larını tutmuyor.
 
 ### Tanılama ve UX (ADIM 6)
-- Ekranda bağlantı rozeti, FPS, gönderilen/hata/düşen sayaçları, yeniden deneme
-  sayacı ve seçili kamera kimliği.
-- Geçiş anlarında butonlar kilitli.
+- Ürün adı **VIGIL**; launcher ikonu ve Space Grotesk temalı operatör dashboard.
+- Uygulama webcam değil: açılışta fabrika kamerası ataması zorunlu.
+- Dashboard KPI şeridi (gönderim/kamera FPS, durum), atanmış kamera kartı,
+  yerel önizleme ve Gateway CTA.
+- Backend kapalıysa demo kamera listesi (seed UUID'leri).
 
 ### Testler (ADIM 6)
 61 test: Gateway hata kodu eşlemesi, oturum servisi sözleşmesi (camelCase

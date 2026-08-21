@@ -65,7 +65,9 @@ class StreamStatsOverlay extends StatelessWidget {
       style: TextStyle(
         color: value >= AppConfig.targetFps
             ? Colors.greenAccent
-            : Colors.orangeAccent,
+            : value >= AppConfig.minFps
+                ? Colors.orangeAccent
+                : Colors.redAccent,
         fontWeight: weight,
         fontSize: fontSize,
       ),

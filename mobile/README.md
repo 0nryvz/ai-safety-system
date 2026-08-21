@@ -241,18 +241,18 @@ Kullanıcıya stack trace veya hata kodu gösterilmez.
 
 ## Demo akışı
 
-1. Uygulamayı açın; kamera izni sorulur.
-   - Reddederseniz açıklama ve **Tekrar Dene** görünür.
-   - Kalıcı reddettiyseniz **Ayarları Aç** butonu uygulama ayarlarına götürür.
-2. Sağ üstteki kamera ikonundan **backend kamerası** seçin (Backend 2 girişi
-   ister). Seçim kalıcıdır.
-3. Ön/arka kamera arasında geçiş yapın (yayın sırasında kilitlidir).
-4. **Yayını Başlat**. Sol üstte bağlantı rozeti, sağ üstte FPS ve sayaçlar
-   görünür.
-5. Wi-Fi'ı kapatın: durum `WEAK` → `RECONNECTING` → `OFFLINE` ilerler.
-6. Wi-Fi'ı açın ve yeniden başlatın.
-7. Uygulamayı arka plana alın: yayın ve kamera kontrollü şekilde durur.
-8. **Yayını Durdur**. Gateway'de oturum kapanır, kare gönderimi anında biter.
+1. Uygulamayı açın. **Webcam ekranı gelmez** — önce operatör girişi ve
+   fabrika kamerası seçimi gelir.
+2. Backend 2 hesabıyla giriş yapıp aktif bir kamera seçin. Pasif kameralar
+   seçilemez. Seçim cihazda saklanır.
+3. Operatör konsolunda simüle edilen kamera adı/kodu, bağlantı durumu ve
+   oturum bilgisi birincil alandır. Yerel önizleme ikincildir ve yalnızca
+   telefonda kalır.
+4. Kamera izni sorulur; kalıcı rette **Ayarları Aç** görünür.
+5. **Gateway oturumu aç ve aktar**. Sol üstte bağlantı, sayaçlar görünür.
+6. Wi-Fi'ı kapatın: durum `WEAK` → `RECONNECTING` → `OFFLINE` ilerler.
+7. Uygulamayı arka plana alın: aktarım ve telefon kamerası kontrollü durur.
+8. **Gateway aktarımını durdur**. Oturum kapanır, kare gönderimi kesilir.
 
 Doğrulama için Gateway metriklerine bakılabilir:
 

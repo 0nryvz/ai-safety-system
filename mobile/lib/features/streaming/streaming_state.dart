@@ -12,11 +12,11 @@ enum StreamConnectionState {
 
   String get label => switch (this) {
         StreamConnectionState.connecting => 'Bağlanıyor...',
-        StreamConnectionState.connected => 'Bağlı',
+        StreamConnectionState.connected => 'Gateway\'e bağlı',
         StreamConnectionState.weak => 'Bağlantı zayıf',
         StreamConnectionState.reconnecting => 'Yeniden bağlanıyor...',
         StreamConnectionState.offline => 'Çevrimdışı',
-        StreamConnectionState.stopped => 'Hazır',
+        StreamConnectionState.stopped => 'Aktarım durduruldu',
       };
 }
 
@@ -40,7 +40,16 @@ class StreamingState {
   final int selectedCameraIndex;
   final int availableCameraCount;
 
+  /// Telefonun ön/arka kamerası (cihaz donanımı). Fabrika kamera kaydından ayrı.
+  final String phoneLensLabel;
+
+  /// Backend'den seçilmiş veya derleme ile provizyonlanmış fabrika kamerası.
+  final bool isCameraAssigned;
+
   final String? cameraId;
+  final String? cameraName;
+  final String? cameraCode;
+  final String? departmentName;
   final String? sessionId;
 
   final int cameraFps;
@@ -64,7 +73,12 @@ class StreamingState {
     this.canOpenSettings = false,
     this.selectedCameraIndex = 0,
     this.availableCameraCount = 0,
+    this.phoneLensLabel = '—',
+    this.isCameraAssigned = false,
     this.cameraId,
+    this.cameraName,
+    this.cameraCode,
+    this.departmentName,
     this.sessionId,
     this.cameraFps = 0,
     this.sendFps = 0,
@@ -76,11 +90,33 @@ class StreamingState {
     this.lastSuccessAt,
   });
 
-  bool get canSwitchCamera =>
+  bool get canSwitchPhoneCamera =>
       availableCameraCount > 1 && isCameraReady && !isBusy && !isStreaming;
+
+  bool get canStartStream =>
+      isCameraAssigned && isCameraReady && !isBusy && !isStreaming;
 
   bool get isReconnecting =>
       connection == StreamConnectionState.reconnecting;
+
+  String get displayCameraTitle {
+    if (cameraName != null && cameraName!.isNotEmpty) {
+      return cameraName!;
+    }
+    if (isCameraAssigned && cameraId != null) {
+      return 'Atanmış kamera';
+    }
+    return 'Fabrika kamerası seçilmedi';
+  }
+
+  String get displayCameraSubtitle {
+    final parts = <String>[
+      if (cameraCode != null && cameraCode!.isNotEmpty) cameraCode!,
+      if (departmentName != null && departmentName!.isNotEmpty)
+        departmentName!,
+    ];
+    return parts.isEmpty ? (cameraId ?? '') : parts.join(' · ');
+  }
 
   StreamingState copyWith({
     StreamConnectionState? connection,
@@ -93,7 +129,13 @@ class StreamingState {
     bool? canOpenSettings,
     int? selectedCameraIndex,
     int? availableCameraCount,
+    String? phoneLensLabel,
+    bool? isCameraAssigned,
     String? cameraId,
+    String? cameraName,
+    String? cameraCode,
+    String? departmentName,
+    bool clearCameraMeta = false,
     String? sessionId,
     bool clearSessionId = false,
     int? cameraFps,
@@ -115,7 +157,13 @@ class StreamingState {
       canOpenSettings: canOpenSettings ?? this.canOpenSettings,
       selectedCameraIndex: selectedCameraIndex ?? this.selectedCameraIndex,
       availableCameraCount: availableCameraCount ?? this.availableCameraCount,
-      cameraId: cameraId ?? this.cameraId,
+      phoneLensLabel: phoneLensLabel ?? this.phoneLensLabel,
+      isCameraAssigned: isCameraAssigned ?? this.isCameraAssigned,
+      cameraId: clearCameraMeta ? null : (cameraId ?? this.cameraId),
+      cameraName: clearCameraMeta ? null : (cameraName ?? this.cameraName),
+      cameraCode: clearCameraMeta ? null : (cameraCode ?? this.cameraCode),
+      departmentName:
+          clearCameraMeta ? null : (departmentName ?? this.departmentName),
       sessionId: clearSessionId ? null : (sessionId ?? this.sessionId),
       cameraFps: cameraFps ?? this.cameraFps,
       sendFps: sendFps ?? this.sendFps,

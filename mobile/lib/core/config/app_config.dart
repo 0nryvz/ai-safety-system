@@ -67,28 +67,40 @@ class AppConfig {
     defaultValue: 15,
   );
 
+  /// Gönderim hızının altına düşülmemesi gereken taban.
+  /// Ağ/encode baskısında throttle ve drop bu eşiğin altında uygulanmaz.
+  static const int minFps = int.fromEnvironment(
+    'MIN_FPS',
+    defaultValue: 5,
+  );
+
   /// Kareler bu genişliğe indirgenir. Gateway sınırı 2 MiB.
   static const int targetEncodeWidth = int.fromEnvironment(
     'ENCODE_WIDTH',
-    defaultValue: 640,
+    defaultValue: 320,
   );
 
   static const int jpegQuality = int.fromEnvironment(
     'JPEG_QUALITY',
-    defaultValue: 70,
+    defaultValue: 55,
   );
 
   /// Aynı anda havada olabilecek yükleme sayısı. Kuyruğun sınırsız büyümesini
   /// ve belleğin şişmesini engeller.
   static const int maxConcurrentFrameUploads = int.fromEnvironment(
     'MAX_CONCURRENT_UPLOADS',
-    defaultValue: 8,
+    defaultValue: 10,
   );
 
-  /// Kamera jitter'ı yüzünden hedef aralığın biraz altında gelen kareler
-  /// düşerse efektif hız hedefin altına iner; %20 tolerans bırakılıyor.
+  /// Hedef FPS aralığı (%20 tolerans). Taban altına inildiğinde bu sınır
+  /// yok sayılır.
   static Duration get minFrameInterval => Duration(
         microseconds: (1000000 ~/ targetFps) * 8 ~/ 10,
+      );
+
+  /// Taban FPS için en uzun kabul edilebilir aralık (~200ms @ 5 FPS).
+  static Duration get maxFrameIntervalForMinFps => Duration(
+        microseconds: 1000000 ~/ minFps,
       );
 
   // --------------------------------------------------------------

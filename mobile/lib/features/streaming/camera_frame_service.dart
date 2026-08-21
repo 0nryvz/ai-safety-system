@@ -29,8 +29,7 @@ class FrameUploadResult {
   bool get isSent => outcome == FrameOutcome.sent;
 }
 
-/// Stream callback içinde CameraImage'den alınan kopya.
-/// CameraImage buffer'ı callback biter bitmez geri verilir.
+/// Stream callback içinde CameraImage'den alınan (ve mümkünse küçültülmüş) kopya.
 class RawYuvFrame {
   final Uint8List yBytes;
   final Uint8List uBytes;
@@ -71,12 +70,13 @@ class CameraFrameService {
   int _pendingUploads = 0;
   int _uploadEpoch = 0;
 
-  // Encode paralel çalıştığı için sırasız bitebilir. Gateway zaman damgası
-  // geriye giden kareyi elediğinden upload sırası korunmak zorunda.
   int _nextSequence = 0;
   int _nextUploadSequence = 0;
   final Map<int, _ReadyFrame> _readyFrames = {};
-  bool _draining = false;
+
+  /// Sıralı kuyruktan paralel HTTP; zaman damgası yakalanma anıdır.
+  int _inFlightUploads = 0;
+  static const int _maxParallelUploads = 3;
 
   Completer<void>? _pendingUploadsCompleter;
 
@@ -98,8 +98,12 @@ class CameraFrameService {
     _readyFrames.clear();
     _nextSequence = 0;
     _nextUploadSequence = 0;
+    _inFlightUploads = 0;
   }
 
+  /// CameraImage buffer'ı callback bitince geri alındığı için düzlemler
+  /// hemen kopyalanır. İndirgeme native encoder'da [step] ile yapılır; burada
+  /// ağır piksel döngüsü callback'i kilitlemez.
   RawYuvFrame? extractFrame(CameraImage cameraImage) {
     if (cameraImage.planes.length < 3) {
       return null;
@@ -112,8 +116,6 @@ class CameraFrameService {
       return null;
     }
 
-    // Tam sayı adımla küçültüldüğü için yukarı yuvarlamak hedefin çok altına
-    // düşürür (720 -> 360). Aşağı yuvarlayıp hedefin altına inmemeyi seçiyoruz.
     final step = (srcW ~/ AppConfig.targetEncodeWidth).clamp(1, 16);
 
     final yPlane = cameraImage.planes[0];
@@ -144,8 +146,6 @@ class CameraFrameService {
     final epoch = _uploadEpoch;
     final sequence = _nextSequence++;
     _pendingUploads++;
-
-    final totalStopwatch = Stopwatch()..start();
 
     try {
       if (epoch != _uploadEpoch) {
@@ -182,21 +182,14 @@ class CameraFrameService {
         jpegBytes: jpegBytes,
         epoch: epoch,
         encodeMs: encodeStopwatch.elapsedMilliseconds,
-        label: '${frame.outputWidth}x${frame.outputHeight} '
-            '(src ${frame.sourceWidth}x${frame.sourceHeight})',
+        label: '${frame.outputWidth}x${frame.outputHeight}',
       );
 
       _readyFrames[sequence] = ready;
-      unawaited(_drainUploadQueue());
+      _pumpUploadQueue();
 
-      final result = await ready.result.future;
-
-      totalStopwatch.stop();
-
-      return result;
+      return ready.result.future;
     } catch (e) {
-      totalStopwatch.stop();
-
       unawaited(_registerSkip(sequence, epoch));
 
       if (epoch != _uploadEpoch) {
@@ -204,14 +197,9 @@ class CameraFrameService {
       }
 
       if (AppConfig.frameDiagnostics) {
-        debugPrint(
-          'FRAME PERF | ERROR | '
-          'total=${totalStopwatch.elapsedMilliseconds}ms | '
-          'error=$e',
-        );
+        debugPrint('FRAME PERF | ERROR | error=$e');
       }
 
-      // Encode hatası ağ hatası değil; yeniden denenebilir sayılır.
       return FrameUploadResult.failed(
         GatewayFailure.network(detail: e.toString()),
       );
@@ -226,8 +214,6 @@ class CameraFrameService {
     }
   }
 
-  /// Sıra numarasında boşluk kalırsa kuyruk kilitlenir; atlanan kareler de
-  /// kaydedilmeli.
   Future<FrameUploadResult> _registerSkip(int sequence, int epoch) {
     if (_readyFrames.containsKey(sequence)) {
       return Future.value(const FrameUploadResult.skipped());
@@ -244,83 +230,74 @@ class CameraFrameService {
     );
 
     _readyFrames[sequence] = skipped;
-    unawaited(_drainUploadQueue());
+    _pumpUploadQueue();
 
     return skipped.result.future;
   }
 
-  /// Kareleri yakalanma sırasına göre tek tek gönderir.
-  Future<void> _drainUploadQueue() async {
-    if (_draining) {
-      return;
-    }
-
-    _draining = true;
-
-    try {
-      while (true) {
-        final ready = _readyFrames.remove(_nextUploadSequence);
-
-        if (ready == null) {
-          // Sıradaki kare henüz encode edilmedi; o bitince yeniden çağrılır.
-          break;
-        }
-
-        _nextUploadSequence++;
-
-        if (ready.epoch != _uploadEpoch || ready.jpegBytes == null) {
-          ready.complete(const FrameUploadResult.skipped());
-          continue;
-        }
-
-        try {
-          final uploadStopwatch = Stopwatch()..start();
-
-          final response = await _apiClient.postJpeg(
-            path: '/api/v1/sessions/${ready.sessionId}/frames',
-            cameraId: ready.cameraId,
-            frameTimestamp: ready.frameTimestamp,
-            jpegBytes: ready.jpegBytes!,
-          );
-
-          uploadStopwatch.stop();
-
-          if (AppConfig.frameDiagnostics) {
-            debugPrint(
-              'FRAME PERF | '
-              'jpeg=${ready.encodeMs}ms | '
-              'upload=${uploadStopwatch.elapsedMilliseconds}ms | '
-              'size=${ready.jpegBytes!.length} bytes | '
-              '${ready.label}',
-            );
-          }
-
-          ready.complete(
-            response.statusCode == 202
-                ? const FrameUploadResult.sent()
-                : FrameUploadResult.failed(
-                    GatewayFailure.fromStatusCode(response.statusCode),
-                  ),
-          );
-        } catch (e) {
-          if (AppConfig.frameDiagnostics) {
-            debugPrint('FRAME PERF | UPLOAD ERROR | error=$e');
-          }
-
-          ready.complete(
-            FrameUploadResult.failed(
-              GatewayFailure.network(detail: e.toString()),
-            ),
-          );
-        }
+  /// Sıradaki kareleri en fazla [_maxParallelUploads] kadar paralel yollar.
+  void _pumpUploadQueue() {
+    while (_inFlightUploads < _maxParallelUploads) {
+      final ready = _readyFrames.remove(_nextUploadSequence);
+      if (ready == null) {
+        break;
       }
-    } finally {
-      _draining = false;
-    }
 
-    // Drain sırasında yeni kare hazır olmuş olabilir.
-    if (_readyFrames.containsKey(_nextUploadSequence)) {
-      unawaited(_drainUploadQueue());
+      _nextUploadSequence++;
+
+      if (ready.epoch != _uploadEpoch || ready.jpegBytes == null) {
+        ready.complete(const FrameUploadResult.skipped());
+        continue;
+      }
+
+      _inFlightUploads++;
+      unawaited(_uploadOne(ready));
+    }
+  }
+
+  Future<void> _uploadOne(_ReadyFrame ready) async {
+    try {
+      final uploadStopwatch = Stopwatch()..start();
+
+      final response = await _apiClient.postJpeg(
+        path: '/api/v1/sessions/${ready.sessionId}/frames',
+        cameraId: ready.cameraId,
+        frameTimestamp: ready.frameTimestamp,
+        jpegBytes: ready.jpegBytes!,
+      );
+
+      uploadStopwatch.stop();
+
+      if (AppConfig.frameDiagnostics) {
+        debugPrint(
+          'FRAME PERF | '
+          'jpeg=${ready.encodeMs}ms | '
+          'upload=${uploadStopwatch.elapsedMilliseconds}ms | '
+          'size=${ready.jpegBytes!.length} bytes | '
+          '${ready.label}',
+        );
+      }
+
+      ready.complete(
+        response.statusCode == 202
+            ? const FrameUploadResult.sent()
+            : FrameUploadResult.failed(
+                GatewayFailure.fromStatusCode(response.statusCode),
+              ),
+      );
+    } catch (e) {
+      if (AppConfig.frameDiagnostics) {
+        debugPrint('FRAME PERF | UPLOAD ERROR | error=$e');
+      }
+
+      ready.complete(
+        FrameUploadResult.failed(
+          GatewayFailure.network(detail: e.toString()),
+        ),
+      );
+    } finally {
+      _inFlightUploads--;
+      _pumpUploadQueue();
     }
   }
 

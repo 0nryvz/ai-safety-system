@@ -7,6 +7,7 @@ import '../../core/config/app_config.dart';
 import '../../core/device/camera_identity.dart';
 import '../../core/error/gateway_failure.dart';
 import '../camera/camera_permission_service.dart';
+import '../session/camera_option.dart';
 import '../session/camera_session_service.dart';
 import 'camera_frame_service.dart';
 import 'stream_metrics.dart';
@@ -95,7 +96,6 @@ class StreamingController extends Notifier<StreamingState> {
 
   Future<void> initialize() async {
     unawaited(_frameService.warmUp());
-    unawaited(loadCameraIdentity());
 
     final granted = await _ensurePermission();
 
@@ -155,22 +155,41 @@ class StreamingController extends Notifier<StreamingState> {
 
   Future<bool> openAppSettings() => _permissions.openAppSettings();
 
-  /// Kullanıcı Backend 2 listesinden kamera seçtiğinde çağrılır. Yayın
-  /// sırasında kamera değiştirilemez; önce durdurulmalıdır.
-  Future<void> selectBackendCamera(String cameraId) async {
+  /// Kullanıcı Backend 2 listesinden fabrika kamerası seçtiğinde çağrılır.
+  /// Yayın sırasında değiştirilemez; önce durdurulmalıdır.
+  Future<void> selectBackendCamera(CameraOption camera) async {
     if (state.isStreaming) {
       return;
     }
 
-    await _identity.select(cameraId);
+    final resolved = await _identity.select(camera);
 
-    _update((s) => s.copyWith(cameraId: cameraId, clearError: true));
+    _update(
+      (s) => s.copyWith(
+        isCameraAssigned: resolved.isAssigned,
+        cameraId: resolved.cameraId,
+        cameraName: resolved.cameraName,
+        cameraCode: resolved.cameraCode,
+        departmentName: resolved.departmentName,
+        clearError: true,
+      ),
+    );
   }
 
-  /// Uygulama açılışında seçili kamerayı ekranda gösterebilmek için.
+  /// Uygulama açılışında atanmış kamera kimliğini yükler.
   Future<void> loadCameraIdentity() async {
-    final cameraId = await _identity.resolve();
-    _update((s) => s.copyWith(cameraId: cameraId));
+    final resolved = await _identity.resolve();
+
+    _update(
+      (s) => s.copyWith(
+        isCameraAssigned: resolved.isAssigned,
+        cameraId: resolved.isAssigned ? resolved.cameraId : null,
+        cameraName: resolved.cameraName,
+        cameraCode: resolved.cameraCode,
+        departmentName: resolved.departmentName,
+        clearCameraMeta: !resolved.isAssigned,
+      ),
+    );
   }
 
   int _preferredCameraIndex() {
@@ -215,7 +234,9 @@ class StreamingController extends Notifier<StreamingState> {
 
       final controller = CameraController(
         _cameras[cameraIndex],
-        ResolutionPreset.medium,
+        // low: ImageAnalysis daha hafif; arka kamera + emülatörde medium
+        // GC ve 1–4 FPS'e düşüyordu. Önizleme yeterli, hedef ≥5 FPS gönderim.
+        ResolutionPreset.low,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
@@ -233,6 +254,7 @@ class StreamingController extends Notifier<StreamingState> {
         (s) => s.copyWith(
           selectedCameraIndex: cameraIndex,
           isCameraReady: true,
+          phoneLensLabel: _lensLabel(_cameras[cameraIndex].lensDirection),
           clearError: true,
         ),
       );
@@ -317,8 +339,8 @@ class StreamingController extends Notifier<StreamingState> {
     );
   }
 
-  Future<void> switchCamera() async {
-    if (!state.canSwitchCamera) {
+  Future<void> switchPhoneCamera() async {
+    if (!state.canSwitchPhoneCamera) {
       return;
     }
 
@@ -326,6 +348,12 @@ class StreamingController extends Notifier<StreamingState> {
 
     await initializeCamera(nextIndex);
   }
+
+  String _lensLabel(CameraLensDirection direction) => switch (direction) {
+        CameraLensDirection.front => 'Ön kamera',
+        CameraLensDirection.back => 'Arka kamera',
+        CameraLensDirection.external => 'Harici kamera',
+      };
 
   // ------------------------------------------------------------------
   // Yayın kontrolü
@@ -355,6 +383,18 @@ class StreamingController extends Notifier<StreamingState> {
         state.isStreaming ||
         state.isBusy ||
         _isAppInBackground) {
+      return;
+    }
+
+    // Webcam gibi rastgele kimlikle yayın açılmaz; önce fabrika kamerası seçilir.
+    if (!state.isCameraAssigned) {
+      _update(
+        (s) => s.copyWith(
+          errorMessage:
+              'Önce simüle edilecek fabrika kamerasını seçin. '
+              'Bu telefon bir webcam değil; bir kamera kaydını temsil eder.',
+        ),
+      );
       return;
     }
 
@@ -389,7 +429,15 @@ class StreamingController extends Notifier<StreamingState> {
     );
 
     try {
-      final cameraId = await _identity.resolve();
+      final cameraId = state.cameraId;
+      if (cameraId == null) {
+        _update(
+          (s) => s.copyWith(
+            errorMessage: 'Fabrika kamerası kimliği bulunamadı. Yeniden seçin.',
+          ),
+        );
+        return;
+      }
 
       // Kullanıcı stop-start yaptığında yeni oturum açılır; reconnect de yeni
       // sessionId üretir çünkü Gateway eski oturumu kapatılmış sayar.
@@ -545,14 +593,25 @@ class StreamingController extends Notifier<StreamingState> {
     final now = DateTime.now();
     _cameraFrameTimestamps.add(now);
 
-    // Sınırlı kuyruk: ağ yavaşsa yeni kareyi düşürüp belleği korur.
-    if (_activeFrameUploads >= AppConfig.maxConcurrentFrameUploads) {
+    // Son 1 sn'deki gönderim hızı tabanın altındaysa drop/throttle uygulanmaz;
+    // aksi halde kuyruk sınırı belleği korur.
+    final recentSendFps = _sentFrameTimestamps
+        .where((at) => now.difference(at) <= const Duration(seconds: 1))
+        .length;
+    final protectMinFps = recentSendFps < AppConfig.minFps;
+
+    final uploadLimit = protectMinFps
+        ? AppConfig.maxConcurrentFrameUploads * 2
+        : AppConfig.maxConcurrentFrameUploads;
+
+    if (_activeFrameUploads >= uploadLimit) {
       _metrics.recordDropped();
       return;
     }
 
     final lastAccepted = _lastAcceptedFrameAt;
-    if (lastAccepted != null &&
+    if (!protectMinFps &&
+        lastAccepted != null &&
         now.difference(lastAccepted) < AppConfig.minFrameInterval) {
       _metrics.recordDropped();
       return;
