@@ -2,6 +2,9 @@ package com.isg.backend.violation.service;
 
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.temporal.ViolationStateKey;
+import com.isg.backend.violation.application.port.RecordingQueryPort;
+import com.isg.backend.violation.application.port.RecordingQueryResult;
+import com.isg.backend.violation.application.port.RecordingStatusCallbackPort;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
 import org.springframework.stereotype.Service;
@@ -17,24 +20,31 @@ public class ViolationRecoveryService {
     private final SpringDataViolationRepository violationRepository;
     private final ActiveViolationRegistry activeViolationRegistry;
     private final TemporalConfirmationService temporalConfirmationService;
+    private final RecordingQueryPort recordingQueryPort;
+    private final RecordingStatusCallbackPort recordingStatusCallbackPort;
 
     public ViolationRecoveryService(
             SpringDataViolationRepository violationRepository,
             ActiveViolationRegistry activeViolationRegistry,
-            TemporalConfirmationService temporalConfirmationService
+            TemporalConfirmationService temporalConfirmationService,
+            RecordingQueryPort recordingQueryPort,
+            RecordingStatusCallbackPort recordingStatusCallbackPort
     ) {
         this.violationRepository = violationRepository;
         this.activeViolationRegistry = activeViolationRegistry;
         this.temporalConfirmationService = temporalConfirmationService;
+        this.recordingQueryPort = recordingQueryPort;
+        this.recordingStatusCallbackPort = recordingStatusCallbackPort;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public int recoverInterruptedViolations() {
 
         List<ViolationJpaEntity> activeViolations =
                 violationRepository.findByLifecycleStatusIn(
                         List.of(
-                                ViolationLifecycleStatus.ACTIVE
+                                ViolationLifecycleStatus.ACTIVE,
+                                ViolationLifecycleStatus.PREPARING
                         )
                 );
 
@@ -44,6 +54,31 @@ public class ViolationRecoveryService {
 
             UUID sourceSessionId =
                     violation.getSourceSessionId();
+
+            RecordingQueryResult recording =
+                    recordingQueryPort.findByViolationId(
+                            violation.getId()
+                    ).orElse(null);
+
+            if (recording != null) {
+
+                if ("READY".equals(recording.recordingStatus())) {
+
+                    recordingStatusCallbackPort.recordingReady(
+                            violation.getId(),
+                            Instant.now()
+                    );
+                }
+
+                if ("ERROR".equals(recording.recordingStatus())) {
+
+                    recordingStatusCallbackPort.recordingError(
+                            violation.getId(),
+                            Instant.now(),
+                            "RECOVERY_ERROR"
+                    );
+                }
+            }
 
             String subjectKey =
                     violation.getSubjectKey();

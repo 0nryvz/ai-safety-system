@@ -799,7 +799,7 @@ class ViolationLifecycleServiceTest {
     }
 
     @Test
-    void recordingReadyDoesNotCompleteActiveViolationBeforeItEnds() {
+    void recordingSegmentCompletionDoesNotEndLongRunningViolationLifecycle() {
         UUID violationId =
                 UUID.randomUUID();
 

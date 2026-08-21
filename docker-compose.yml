@@ -67,6 +67,33 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-violation-media}
 
+  ai-service:
+    build:
+      context: ./ai-service
+
+    container_name: isg-ai-service
+    restart: unless-stopped
+
+    ports:
+      - "8001:8001"
+
+    environment:
+      AI_MODEL_PATH: /models/best.pt
+      AI_MODEL_VERSION: ${AI_MODEL_VERSION:-ppe-yolo26s-300ep-v1}
+      AI_MODEL_DEVICE: ${AI_MODEL_DEVICE:-cpu}
+
+      CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-0.5}
+      IOU_THRESHOLD: ${IOU_THRESHOLD:-0.45}
+
+      BACKEND_BASE_URL: ${BACKEND_BASE_URL:-http://host.docker.internal:8080}
+      BACKEND_DETECTIONS_PATH: ${BACKEND_DETECTIONS_PATH:-/internal/v1/detections}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-benim-gizli-anahtarim-123}
+
+      AI_CLASS_MAPPING_PATH: config/class_mapping.json
+
+    volumes:
+      - ./ai-service/models:/models:ro
+
 volumes:
   postgres-data:
   minio-data:

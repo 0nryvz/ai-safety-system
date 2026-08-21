@@ -15,7 +15,9 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DashboardRepositoryTest {
@@ -148,6 +150,49 @@ class DashboardRepositoryTest {
                         .recordingStatus()
         ).isEqualTo(
                 RecordingStatus.REQUESTED
+        );
+    }
+
+    @Test
+    void summaryQueryUsesWeakAsActiveCameraStatus() {
+        UUID departmentId =
+                UUID.fromString(
+                        "44444444-4444-4444-4444-444444444444"
+                );
+
+        Object[] row = {
+                0L,
+                0L,
+                null,
+                1L,
+                2L,
+                0L
+        };
+
+        when(
+                query.getSingleResult()
+        ).thenReturn(
+                row
+        );
+
+        repository.getSummary(
+                List.of(
+                        departmentId
+                )
+        );
+
+        verify(
+                entityManager
+        ).createNativeQuery(
+                argThat(
+                        sql ->
+                                sql.contains(
+                                        "c.status IN ('ONLINE', 'WEAK')"
+                                )
+                                        && !sql.contains(
+                                        "c.status IN ('ONLINE', 'DEGRADED')"
+                                )
+                )
         );
     }
 }
