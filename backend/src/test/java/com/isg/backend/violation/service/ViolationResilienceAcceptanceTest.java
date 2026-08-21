@@ -172,4 +172,105 @@ class ViolationResilienceAcceptanceTest {
                         any()
                 );
     }
+
+    @Test
+    void duplicateDetectionDoesNotCreateSecondViolationLifecycle() {
+
+        UUID eventId =
+                UUID.randomUUID();
+
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID sessionId =
+                UUID.randomUUID();
+
+        DetectionRequest request =
+                new DetectionRequest(
+                        eventId,
+                        cameraId,
+                        sessionId,
+                        Instant.now(),
+                        "model-v1",
+                        120L,
+                        List.of(
+                                new DetectionItem(
+                                        "person",
+                                        BigDecimal.valueOf(0.95),
+                                        new BoundingBox(
+                                                BigDecimal.ZERO,
+                                                BigDecimal.ZERO,
+                                                BigDecimal.ONE,
+                                                BigDecimal.ONE
+                                        )
+                                )
+                        )
+                );
+
+
+        when(
+                cameraQueryService.isValid(
+                        cameraId,
+                        sessionId
+                )
+        )
+                .thenReturn(true);
+
+
+        when(
+                candidateViolationEvaluator.evaluate(
+                        any()
+                )
+        )
+                .thenReturn(List.of());
+
+
+        when(
+                temporalConfirmationService.processFrameTransitions(
+                        any(),
+                        any()
+                )
+        )
+                .thenReturn(
+                        new TemporalViolationTransitions(
+                                List.of(),
+                                List.of()
+                        )
+                );
+
+
+        detectionService.process(
+                request
+        );
+
+
+        assertThatThrownBy(
+                () ->
+                        detectionService.process(
+                                request
+                        )
+        )
+                .isInstanceOf(
+                        ResponseStatusException.class
+                );
+
+
+        verify(
+                candidateViolationEvaluator,
+                times(1)
+        )
+                .evaluate(
+                        any()
+                );
+
+
+        verify(
+                violationLifecycleService,
+                never()
+        )
+                .startViolation(
+                        any(),
+                        any()
+                );
+    }
 }
