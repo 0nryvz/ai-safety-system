@@ -100,13 +100,26 @@ class ViolationRecoveryAcceptanceTest {
         when(
                 repository.findByLifecycleStatusIn(
                         List.of(
-                                ViolationLifecycleStatus.ACTIVE,
+                                ViolationLifecycleStatus.ACTIVE
+                        )
+                )
+        )
+                .thenReturn(
+                        List.of()
+                );
+
+        when(
+                repository.findByLifecycleStatusIn(
+                        List.of(
                                 ViolationLifecycleStatus.PREPARING
                         )
                 )
-        ).thenReturn(
-                List.of(violation)
-        );
+        )
+                .thenReturn(
+                        List.of(
+                                violation
+                        )
+                );
 
 
         when(

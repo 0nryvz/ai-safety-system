@@ -285,6 +285,16 @@ public class ViolationJpaEntity {
                 endedAt;
     }
 
+    public void markAlertSent(
+            Instant alertSentAt
+    ) {
+        this.alertSentAt =
+                Objects.requireNonNull(
+                        alertSentAt,
+                        "alertSentAt must not be null"
+                );
+    }
+
     public void changeLifecycleStatus(
             ViolationLifecycleStatus lifecycleStatus
     ) {

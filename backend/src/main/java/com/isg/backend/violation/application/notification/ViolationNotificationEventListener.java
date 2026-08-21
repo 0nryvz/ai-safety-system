@@ -4,16 +4,11 @@ import com.isg.backend.violation.application.event.ViolationRecordingUpdatedEven
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
 import com.isg.backend.violation.application.port.DepartmentNameResolver;
 import com.isg.backend.violation.application.port.NotificationRecipientResolver;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 @Component
-@ConditionalOnBean({
-        NotificationRecipientResolver.class,
-        DepartmentNameResolver.class
-})
 public class ViolationNotificationEventListener {
 
     private final ViolationNotificationService notificationService;

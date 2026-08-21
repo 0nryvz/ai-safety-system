@@ -453,6 +453,50 @@ class DatabaseCameraQueryServiceTest {
         );
     }
 
+    @Test
+    void resolvesCameraNameForExistingCamera() {
+        UUID cameraId =
+                UUID.randomUUID();
+
+        Camera camera =
+                mock(Camera.class);
+
+        when(cameraRepository.findById(
+                cameraId
+        )).thenReturn(
+                Optional.of(camera)
+        );
+
+        when(camera.getName())
+                .thenReturn(
+                        "Welding Camera 1"
+                );
+
+        assertEquals(
+                Optional.of("Welding Camera 1"),
+                service.findCameraName(
+                        cameraId
+                )
+        );
+    }
+
+    @Test
+    void returnsEmptyCameraNameForMissingCamera() {
+        UUID cameraId =
+                UUID.randomUUID();
+
+        when(cameraRepository.findById(
+                cameraId
+        )).thenReturn(
+                Optional.empty()
+        );
+
+        assertTrue(
+                service.findCameraName(
+                        cameraId
+                ).isEmpty()
+        );
+    }
     private void assertInactiveSessionIsRejected(
             CameraSession.SessionStatus status
     ) {

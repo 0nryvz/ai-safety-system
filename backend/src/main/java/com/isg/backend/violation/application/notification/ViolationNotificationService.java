@@ -1,7 +1,6 @@
 package com.isg.backend.violation.application.notification;
 
-import com.isg.backend.modules.camera.api.dto.CameraResponse;
-import com.isg.backend.modules.camera.application.CameraService;
+import com.isg.backend.camera.service.CameraQueryService;
 import com.isg.backend.violation.application.event.ViolationRecordingUpdatedEvent;
 import com.isg.backend.violation.application.event.ViolationStartedEvent;
 import com.isg.backend.violation.application.port.DepartmentNameResolver;
@@ -12,7 +11,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -23,10 +21,6 @@ import java.util.List;
 import java.util.Objects;
 
 @Service
-@ConditionalOnBean({
-        NotificationRecipientResolver.class,
-        DepartmentNameResolver.class
-})
 public class ViolationNotificationService {
 
     private static final Logger logger =
@@ -44,7 +38,7 @@ public class ViolationNotificationService {
     private final NotificationRecipientResolver recipientResolver;
     private final DepartmentNameResolver departmentNameResolver;
     private final SpringDataViolationRepository violationRepository;
-    private final CameraService cameraService;
+    private final CameraQueryService cameraQueryService;
     private final Timer initialAlertLatencyTimer;
     private final Clock clock;
 
@@ -53,7 +47,7 @@ public class ViolationNotificationService {
             NotificationRecipientResolver recipientResolver,
             DepartmentNameResolver departmentNameResolver,
             SpringDataViolationRepository violationRepository,
-            CameraService cameraService,
+            CameraQueryService cameraQueryService,
             MeterRegistry meterRegistry,
             Clock clock
     ) {
@@ -69,8 +63,8 @@ public class ViolationNotificationService {
         this.violationRepository =
                 violationRepository;
 
-        this.cameraService =
-                cameraService;
+        this.cameraQueryService =
+                cameraQueryService;
 
         this.clock =
                 clock;
@@ -80,7 +74,7 @@ public class ViolationNotificationService {
                                 INITIAL_ALERT_LATENCY_METRIC
                         )
                         .description(
-                                "Time from violation confirmation to first successful WebSocket alert delivery"
+                                "Time from violation confirmation to first successful WebSocket alert dispatch"
                         )
                         .tag(
                                 "channel",
@@ -109,10 +103,16 @@ public class ViolationNotificationService {
                         )
                 );
 
-        CameraResponse camera =
-                cameraService.getCameraById(
+        String cameraName =
+                cameraQueryService.findCameraName(
                         event.cameraId()
-                );
+                ).orElseGet(() -> {
+                    logger.warn(
+                            "Camera name not found for notification. cameraId={}",
+                            event.cameraId()
+                    );
+                    return "Unknown Camera";
+                });
 
         String departmentName =
                 departmentNameResolver.resolveDepartmentName(
@@ -128,7 +128,7 @@ public class ViolationNotificationService {
                 new AlertMessage(
                         violation.getId(),
                         violation.getViolationType(),
-                        camera.getName(),
+                        cameraName,
                         departmentName,
                         violation.getStartedAt(),
                         violation.getConfidence()
@@ -152,6 +152,14 @@ public class ViolationNotificationService {
                     Instant.now(
                             clock
                     );
+
+            violation.markAlertSent(
+                    notificationSentAt
+            );
+
+            violationRepository.save(
+                    violation
+            );
 
             Duration latency =
                     Duration.between(
@@ -249,7 +257,7 @@ public class ViolationNotificationService {
 
             } catch (RuntimeException exception) {
                 logger.error(
-                        "WebSocket violation notification delivery failed. violationId={}, recipient={}",
+                        "WebSocket violation notification dispatch failed. violationId={}, recipient={}",
                         violationId,
                         recipient,
                         exception
