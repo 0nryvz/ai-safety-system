@@ -5,6 +5,7 @@ import '../../core/network/backend_client.dart';
 import '../../core/theme/vigil_brand.dart';
 import 'camera_option.dart';
 import 'demo_cameras.dart';
+import 'offline_operator_auth.dart';
 
 /// VIGIL atama ekranı — fabrika kamerası seçimi zorunlu ilk adım.
 class CameraAssignmentPage extends StatefulWidget {
@@ -24,12 +25,18 @@ class CameraAssignmentPage extends StatefulWidget {
 class _CameraAssignmentPageState extends State<CameraAssignmentPage> {
   late final BackendClient _client = widget.client ?? BackendClient();
 
-  final TextEditingController _email = TextEditingController();
-  final TextEditingController _password = TextEditingController();
+  final TextEditingController _email = TextEditingController(
+    text: OfflineOperatorAuth.email,
+  );
+  final TextEditingController _password = TextEditingController(
+    text: OfflineOperatorAuth.password,
+  );
 
   List<CameraOption>? _cameras;
   bool _isBusy = false;
+  bool _usedOfflineCatalog = false;
   String? _error;
+  String? _info;
 
   @override
   void dispose() {
@@ -45,14 +52,34 @@ class _CameraAssignmentPageState extends State<CameraAssignmentPage> {
     setState(() {
       _isBusy = true;
       _error = null;
+      _info = null;
     });
 
+    final email = _email.text.trim();
+    final password = _password.text;
+
     try {
-      final token = await _client.login(
-        email: _email.text.trim(),
-        password: _password.text,
-      );
-      final cameras = await _client.fetchCameras(token);
+      final token = await _client.login(email: email, password: password);
+
+      List<CameraOption> cameras;
+      try {
+        cameras = await _client.fetchCameras(token);
+      } on BackendAuthException catch (e) {
+        if (e.isUnreachable &&
+            OfflineOperatorAuth.matches(email: email, password: password)) {
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _cameras = OfflineOperatorAuth.cameras();
+            _usedOfflineCatalog = true;
+            _info =
+                'Backend kapalı — demo katalog açıldı. Gateway aktarımı yine çalışır.';
+          });
+          return;
+        }
+        rethrow;
+      }
 
       if (!mounted) {
         return;
@@ -60,24 +87,60 @@ class _CameraAssignmentPageState extends State<CameraAssignmentPage> {
 
       setState(() {
         _cameras = cameras;
-        _isBusy = false;
+        _usedOfflineCatalog = false;
       });
     } on BackendAuthException catch (e) {
       if (!mounted) {
         return;
       }
 
+      // Backend ayakta değilse: yalnızca mobil taraf demo hesabıyla seed
+      // kataloğuna düş. Backend / Gateway koduna dokunulmaz.
+      if (e.isUnreachable &&
+          OfflineOperatorAuth.matches(email: email, password: password)) {
+        setState(() {
+          _cameras = OfflineOperatorAuth.cameras();
+          _usedOfflineCatalog = true;
+          _info =
+              'Backend kapalı — demo katalog açıldı. Gateway aktarımı yine çalışır.';
+        });
+        return;
+      }
+
+      if (e.isUnreachable) {
+        setState(() {
+          _error =
+              'Backend kapalı. Demo giriş: ${OfflineOperatorAuth.email} / '
+              '${OfflineOperatorAuth.password}';
+        });
+        return;
+      }
+
       setState(() {
         _error = e.message;
-        _isBusy = false;
       });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = 'Giriş sırasında beklenmeyen hata. Tekrar deneyin.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBusy = false;
+        });
+      }
     }
   }
 
   void _useDemoCameras() {
     setState(() {
       _cameras = DemoCameras.catalog;
+      _usedOfflineCatalog = true;
       _error = null;
+      _info = 'Demo katalog (giriş atlandı).';
       _isBusy = false;
     });
   }
@@ -138,6 +201,13 @@ class _CameraAssignmentPageState extends State<CameraAssignmentPage> {
             ),
             const SizedBox(height: 24),
             if (_cameras == null) _loginCard() else _cameraListCard(),
+            if (_info != null) ...[
+              const SizedBox(height: 14),
+              Text(
+                _info!,
+                style: const TextStyle(color: VigilBrand.amber),
+              ),
+            ],
             if (_error != null) ...[
               const SizedBox(height: 14),
               Text(
@@ -171,8 +241,13 @@ class _CameraAssignmentPageState extends State<CameraAssignmentPage> {
           ),
           const SizedBox(height: 6),
           const Text(
-            'Kamera listesi Backend 2 yetkisine göre gelir.',
-            style: TextStyle(color: VigilBrand.steel, fontSize: 12.5),
+            'Backend açıksa gerçek kamera listesi gelir. Kapalıysa aynı demo '
+            'hesabıyla seed katalog açılır — backend koduna ihtiyaç yok.',
+            style: TextStyle(
+              color: VigilBrand.steel,
+              fontSize: 12.5,
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -199,18 +274,21 @@ class _CameraAssignmentPageState extends State<CameraAssignmentPage> {
                     width: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Kameraları getir'),
+                : const Text('Giriş yap · kameraları getir'),
           ),
           const SizedBox(height: 10),
           OutlinedButton(
             onPressed: _isBusy ? null : _useDemoCameras,
-            child: const Text('Demo kamera listesi'),
+            child: const Text('Girişsiz demo liste'),
           ),
           const SizedBox(height: 10),
-          const Text(
-            'Backend kapalıysa demo listesini kullan. Gateway aktarımı yine '
-            'çalışır; token MVP\'de sabittir.',
-            style: TextStyle(color: VigilBrand.steel, fontSize: 12, height: 1.4),
+          Text(
+            'Demo: ${OfflineOperatorAuth.email} / ${OfflineOperatorAuth.password}',
+            style: const TextStyle(
+              color: VigilBrand.steel,
+              fontSize: 12,
+              height: 1.4,
+            ),
           ),
         ],
       ),
@@ -233,9 +311,11 @@ class _CameraAssignmentPageState extends State<CameraAssignmentPage> {
           ),
         ),
         const SizedBox(height: 6),
-        const Text(
-          'Bu adım olmadan yayın açılamaz — VIGIL bir webcam değildir.',
-          style: TextStyle(color: VigilBrand.steel, fontSize: 12.5),
+        Text(
+          _usedOfflineCatalog
+              ? 'Offline/demo katalog. Bu adım olmadan yayın açılamaz.'
+              : 'Backend listesi. Bu adım olmadan yayın açılamaz — VIGIL bir webcam değildir.',
+          style: const TextStyle(color: VigilBrand.steel, fontSize: 12.5),
         ),
         const SizedBox(height: 14),
         if (active.isEmpty)
@@ -257,6 +337,8 @@ class _CameraAssignmentPageState extends State<CameraAssignmentPage> {
           onPressed: () => setState(() {
             _cameras = null;
             _error = null;
+            _info = null;
+            _usedOfflineCatalog = false;
           }),
           child: const Text('Geri'),
         ),

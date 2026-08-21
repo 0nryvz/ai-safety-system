@@ -49,9 +49,10 @@ Hiçbir endpoint, kimlik veya kodlama parametresi koda gömülü değildir. Heps
 | `CAMERA_ID` | *(boş)* | Provizyonlanan kamera UUID'si |
 | `CAMERA_KEY` | `dev-session-token` | Gateway `sessionToken` değeri |
 | `TARGET_FPS` | `15` | Hedef gönderim hızı |
-| `ENCODE_WIDTH` | `640` | Karelerin indirgeneceği genişlik |
-| `JPEG_QUALITY` | `70` | JPEG kalitesi |
-| `MAX_CONCURRENT_UPLOADS` | `8` | Aynı anda havada olabilecek kare sayısı |
+| `ENCODE_WIDTH` | `320` | Karelerin indirgeneceği genişlik |
+| `JPEG_QUALITY` | `55` | JPEG kalitesi |
+| `MAX_CONCURRENT_UPLOADS` | `10` | Aynı anda havada olabilecek kare sayısı |
+| `MIN_FPS` | `5` | Gönderim FPS tabanı; altına inilince drop/throttle gevşer |
 | `FRAME_DIAGNOSTICS` | `false` | Kare başına encode/upload süresi loglar |
 
 `FRAME_DIAGNOSTICS` saniyede 15 satır ürettiği için yalnızca ölçüm alırken
@@ -211,7 +212,7 @@ timer'lar iptal edilir; arka planda sonsuz retry olmaz.
 Gerçek zamanlı akışta eski kare değerini yitirir, bu yüzden hiçbir kare
 sınırsız kuyruklanmaz:
 
-- Aynı anda en fazla `MAX_CONCURRENT_UPLOADS` (varsayılan 8) yükleme yapılır;
+- Aynı anda en fazla `MAX_CONCURRENT_UPLOADS` (varsayılan 10) yükleme yapılır;
   sınır aşılırsa yeni kare düşürülür.
 - Hedef FPS aralığından önce gelen kareler düşürülür.
 - Yayın durdurulduğunda veya yeniden bağlanıldığında havadaki kareler
@@ -243,16 +244,21 @@ Kullanıcıya stack trace veya hata kodu gösterilmez.
 
 1. Uygulamayı açın. **Webcam ekranı gelmez** — önce operatör girişi ve
    fabrika kamerası seçimi gelir.
-2. Backend 2 hesabıyla giriş yapıp aktif bir kamera seçin. Pasif kameralar
-   seçilemez. Seçim cihazda saklanır.
+2. Giriş:
+   - Backend açıksa gerçek hesapla **Giriş yap · kameraları getir**.
+   - Backend kapalıysa alanlarda dolu demo hesabı kullanın:
+     `admin@isgvision.local` / `123456` — seed katalog açılır.
+   - Pasif kameralar seçilemez. Seçim cihazda saklanır.
 3. Operatör konsolunda simüle edilen kamera adı/kodu, bağlantı durumu ve
-   oturum bilgisi birincil alandır. Yerel önizleme ikincildir ve yalnızca
+   telemetri birincil alandır. Yerel önizleme ikincildir ve yalnızca
    telefonda kalır.
 4. Kamera izni sorulur; kalıcı rette **Ayarları Aç** görünür.
-5. **Gateway oturumu aç ve aktar**. Sol üstte bağlantı, sayaçlar görünür.
+5. **Gateway oturumu aç · aktar**. KPI ve CANLI rozeti görünür; gönderim
+   FPS tabanı 5'tir.
 6. Wi-Fi'ı kapatın: durum `WEAK` → `RECONNECTING` → `OFFLINE` ilerler.
 7. Uygulamayı arka plana alın: aktarım ve telefon kamerası kontrollü durur.
-8. **Gateway aktarımını durdur**. Oturum kapanır, kare gönderimi kesilir.
+8. **Aktarımı durdur**. Oturum kapanır, kare gönderimi kesilir. Hızlı
+   yeniden start önceki close bitmeden 409 üretmez.
 
 Doğrulama için Gateway metriklerine bakılabilir:
 
@@ -277,8 +283,8 @@ lib/
     network/api_client.dart     Gateway HTTP istemcisi (keep-alive)
     network/backend_client.dart Backend 2 istemcisi (login, kamera listesi)
   features/
-    camera/                     İzin servisi ve ekran
-    session/                    Oturum yaşam döngüsü, kamera seçimi
+    camera/                     İzin servisi ve VIGIL dashboard
+    session/                    Atama, offline auth, open/heartbeat/close
     streaming/                  Kare çıkarma, encode, upload, durum makinesi
   shared/widgets/               Bağlantı rozeti, hata bannerı, sayaç overlay'i
 ```

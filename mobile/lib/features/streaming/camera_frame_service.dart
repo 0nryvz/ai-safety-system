@@ -76,9 +76,11 @@ class CameraFrameService {
 
   /// Sıralı kuyruktan paralel HTTP; zaman damgası yakalanma anıdır.
   int _inFlightUploads = 0;
-  static const int _maxParallelUploads = 3;
 
   Completer<void>? _pendingUploadsCompleter;
+
+  int get _maxParallelUploads =>
+      AppConfig.maxConcurrentFrameUploads.clamp(1, 6);
 
   CameraFrameService({
     ApiClient? apiClient,
@@ -98,7 +100,8 @@ class CameraFrameService {
     _readyFrames.clear();
     _nextSequence = 0;
     _nextUploadSequence = 0;
-    _inFlightUploads = 0;
+    // Uçuştaki HTTP'lerin finally bloğu _inFlightUploads'ı düşürür;
+    // burada sıfırlamak sayacı bozar.
   }
 
   /// CameraImage buffer'ı callback bitince geri alındığı için düzlemler
@@ -173,6 +176,13 @@ class CameraFrameService {
 
       if (epoch != _uploadEpoch) {
         return _registerSkip(sequence, epoch);
+      }
+
+      if (jpegBytes == null || jpegBytes.isEmpty) {
+        unawaited(_registerSkip(sequence, epoch));
+        return FrameUploadResult.failed(
+          GatewayFailure.network(detail: 'jpeg_encode_failed'),
+        );
       }
 
       final ready = _ReadyFrame(
@@ -256,7 +266,14 @@ class CameraFrameService {
   }
 
   Future<void> _uploadOne(_ReadyFrame ready) async {
+    final epochAtStart = ready.epoch;
+
     try {
+      if (epochAtStart != _uploadEpoch) {
+        ready.complete(const FrameUploadResult.skipped());
+        return;
+      }
+
       final uploadStopwatch = Stopwatch()..start();
 
       final response = await _apiClient.postJpeg(
@@ -267,6 +284,11 @@ class CameraFrameService {
       );
 
       uploadStopwatch.stop();
+
+      if (epochAtStart != _uploadEpoch) {
+        ready.complete(const FrameUploadResult.skipped());
+        return;
+      }
 
       if (AppConfig.frameDiagnostics) {
         debugPrint(
@@ -286,6 +308,11 @@ class CameraFrameService {
               ),
       );
     } catch (e) {
+      if (epochAtStart != _uploadEpoch) {
+        ready.complete(const FrameUploadResult.skipped());
+        return;
+      }
+
       if (AppConfig.frameDiagnostics) {
         debugPrint('FRAME PERF | UPLOAD ERROR | error=$e');
       }
@@ -296,8 +323,12 @@ class CameraFrameService {
         ),
       );
     } finally {
-      _inFlightUploads--;
-      _pumpUploadQueue();
+      if (_inFlightUploads > 0) {
+        _inFlightUploads--;
+      }
+      if (epochAtStart == _uploadEpoch) {
+        _pumpUploadQueue();
+      }
     }
   }
 
