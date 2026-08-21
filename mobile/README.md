@@ -53,14 +53,14 @@ Hiçbir endpoint, kimlik veya kodlama parametresi koda gömülü değildir. Heps
 | `BACKEND_URL` | `http://10.0.2.2:8080` | Spring Boot backend (kamera listesi) |
 | `CAMERA_ID` | *(boş)* | Provizyonlanan kamera UUID'si |
 | `CAMERA_KEY` | `dev-session-token` | Gateway `sessionToken` değeri |
-| `TARGET_FPS` | `8` | Hedef gönderim hızı (UI eşiği) |
-| `PACED_FPS` | `8` | Kare kabul metronom temposu |
-| `ENCODE_WIDTH` | `128` | Karelerin indirgeneceği genişlik |
-| `ENCODE_WIDTH_DEGRADED` | `96` | Rezerv (şu an kullanılmıyor) |
-| `JPEG_QUALITY` | `32` | JPEG kalitesi |
-| `JPEG_QUALITY_DEGRADED` | `28` | Rezerv (şu an kullanılmıyor) |
-| `MAX_CONCURRENT_ENCODES` | `3` | Aynı anda native JPEG encode sayısı |
-| `MAX_CONCURRENT_UPLOADS` | `6` | Aynı anda havada olabilecek HTTP gönderimi |
+| `TARGET_FPS` | `15` | Hedef gönderim hızı (UI eşiği) |
+| `PACED_FPS` | `15` | Kare kabul metronom temposu |
+| `ENCODE_WIDTH` | `96` | Karelerin indirgeneceği genişlik |
+| `ENCODE_WIDTH_DEGRADED` | `80` | Rezerv (şu an kullanılmıyor) |
+| `JPEG_QUALITY` | `28` | JPEG kalitesi |
+| `JPEG_QUALITY_DEGRADED` | `24` | Rezerv (şu an kullanılmıyor) |
+| `MAX_CONCURRENT_ENCODES` | `4` | Aynı anda native JPEG encode sayısı |
+| `MAX_CONCURRENT_UPLOADS` | `10` | Aynı anda havada olabilecek HTTP gönderimi |
 | `MIN_FPS` | `5` | Gönderim FPS tabanı |
 | `FRAME_DIAGNOSTICS` | `false` | Kare başına encode/upload süresi loglar |
 

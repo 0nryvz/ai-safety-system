@@ -294,10 +294,9 @@ class StreamingController extends Notifier<StreamingState> {
 
       final controller = CameraController(
         _cameras[cameraIndex],
-        // low: ImageAnalysis hafif kalır; medium Tecno'da YUV kopyası/GC ile
-        // gönderim FPS'ini düşürüyordu. Encode genişliği kaliteyi taşır.
         ResolutionPreset.low,
         enableAudio: false,
+        fps: AppConfig.pacedFps,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
 
@@ -730,48 +729,42 @@ class StreamingController extends Notifier<StreamingState> {
       return;
     }
 
+    if (_activeFrameUploads >= AppConfig.maxConcurrentEncodes) {
+      _metrics.recordDropped();
+      return;
+    }
+
     final now = DateTime.now();
     final due = _nextFrameDueAt;
     if (due != null && now.isBefore(due)) {
       return;
     }
 
-    // Slot doluysa bekle — saati ilerletme (eski davranış FPS'i 5'e çekiyordu).
-    // Slot açılınca tek kare alınır, sonra yine paceInterval uygulanır.
-    if (_activeFrameUploads >= AppConfig.maxConcurrentEncodes) {
-      _metrics.recordDropped();
-      return;
-    }
-
     final sessionId = state.sessionId;
     final cameraId = state.cameraId;
-
     if (sessionId == null || cameraId == null) {
       return;
     }
 
+    // Callback'te yalnızca kopya; downsample native'de.
     final rawFrame = _frameService.extractFrame(
       image,
       encodeWidth: AppConfig.targetEncodeWidth,
     );
-
     if (rawFrame == null) {
       return;
     }
 
-    // Pipeline temposu — kamera ve gönderim göstergesi aynı kaynak.
     _cameraFrameTimestamps.add(now);
     _nextFrameDueAt = now.add(AppConfig.paceInterval);
     _activeFrameUploads++;
     _activeFrameCallbacks++;
 
-    final frameTimestamp = DateTime.now().toUtc();
-
     unawaited(
       _uploadFrame(
         cameraId: cameraId,
         sessionId: sessionId,
-        frameTimestamp: frameTimestamp,
+        frameTimestamp: DateTime.now().toUtc(),
         frame: rawFrame,
         jpegQuality: AppConfig.jpegQuality,
         streamGeneration: streamGeneration,
@@ -818,6 +811,10 @@ class StreamingController extends Notifier<StreamingState> {
       return;
     }
 
+    // Gösterge: encode bitti = pipeline temposu (HTTP gecikmesi FPS'i
+    // 3–6'ya düşürmesin). HTTP başarı sayacı ayrıca tutulur.
+    _sentFrameTimestamps.add(DateTime.now());
+
     try {
       final result = await _frameService.uploadJpeg(
         cameraId: cameraId,
@@ -836,7 +833,6 @@ class StreamingController extends Notifier<StreamingState> {
       switch (result.outcome) {
         case FrameOutcome.sent:
           _metrics.recordSent();
-          _sentFrameTimestamps.add(DateTime.now());
           _consecutiveFrameFailures = 0;
 
           if (state.connection != StreamConnectionState.connected &&

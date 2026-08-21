@@ -5,7 +5,6 @@ import '../../core/network/backend_client.dart';
 import '../../core/theme/strix_brand.dart';
 import 'camera_option.dart';
 import 'camera_selection_page.dart';
-import 'demo_cameras.dart';
 import 'offline_operator_auth.dart';
 
 /// Uygulama soğuk başlangıç ekranı — kurumsal operatör girişi.
@@ -49,14 +48,12 @@ class _OperatorLoginPageState extends State<OperatorLoginPage> {
       final token = await _client.login(email: email, password: password);
 
       List<CameraOption> cameras;
-      var offline = false;
       try {
         cameras = await _client.fetchCameras(token);
       } on BackendAuthException catch (e) {
         if (e.isUnreachable &&
             OfflineOperatorAuth.matches(email: email, password: password)) {
           cameras = OfflineOperatorAuth.cameras();
-          offline = true;
         } else {
           rethrow;
         }
@@ -68,10 +65,7 @@ class _OperatorLoginPageState extends State<OperatorLoginPage> {
 
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => CameraSelectionPage(
-            cameras: cameras,
-            usedOfflineCatalog: offline,
-          ),
+          builder: (_) => CameraSelectionPage(cameras: cameras),
         ),
       );
     } on BackendAuthException catch (e) {
@@ -85,7 +79,6 @@ class _OperatorLoginPageState extends State<OperatorLoginPage> {
           MaterialPageRoute<void>(
             builder: (_) => CameraSelectionPage(
               cameras: OfflineOperatorAuth.cameras(),
-              usedOfflineCatalog: true,
             ),
           ),
         );
@@ -94,8 +87,7 @@ class _OperatorLoginPageState extends State<OperatorLoginPage> {
 
       setState(() {
         _error = e.isUnreachable
-            ? 'Backend kapalı. Demo: ${OfflineOperatorAuth.email} / '
-                '${OfflineOperatorAuth.password}'
+            ? 'Sunucuya bağlanılamadı. Bağlantınızı kontrol edin.'
             : e.message;
       });
     } catch (_) {
@@ -110,17 +102,6 @@ class _OperatorLoginPageState extends State<OperatorLoginPage> {
         setState(() => _isBusy = false);
       }
     }
-  }
-
-  void _demoWithoutLogin() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => CameraSelectionPage(
-          cameras: DemoCameras.catalog,
-          usedOfflineCatalog: true,
-        ),
-      ),
-    );
   }
 
   @override
@@ -184,16 +165,6 @@ class _OperatorLoginPageState extends State<OperatorLoginPage> {
                           color: StrixBrand.textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Kurumsal hesabınızla giriş yapın. Backend kapalıysa '
-                        'demo hesabı ile devam edebilirsiniz.',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          height: 1.45,
-                          color: StrixBrand.textSecondary,
-                        ),
-                      ),
                       const SizedBox(height: 20),
                       TextField(
                         controller: _email,
@@ -228,11 +199,6 @@ class _OperatorLoginPageState extends State<OperatorLoginPage> {
                               )
                             : const Text('Giriş yap'),
                       ),
-                      const SizedBox(height: 12),
-                      OutlinedButton(
-                        onPressed: _isBusy ? null : _demoWithoutLogin,
-                        child: const Text('Demo katalog ile devam'),
-                      ),
                     ],
                   ),
                 ),
@@ -258,16 +224,6 @@ class _OperatorLoginPageState extends State<OperatorLoginPage> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 24),
-                Text(
-                  'Demo: ${OfflineOperatorAuth.email} / '
-                  '${OfflineOperatorAuth.password}',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: StrixBrand.textSecondary,
-                  ),
-                ),
               ],
             ),
           ),

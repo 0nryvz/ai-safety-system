@@ -64,68 +64,61 @@ class AppConfig {
 
   static const int targetFps = int.fromEnvironment(
     'TARGET_FPS',
-    defaultValue: 8,
+    defaultValue: 15,
   );
 
-  /// Gönderim hızının altına düşülmemesi gereken taban.
-  /// Ağ/encode baskısında throttle ve drop bu eşiğin altında uygulanmaz.
+  /// Sert taban: ön/arka kamerada saniyede en az bu kadar kare.
   static const int minFps = int.fromEnvironment(
     'MIN_FPS',
     defaultValue: 5,
   );
 
-  /// Kareler bu genişliğe indirgenir. Gateway sınırı 2 MiB.
+  /// Native downsample hedef genişliği (Dart döngüsü yok).
   static const int targetEncodeWidth = int.fromEnvironment(
     'ENCODE_WIDTH',
-    defaultValue: 128,
+    defaultValue: 160,
   );
 
-  /// Min-FPS korumasındayken geçici küçültme.
   static const int degradedEncodeWidth = int.fromEnvironment(
     'ENCODE_WIDTH_DEGRADED',
-    defaultValue: 96,
+    defaultValue: 128,
   );
 
   static const int jpegQuality = int.fromEnvironment(
     'JPEG_QUALITY',
-    defaultValue: 32,
+    defaultValue: 40,
   );
 
   static const int degradedJpegQuality = int.fromEnvironment(
     'JPEG_QUALITY_DEGRADED',
-    defaultValue: 28,
+    defaultValue: 32,
   );
 
-  /// MethodChannel encode eşzamanlılığı. 8 FPS @ ~125ms için 3 slot payı.
+  /// 15 FPS için 3 slot (encode ~60–80ms varsayımı).
   static const int maxConcurrentEncodes = int.fromEnvironment(
     'MAX_CONCURRENT_ENCODES',
     defaultValue: 3,
   );
 
-  /// HTTP gönderim eşzamanlılığı (encode'dan bağımsız).
   static const int maxConcurrentHttpUploads = int.fromEnvironment(
     'MAX_CONCURRENT_UPLOADS',
-    defaultValue: 6,
+    defaultValue: 10,
   );
 
-  /// Geriye dönük isim — encode slot limiti.
   static const int maxConcurrentFrameUploads = maxConcurrentEncodes;
 
-  /// Sabit metronom temposu. 10 agresif; Tecno'da 8 daha kararlı (≥ min 5).
+  /// Metronom — hedef 15 FPS.
   static const int pacedFps = int.fromEnvironment(
     'PACED_FPS',
-    defaultValue: 8,
+    defaultValue: 15,
   );
 
   static Duration get paceInterval => Duration(
-        milliseconds: (1000 / pacedFps).round().clamp(80, 250),
+        milliseconds: (1000 / pacedFps).round().clamp(50, 250),
       );
 
-  /// Hedef FPS aralığı (%20 tolerans). Taban altına inildiğinde bu sınır
-  /// yok sayılır.
   static Duration get minFrameInterval => paceInterval;
 
-  /// Taban FPS için en uzun kabul edilebilir aralık (~200ms @ 5 FPS).
   static Duration get maxFrameIntervalForMinFps => Duration(
         microseconds: 1000000 ~/ minFps,
       );

@@ -94,8 +94,8 @@ class CameraFrameService {
     _uploadQueue.clear();
   }
 
-  /// Plane'leri kopyalar; mümkünse Dart'ta küçültür ki MethodChannel küçük
-  /// kalsın (tam çözünürlük YUV FPS'i 4'e düşürüyordu).
+  /// Plane'leri kopyalar; downsample native encode'da yapılır.
+  /// Dart iç içe döngü ImageAnalysis'i kilitliyip FPS'i 3–6'ya düşürüyordu.
   RawYuvFrame? extractFrame(
     CameraImage cameraImage, {
     int? encodeWidth,
@@ -111,90 +111,25 @@ class CameraFrameService {
       return null;
     }
 
-    final targetW = (encodeWidth ?? AppConfig.targetEncodeWidth).clamp(80, 1280);
+    final targetW = (encodeWidth ?? AppConfig.targetEncodeWidth).clamp(48, 1280);
     final step = ((srcW + targetW - 1) ~/ targetW).clamp(1, 16);
-    final outW = (srcW ~/ step) & ~1;
-    final outH = (srcH ~/ step) & ~1;
-
-    if (outW < 2 || outH < 2) {
-      return null;
-    }
 
     final yPlane = cameraImage.planes[0];
     final uPlane = cameraImage.planes[1];
     final vPlane = cameraImage.planes[2];
 
-    if (step == 1) {
-      return RawYuvFrame(
-        yBytes: Uint8List.fromList(yPlane.bytes),
-        uBytes: Uint8List.fromList(uPlane.bytes),
-        vBytes: Uint8List.fromList(vPlane.bytes),
-        yRowStride: yPlane.bytesPerRow,
-        uRowStride: uPlane.bytesPerRow,
-        vRowStride: vPlane.bytesPerRow,
-        uPixelStride: uPlane.bytesPerPixel ?? 1,
-        vPixelStride: vPlane.bytesPerPixel ?? 1,
-        sourceWidth: srcW,
-        sourceHeight: srcH,
-        step: 1,
-      );
-    }
-
-    final ySrc = yPlane.bytes;
-    final yRow = yPlane.bytesPerRow;
-    final yOut = Uint8List(outW * outH);
-    var yi = 0;
-
-    for (var row = 0; row < outH; row++) {
-      final srcOff = row * step * yRow;
-      if (srcOff + (outW - 1) * step >= ySrc.length) {
-        return null;
-      }
-      for (var col = 0; col < outW; col++) {
-        yOut[yi++] = ySrc[srcOff + col * step];
-      }
-    }
-
-    final outCw = outW ~/ 2;
-    final outCh = outH ~/ 2;
-    final uSrc = uPlane.bytes;
-    final vSrc = vPlane.bytes;
-    final uRow = uPlane.bytesPerRow;
-    final vRow = vPlane.bytesPerRow;
-    final uPix = uPlane.bytesPerPixel ?? 1;
-    final vPix = vPlane.bytesPerPixel ?? 1;
-    final uOut = Uint8List(outCw * outCh);
-    final vOut = Uint8List(outCw * outCh);
-    var ci = 0;
-
-    for (var row = 0; row < outCh; row++) {
-      final uOff = row * step * uRow;
-      final vOff = row * step * vRow;
-      for (var col = 0; col < outCw; col++) {
-        final sx = col * step;
-        final uIdx = uOff + sx * uPix;
-        final vIdx = vOff + sx * vPix;
-        if (uIdx >= uSrc.length || vIdx >= vSrc.length) {
-          return null;
-        }
-        uOut[ci] = uSrc[uIdx];
-        vOut[ci] = vSrc[vIdx];
-        ci++;
-      }
-    }
-
     return RawYuvFrame(
-      yBytes: yOut,
-      uBytes: uOut,
-      vBytes: vOut,
-      yRowStride: outW,
-      uRowStride: outCw,
-      vRowStride: outCw,
-      uPixelStride: 1,
-      vPixelStride: 1,
-      sourceWidth: outW,
-      sourceHeight: outH,
-      step: 1,
+      yBytes: Uint8List.fromList(yPlane.bytes),
+      uBytes: Uint8List.fromList(uPlane.bytes),
+      vBytes: Uint8List.fromList(vPlane.bytes),
+      yRowStride: yPlane.bytesPerRow,
+      uRowStride: uPlane.bytesPerRow,
+      vRowStride: vPlane.bytesPerRow,
+      uPixelStride: uPlane.bytesPerPixel ?? 1,
+      vPixelStride: vPlane.bytesPerPixel ?? 1,
+      sourceWidth: srcW,
+      sourceHeight: srcH,
+      step: step,
     );
   }
 

@@ -11,12 +11,10 @@ import 'operator_login_page.dart';
 /// Giriş sonrası fabrika kamerası seçimi.
 class CameraSelectionPage extends ConsumerWidget {
   final List<CameraOption> cameras;
-  final bool usedOfflineCatalog;
 
   const CameraSelectionPage({
     super.key,
     required this.cameras,
-    this.usedOfflineCatalog = false,
   });
 
   Future<void> _assign(
@@ -77,9 +75,8 @@ class CameraSelectionPage extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            usedOfflineCatalog
-                ? 'Offline/demo katalog. Yayın için bir aktif kamera seçin.'
-                : 'Backend listesi. Bu telefon seçilen fabrika kamerasını temsil eder.',
+            'Bu telefon seçilen fabrika kamerasını temsil eder. '
+            'Yayın için bir aktif kamera seçin.',
             style: GoogleFonts.inter(
               fontSize: 14,
               height: 1.45,

@@ -40,7 +40,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        val executor = Executors.newFixedThreadPool(3)
+        val executor = Executors.newFixedThreadPool(4)
         encoderExecutor = executor
 
         MethodChannel(

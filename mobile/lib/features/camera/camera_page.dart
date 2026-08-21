@@ -135,67 +135,93 @@ class StrixDashboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(streamingControllerProvider);
     final controller = ref.read(streamingControllerProvider.notifier);
-    final camera = controller.cameraController;
 
     return Scaffold(
       backgroundColor: StrixBrand.background,
       body: SafeArea(
         child: Column(
           children: [
-            _CommandHeader(state: state),
+            Consumer(
+              builder: (context, ref, _) {
+                final state = ref.watch(streamingControllerProvider);
+                return _CommandHeader(state: state);
+              },
+            ),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                 children: [
-                  _IdentityStrip(
-                    state: state,
-                    onChangeCamera: () async {
-                      await controller.clearCameraAssignment();
-                      if (!context.mounted) {
-                        return;
-                      }
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const OperatorLoginPage(),
-                        ),
-                        (_) => false,
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final state = ref.watch(streamingControllerProvider);
+                      return _IdentityStrip(
+                        state: state,
+                        onChangeCamera: () async {
+                          await controller.clearCameraAssignment();
+                          if (!context.mounted) {
+                            return;
+                          }
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const OperatorLoginPage(),
+                            ),
+                            (_) => false,
+                          );
+                        },
                       );
                     },
                   ),
                   const SizedBox(height: 12),
-                  _KpiStrip(state: state),
-                  const SizedBox(height: 14),
-                  _LiveOpsPanel(
-                    state: state,
-                    cameraController: camera,
-                    onSwitchLens: controller.switchPhoneCamera,
-                    onRetry: state.canOpenSettings
-                        ? controller.openAppSettings
-                        : controller.requestPermissionAgain,
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final state = ref.watch(streamingControllerProvider);
+                      return _KpiStrip(state: state);
+                    },
                   ),
+                  const SizedBox(height: 14),
+                  // FPS tick'leri CameraPreview'ı yeniden kurmasın.
+                  const _LiveOpsPanel(),
                   const SizedBox(height: 12),
-                  _TelemetryBoard(state: state),
-                  if (state.errorMessage != null) ...[
-                    const SizedBox(height: 12),
-                    ErrorBanner(
-                      message: state.errorMessage!,
-                      actionLabel:
-                          state.canOpenSettings ? 'Ayarları Aç' : null,
-                      onAction: state.canOpenSettings
-                          ? controller.openAppSettings
-                          : null,
-                    ),
-                  ],
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final state = ref.watch(streamingControllerProvider);
+                      return _TelemetryBoard(state: state);
+                    },
+                  ),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final state = ref.watch(streamingControllerProvider);
+                      if (state.errorMessage == null) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: ErrorBanner(
+                          message: state.errorMessage!,
+                          actionLabel: state.canOpenSettings
+                              ? 'Ayarları Aç'
+                              : null,
+                          onAction: state.canOpenSettings
+                              ? controller.openAppSettings
+                              : null,
+                        ),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 14),
                   const _OpsFooterNote(),
                 ],
               ),
             ),
-            _ActionDock(
-              state: state,
-              onToggle: controller.toggleStreaming,
+            Consumer(
+              builder: (context, ref, _) {
+                final state = ref.watch(streamingControllerProvider);
+                return _ActionDock(
+                  state: state,
+                  onToggle: controller.toggleStreaming,
+                );
+              },
             ),
           ],
         ),
@@ -614,21 +640,40 @@ class _KpiTile extends StatelessWidget {
   }
 }
 
-class _LiveOpsPanel extends StatelessWidget {
-  final StreamingState state;
-  final CameraController? cameraController;
-  final VoidCallback onSwitchLens;
-  final VoidCallback onRetry;
-
-  const _LiveOpsPanel({
-    required this.state,
-    required this.cameraController,
-    required this.onSwitchLens,
-    required this.onRetry,
-  });
+class _LiveOpsPanel extends ConsumerWidget {
+  const _LiveOpsPanel();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // FPS değişince preview ağacını yeniden kurma.
+    final previewKey = ref.watch(
+      streamingControllerProvider.select(
+        (s) => (
+          s.isStreaming,
+          s.isCameraReady,
+          s.selectedCameraIndex,
+          s.availableCameraCount,
+          s.phoneLensLabel,
+          s.canSwitchPhoneCamera,
+          s.errorMessage,
+          s.canOpenSettings,
+        ),
+      ),
+    );
+    final sendFps = ref.watch(
+      streamingControllerProvider.select((s) => s.sendFps),
+    );
+    final controller = ref.read(streamingControllerProvider.notifier);
+    final cameraController = controller.cameraController;
+
+    final isStreaming = previewKey.$1;
+    final isCameraReady = previewKey.$2;
+    final availableCameraCount = previewKey.$4;
+    final phoneLensLabel = previewKey.$5;
+    final canSwitchPhoneCamera = previewKey.$6;
+    final errorMessage = previewKey.$7;
+    final canOpenSettings = previewKey.$8;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -644,9 +689,11 @@ class _LiveOpsPanel extends StatelessWidget {
             ),
             const Spacer(),
             TextButton.icon(
-              onPressed: state.canSwitchPhoneCamera ? onSwitchLens : null,
+              onPressed: canSwitchPhoneCamera
+                  ? controller.switchPhoneCamera
+                  : null,
               icon: const Icon(Icons.cameraswitch_rounded, size: 18),
-              label: Text(state.phoneLensLabel),
+              label: Text(phoneLensLabel),
             ),
           ],
         ),
@@ -658,17 +705,17 @@ class _LiveOpsPanel extends StatelessWidget {
               color: Colors.black,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: state.isStreaming
+                color: isStreaming
                     ? StrixBrand.teal.withValues(alpha: 0.55)
                     : StrixBrand.border,
-                width: state.isStreaming ? 1.6 : 1,
+                width: isStreaming ? 1.6 : 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: state.isStreaming
+                  color: isStreaming
                       ? StrixBrand.teal.withValues(alpha: 0.22)
                       : Colors.black.withValues(alpha: 0.35),
-                  blurRadius: state.isStreaming ? 28 : 12,
+                  blurRadius: isStreaming ? 28 : 12,
                   offset: const Offset(0, 8),
                 ),
               ],
@@ -678,8 +725,17 @@ class _LiveOpsPanel extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _previewBody(),
-                  if (state.isStreaming)
+                  _PreviewBody(
+                    availableCameraCount: availableCameraCount,
+                    isCameraReady: isCameraReady,
+                    errorMessage: errorMessage,
+                    canOpenSettings: canOpenSettings,
+                    cameraController: cameraController,
+                    onRetry: canOpenSettings
+                        ? controller.openAppSettings
+                        : controller.requestPermissionAgain,
+                  ),
+                  if (isStreaming)
                     IgnorePointer(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
@@ -698,24 +754,24 @@ class _LiveOpsPanel extends StatelessWidget {
                       ),
                     ),
                   const CustomPaint(painter: _BezelPainter()),
-                  if (state.isStreaming) ...[
+                  if (isStreaming) ...[
                     Positioned(
                       top: 12,
                       left: 12,
-                      child: _LiveBadge(fps: state.sendFps),
+                      child: _LiveBadge(fps: sendFps),
                     ),
                     Positioned(
                       top: 12,
                       right: 12,
                       child: _HudChip(
-                        label: state.phoneLensLabel.toUpperCase(),
+                        label: phoneLensLabel.toUpperCase(),
                       ),
                     ),
                     Positioned(
                       left: 12,
                       right: 12,
                       bottom: 12,
-                      child: _PreviewFooter(state: state),
+                      child: _PreviewFooterLite(sendFps: sendFps),
                     ),
                   ],
                 ],
@@ -726,30 +782,51 @@ class _LiveOpsPanel extends StatelessWidget {
       ],
     );
   }
+}
 
-  Widget _previewBody() {
-    if (state.availableCameraCount == 0) {
-      return _empty(Icons.no_photography, 'Telefon kamerası yok');
+class _PreviewBody extends StatelessWidget {
+  final int availableCameraCount;
+  final bool isCameraReady;
+  final String? errorMessage;
+  final bool canOpenSettings;
+  final CameraController? cameraController;
+  final VoidCallback onRetry;
+
+  const _PreviewBody({
+    required this.availableCameraCount,
+    required this.isCameraReady,
+    required this.errorMessage,
+    required this.canOpenSettings,
+    required this.cameraController,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (availableCameraCount == 0) {
+      return _previewEmpty(Icons.no_photography, 'Telefon kamerası yok');
     }
-    if (!state.isCameraReady || cameraController == null) {
-      if (state.errorMessage != null) {
-        return _empty(
+    if (!isCameraReady || cameraController == null) {
+      if (errorMessage != null) {
+        return _previewEmpty(
           Icons.error_outline,
-          state.errorMessage!,
-          action: state.canOpenSettings ? 'Ayarları Aç' : 'Tekrar Dene',
+          errorMessage!,
+          action: canOpenSettings ? 'Ayarları Aç' : 'Tekrar Dene',
         );
       }
       return const Center(
         child: CircularProgressIndicator(color: StrixBrand.teal),
       );
     }
+
+    // Yayın sırasında da canlı önizleme (Texture); ImageAnalysis ayrı akar.
     return CameraPreview(
       cameraController!,
       key: ObjectKey(cameraController),
     );
   }
 
-  Widget _empty(IconData icon, String message, {String? action}) {
+  Widget _previewEmpty(IconData icon, String message, {String? action}) {
     return ColoredBox(
       color: StrixBrand.panel,
       child: Padding(
@@ -865,17 +942,13 @@ class _HudChip extends StatelessWidget {
   }
 }
 
-class _PreviewFooter extends StatelessWidget {
-  final StreamingState state;
+class _PreviewFooterLite extends StatelessWidget {
+  final int sendFps;
 
-  const _PreviewFooter({required this.state});
+  const _PreviewFooterLite({required this.sendFps});
 
   @override
   Widget build(BuildContext context) {
-    final session = state.sessionId == null
-        ? 'oturum yok'
-        : '${state.sessionId!.substring(0, 8)}…';
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -883,27 +956,13 @@ class _PreviewFooter extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.white24),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Gateway JPEG · $session',
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          Text(
-            '${state.sentFrames} kare',
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-        ],
+      child: Text(
+        'Gateway JPEG · $sendFps FPS',
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
       ),
     );
   }
