@@ -1,45 +1,174 @@
-# ai-service (AI Worker)
+# AI Worker (`ai-service`)
 
-Gateway'den gelen JPEG kareyi alıp model inference çalıştıran ve sonucu
-Spring Boot backend'e (`POST /internal/v1/detections`) ileten FastAPI servisi.
+Gateway'den gelen JPEG kareleri alan, YOLO modeli ile inference çalıştıran ve
+normalize edilmiş detection sonuçlarını Spring Boot Backend'e gönderen FastAPI servisidir.
 
-## Durum
-- [x] Adım 1 - FastAPI iskeleti, config, `/health`
-- [x] Adım 3 - `POST /internal/v1/inference/frames` (header/body kontratı, eventId passthrough)
-- [x] Adım 4 - Backend'e detection gönderimi (`BackendDetectionClient`, bounded retry, 4xx/5xx ayrımı)
-- [x] Adım 0 - Model artifact teslimi tamamlandı: `models/best.pt` (yolo26s, imgsz=640, 6 class)
-- [x] Adım 2 - `ModelRunner.load()` / `predict()` gerçek Ultralytics YOLO ile dolduruldu
-- [x] `config/class_mapping.json` - 6 class dolduruldu, vizör yok
-- [x] Adım 6 (kısmi) - `Dockerfile` hazır; `docker-compose.ai-service.yml` root compose'a taşınacak referans parça
-- [ ] Adım 5 - Gerçek modelle 3 FPS throughput ölçümü, Gateway ile E2E test (Gateway olmadan bu ortamda koşulamaz)
-- [ ] Adım 6 (tam) - root `docker-compose.yml`'a BE/DevOps ile birleştirme
-- [ ] Confidence/IoU eşiklerinin gerçek görüntülerle ince ayarı (şu an varsayılan 0.5 / 0.45)
+## Sistem Akışı
 
-## Model bilgisi (Adım 0 handoff)
-- Mimari: YOLO26s (Ultralytics), `imgsz=640`, 300 epoch
-- Class'lar (`models/data.yaml`): `Person, gloves, welding, welding_apron, welding_jacket, welding_mask`
-- Hepsi backend label'larıyla birebir eşleşiyor (`Person` -> `person`); vizör yok
-- Ağırlık: `models/best.pt` (repo'ya commit edilmeyecek, gerçek dağıtımda volume mount önerilir)
+```text
+Gateway
+  |
+  | POST /internal/v1/inference/frames
+  | JPEG + camera/session/timestamp/eventId
+  v
+AI Worker
+  |
+  | YOLO inference
+  | class mapping
+  | bbox normalization
+  v
+Spring Boot Backend
+  |
+  | POST /internal/v1/detections
+  v
+Violation Engine
+```
 
-## Yerel çalıştırma
+## Mevcut Durum
 
-```bash
+- [x] Adım 0 - Model artifact teslimi
+- [x] Adım 1 - FastAPI servis iskeleti ve `/health`
+- [x] Adım 2 - Gerçek YOLO inference adapter
+- [x] Adım 3 - Gateway -> AI inference endpoint
+- [x] Adım 4 - AI -> Backend detection client
+- [x] 9-class mapping
+- [x] BBox normalize/clamp edge-case düzeltmeleri
+- [x] Backend 4xx/5xx hata propagation
+- [x] Unit/integration testleri
+- [x] Dockerfile
+- [x] Root `docker-compose.yml` içine `ai-service` tanımı
+- [ ] Gerçek ACTIVE camera/session ile AI -> Backend `202 Accepted` smoke testi
+- [ ] Gerçek Gateway -> AI -> Backend E2E testi
+- [ ] 3 FPS / uzun süreli performans doğrulaması
+- [ ] Docker runtime doğrulaması
+
+Gerçek E2E testleri için Backend tarafında kayıtlı kamera ve ACTIVE session gereklidir.
+
+## Model
+
+Model:
+
+```text
+models/best.pt
+```
+
+Model versiyonu:
+
+```text
+ppe-yolo26s-300ep-v1
+```
+
+Model özellikleri:
+
+```text
+Ultralytics YOLO26s
+imgsz = 640
+300 epoch
+9 class
+```
+
+Class listesi:
+
+```text
+Person
+gloves
+non_gloves
+non_welding_jacket
+non_welding_mask
+welding
+welding_apron
+welding_jacket
+welding_mask
+```
+
+Backend mapping:
+
+```text
+Person              -> person
+gloves              -> gloves
+non_gloves          -> non_gloves
+non_welding_jacket  -> non_welding_jacket
+non_welding_mask    -> non_welding_mask
+welding             -> welding
+welding_apron       -> welding_apron
+welding_jacket      -> welding_jacket
+welding_mask        -> welding_mask
+```
+
+`non_*` classları drop edilmez. Backend violation kuralları tarafından kullanılmaktadır.
+
+Model ağırlığı Git'e commit edilmez.
+
+Docker çalıştırmada model:
+
+```text
+./ai-service/models/best.pt
+```
+
+host path'inden container içindeki:
+
+```text
+/models/best.pt
+```
+
+path'ine read-only volume olarak mount edilir.
+
+## Environment
+
+Örnek config:
+
+```text
+ai-service/.env.example
+```
+
+Temel değişkenler:
+
+```env
+AI_MODEL_PATH=./models/best.pt
+AI_MODEL_VERSION=ppe-yolo26s-300ep-v1
+AI_MODEL_DEVICE=cpu
+
+CONFIDENCE_THRESHOLD=0.50
+IOU_THRESHOLD=0.45
+
+BACKEND_BASE_URL=http://localhost:8080
+BACKEND_DETECTIONS_PATH=/internal/v1/detections
+INTERNAL_API_KEY=change-me-local-internal-key
+
+AI_CLASS_MAPPING_PATH=config/class_mapping.json
+```
+
+Local çalıştırmada Backend:
+
+```text
+http://localhost:8080
+```
+
+Docker container içinden host makinedeki Backend:
+
+```text
+http://host.docker.internal:8080
+```
+
+olarak kullanılır.
+
+## Windows'ta Local Çalıştırma
+
+```powershell
 cd ai-service
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
 
-cp .env.example .env   # AI_MODEL_PATH varsayılan olarak ./models/best.pt'ye işaret ediyor
+.\.venv\Scripts\Activate.ps1
 
-uvicorn app.main:app --reload --port 8001
+uvicorn app.main:app --host 0.0.0.0 --port 8001
 ```
 
-Health check:
+Health kontrolü:
 
-```bash
-curl http://localhost:8001/health
+```powershell
+curl.exe http://127.0.0.1:8001/health
 ```
 
-Model başarıyla yüklendiyse beklenen:
+Model başarıyla yüklenmişse:
 
 ```json
 {
@@ -54,29 +183,139 @@ Model başarıyla yüklendiyse beklenen:
 }
 ```
 
-## Test
+## Testler
 
-```bash
-pytest
+AI Worker testleri:
+
+```powershell
+cd ai-service
+.\.venv\Scripts\Activate.ps1
+pytest -v
 ```
 
-## Notlar
-- Model path / backend URL kesinlikle hard-code edilmez, `.env` üzerinden okunur (bkz. `app/core/config.py`).
-- Model, uygulama açılışında (`lifespan`) bir kez yüklenir; request başına reload edilmez.
-- Backend'in kabul ettiği label listesi: `person, welding, welding_mask, welding_apron, gloves, welding_jacket`. Vizör (`welding_visor` vb.) desteklenmez ve mapping'e eklenmeyecek.
+Testlerde temel olarak şunlar doğrulanır:
 
-## Sorun Giderme
+- JPEG validation
+- model loaded / not-loaded davranışı
+- bbox normalization
+- frame dışındaki geçersiz bbox davranışı
+- 9-class mapping
+- `non_*` classlarının korunması
+- eventId passthrough
+- Backend authentication header
+- Backend 4xx davranışı
+- Backend 5xx retry davranışı
+- Backend failure propagation
 
-### `/health` içinde `model.loaded: false`
-`model.error` alanındaki mesaja bakın; en sık görülen durumlar:
+## Docker
 
-**"AI_MODEL_PATH tanımlı değil"** → `.env` dosyanız yok veya `AI_MODEL_PATH` boş. `.env.example`'ı `.env` olarak kopyalayın.
+Root dizinden:
 
-**Windows'ta `OSError: [WinError 1114] ... c10.dll ...` (torch import ederken çöküyor)**
-Bu, model veya kodla ilgili değil — `torch`'un Windows DLL'lerini yükleyememesi. Sırasıyla:
-1. [Microsoft Visual C++ Redistributable x64](https://aka.ms/vs/17/release/vc_redist.x64.exe) kurun ve bilgisayarı yeniden başlatın (en sık çözüm).
-2. `pip uninstall torch torchvision torchaudio -y && pip cache purge && pip install torch==2.9.1 --no-cache-dir` ile temiz yeniden kurun.
-3. CPU'nuzun AVX2 desteklediğini doğrulayın; desteklemiyorsa standart PyPI torch wheel'i çalışmaz.
-4. Hâlâ çözülmezse `.venv` klasörünü tamamen silip yeniden oluşturun.
+```powershell
+docker compose config
+```
 
-**"model mimarisi/sınıfı tanınmıyor" tarzı unpickle hatası** → `ultralytics` sürümü modelin eğitildiği sürümle (8.4.111) uyuşmuyor. `pip install ultralytics==8.4.111` ile sabitleyin (requirements.txt zaten bu sürüme pinli).
+AI Worker image build:
+
+```powershell
+docker compose build ai-service
+```
+
+Container başlatma:
+
+```powershell
+docker compose up -d ai-service
+```
+
+Durum:
+
+```powershell
+docker compose ps
+```
+
+Log:
+
+```powershell
+docker logs isg-ai-service
+```
+
+Health:
+
+```powershell
+curl.exe http://127.0.0.1:8001/health
+```
+
+Docker içindeki model path:
+
+```text
+/models/best.pt
+```
+
+AI Worker portu:
+
+```text
+8001
+```
+
+## Backend Hata Davranışı
+
+Beklenen sözleşme:
+
+```text
+Backend 2xx
+-> AI Worker 202
+
+Backend 4xx
+-> AI Worker aynı 4xx
+
+Backend 5xx / connection failure
+-> AI Worker bounded retry
+-> retry başarısızsa AI Worker 502
+```
+
+Bu davranış Gateway retry sözleşmesiyle uyumludur.
+
+## Camera / Session Notu
+
+Backend detection endpoint'i kayıtlı bir kamera ve ACTIVE session bekler.
+
+AI requestinde:
+
+```text
+cameraId = cameras.id
+sessionId = camera_sessions.session_id
+```
+
+kullanılmalıdır.
+
+`camera_sessions.id` gönderilmemelidir.
+
+Geçerli camera/session çifti olmadan Backend:
+
+```text
+404 Camera or session not found
+```
+
+döndürebilir.
+
+Geçerli ACTIVE session ile başarılı detection request'i için beklenen Backend cevabı:
+
+```text
+202 Accepted
+```
+
+## Kalan Entegrasyon Testleri
+
+Gerçek kamera/session akışı hazır olduğunda:
+
+```text
+Gateway
+-> AI Worker :8001
+-> gerçek YOLO inference
+-> Backend /internal/v1/detections
+-> 202 Accepted
+```
+
+akışı doğrulanacaktır.
+
+Ardından 3 FPS ve uzun süreli E2E/performance testi tamamlanacaktır.
