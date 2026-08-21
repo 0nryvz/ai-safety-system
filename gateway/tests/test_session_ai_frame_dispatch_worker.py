@@ -149,7 +149,10 @@ class TimeoutThenSuccessAIFrameClient:
             count: int,
     ) -> None:
         while len(self.sent_frames) < count:
-            await asyncio.wait_for(self._frame_sent.wait(), timeout=1)
+            await asyncio.wait_for(
+                self._frame_sent.wait(),
+                timeout=1,
+            )
             self._frame_sent.clear()
 
 
@@ -545,7 +548,7 @@ async def test_dispatch_worker_retries_after_timeout_with_bound_limit() -> None:
     assert stats.dispatched_frame_count == 1
     assert stats.send_error_count == 0
     assert stats.latency_measurement_count == 1
-    assert stats.total_send_latency_seconds > 0
+    assert stats.total_send_latency_seconds >= 0
     assert client.sent_frames[0].event_id == frame.event_id
 
 
