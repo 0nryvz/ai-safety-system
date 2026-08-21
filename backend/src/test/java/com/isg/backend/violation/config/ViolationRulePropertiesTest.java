@@ -92,7 +92,6 @@ class ViolationRulePropertiesTest {
         ).containsExactly(
                 DetectionLabel.WELDING_MASK,
                 DetectionLabel.GLOVES,
-                DetectionLabel.WELDING_APRON,
                 DetectionLabel.WELDING_JACKET
         );
     }

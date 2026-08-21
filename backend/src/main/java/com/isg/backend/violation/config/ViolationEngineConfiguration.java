@@ -3,7 +3,6 @@ package com.isg.backend.violation.config;
 import com.isg.backend.violation.application.port.RestrictedZonePort;
 import com.isg.backend.violation.rule.CandidateViolationEvaluator;
 import com.isg.backend.violation.rule.MissingGlovesRule;
-import com.isg.backend.violation.rule.MissingWeldingApronRule;
 import com.isg.backend.violation.rule.MissingWeldingMaskRule;
 import com.isg.backend.violation.rule.PersonPpeMatcher;
 import com.isg.backend.violation.rule.RestrictedZoneRule;
@@ -32,7 +31,6 @@ public class ViolationEngineConfiguration {
                 List.of(
                         new MissingWeldingMaskRule(),
                         new MissingGlovesRule(),
-                        new MissingWeldingApronRule(),
                         new UnprotectedPersonRule(
                                 properties
                         ),

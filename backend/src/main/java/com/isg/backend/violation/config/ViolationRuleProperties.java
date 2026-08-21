@@ -173,7 +173,6 @@ public class ViolationRuleProperties {
         return List.of(
                 DetectionLabel.WELDING_MASK,
                 DetectionLabel.GLOVES,
-                DetectionLabel.WELDING_APRON,
                 DetectionLabel.WELDING_JACKET
         );
     }
