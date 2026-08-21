@@ -35,6 +35,11 @@ flutter run \
 Emülatörde host makine `10.0.2.2` üzerinden görünür; bu iki değer varsayılan
 olarak `10.0.2.2` kullanır, yani emülatörde `--dart-define` vermeden çalışır.
 
+Release APK (`flutter build apk --release`) ana `AndroidManifest.xml` içinde
+`INTERNET` izni ve MVP cleartext HTTP (`usesCleartextTraffic` +
+`network_security_config`) taşır; böylece gerçek telefonda Tailscale/LAN/adb
+reverse ile Gateway HTTP erişimi güvenilir kalır.
+
 ---
 
 ## Yapılandırma
@@ -48,15 +53,19 @@ Hiçbir endpoint, kimlik veya kodlama parametresi koda gömülü değildir. Heps
 | `BACKEND_URL` | `http://10.0.2.2:8080` | Spring Boot backend (kamera listesi) |
 | `CAMERA_ID` | *(boş)* | Provizyonlanan kamera UUID'si |
 | `CAMERA_KEY` | `dev-session-token` | Gateway `sessionToken` değeri |
-| `TARGET_FPS` | `15` | Hedef gönderim hızı |
-| `ENCODE_WIDTH` | `320` | Karelerin indirgeneceği genişlik |
-| `JPEG_QUALITY` | `55` | JPEG kalitesi |
-| `MAX_CONCURRENT_UPLOADS` | `10` | Aynı anda havada olabilecek kare sayısı |
-| `MIN_FPS` | `5` | Gönderim FPS tabanı; altına inilince drop/throttle gevşer |
+| `TARGET_FPS` | `15` | Hedef gönderim hızı (UI eşiği) |
+| `PACED_FPS` | `15` | Kare kabul metronom temposu |
+| `ENCODE_WIDTH` | `96` | Karelerin indirgeneceği genişlik |
+| `ENCODE_WIDTH_DEGRADED` | `80` | Rezerv (şu an kullanılmıyor) |
+| `JPEG_QUALITY` | `28` | JPEG kalitesi |
+| `JPEG_QUALITY_DEGRADED` | `24` | Rezerv (şu an kullanılmıyor) |
+| `MAX_CONCURRENT_ENCODES` | `4` | Aynı anda native JPEG encode sayısı |
+| `MAX_CONCURRENT_UPLOADS` | `10` | Aynı anda havada olabilecek HTTP gönderimi |
+| `MIN_FPS` | `5` | Gönderim FPS tabanı |
 | `FRAME_DIAGNOSTICS` | `false` | Kare başına encode/upload süresi loglar |
 
-`FRAME_DIAGNOSTICS` saniyede 15 satır ürettiği için yalnızca ölçüm alırken
-açılmalıdır.
+`FRAME_DIAGNOSTICS` saniyede ~`PACED_FPS` satır ürettiği için yalnızca ölçüm
+alırken açılmalıdır.
 
 ---
 
@@ -73,7 +82,8 @@ yüzden **mobil rastgele cameraId üretmez**. Kimlik şu sırayla çözülür:
 Üçüncü seçenek yalnızca yerel geliştirme içindir; backend'de böyle bir kamera
 kaydı olmadığından gerçek pipeline'da foreign key hatası verir.
 
-`sessionId` her yayın başlangıcında yeni bir UUID v4'tür.
+`sessionId` **manuel Start**'ta yeni bir UUID v4'tür. Otomatik reconnect aynı
+`sessionId`'yi korur (Gateway `open` idempotent).
 
 ---
 
@@ -189,10 +199,9 @@ bağlantı boolean'larını tutmaz.
 ## Yeniden bağlanma ve sessionId kuralı
 
 - **Kullanıcı durdurup başlatırsa** yeni `sessionId` üretilir.
-- **Otomatik reconnect'te de** yeni `sessionId` üretilir: mobil önce eski
-  oturumu `close` eder, sonra yenisini açar. Gateway `open` çağrısını aynı
-  `cameraId` + `sessionId` çifti için idempotent kabul ettiğinden eski kimliği
-  korumak da mümkündür, ancak eski oturum kapatıldığı için tercih edilmez.
+- **Otomatik reconnect** aynı `sessionId`'yi korur ve Gateway oturumunu
+  `/close` etmez; `open` aynı `cameraId` + `sessionId` ile idempotent
+  reconnect olur.
 - **Manuel stop sonrası otomatik reconnect yapılmaz.** Kullanıcı kararı
   durumda ayrı tutulur.
 - Yeniden denemenin çözmeyeceği hatalarda (geçersiz token, pasif kamera,
@@ -212,9 +221,9 @@ timer'lar iptal edilir; arka planda sonsuz retry olmaz.
 Gerçek zamanlı akışta eski kare değerini yitirir, bu yüzden hiçbir kare
 sınırsız kuyruklanmaz:
 
-- Aynı anda en fazla `MAX_CONCURRENT_UPLOADS` (varsayılan 10) yükleme yapılır;
+- Aynı anda en fazla `MAX_CONCURRENT_UPLOADS` (varsayılan 6) yükleme yapılır;
   sınır aşılırsa yeni kare düşürülür.
-- Hedef FPS aralığından önce gelen kareler düşürülür.
+- `PACED_FPS` metronomundan önce gelen kareler düşürülür.
 - Yayın durdurulduğunda veya yeniden bağlanıldığında havadaki kareler
   geçersizlenir ve gönderilmez.
 
@@ -242,19 +251,18 @@ Kullanıcıya stack trace veya hata kodu gösterilmez.
 
 ## Demo akışı
 
-1. Uygulamayı açın. **Webcam ekranı gelmez** — önce operatör girişi ve
-   fabrika kamerası seçimi gelir.
+1. Uygulamayı açın. **Webcam ekranı gelmez** — önce **STRIX** operatör girişi
+   ve fabrika kamerası seçimi gelir.
 2. Giriş:
-   - Backend açıksa gerçek hesapla **Giriş yap · kameraları getir**.
-   - Backend kapalıysa alanlarda dolu demo hesabı kullanın:
-     `admin@isgvision.local` / `123456` — seed katalog açılır.
+   - Backend açıksa gerçek hesapla giriş yapın.
+   - Backend kapalıysa demo: `admin@isgvision.local` / `123456` — seed katalog.
    - Pasif kameralar seçilemez. Seçim cihazda saklanır.
-3. Operatör konsolunda simüle edilen kamera adı/kodu, bağlantı durumu ve
+3. Operatör panelinde simüle edilen kamera adı/kodu, bağlantı durumu ve
    telemetri birincil alandır. Yerel önizleme ikincildir ve yalnızca
    telefonda kalır.
 4. Kamera izni sorulur; kalıcı rette **Ayarları Aç** görünür.
 5. **Gateway oturumu aç · aktar**. KPI ve CANLI rozeti görünür; gönderim
-   FPS tabanı 5'tir.
+   FPS tabanı 5'tir (hedef ~8).
 6. Wi-Fi'ı kapatın: durum `WEAK` → `RECONNECTING` → `OFFLINE` ilerler.
 7. Uygulamayı arka plana alın: aktarım ve telefon kamerası kontrollü durur.
 8. **Aktarımı durdur**. Oturum kapanır, kare gönderimi kesilir. Hızlı
@@ -266,7 +274,8 @@ Doğrulama için Gateway metriklerine bakılabilir:
 curl http://localhost:8000/metrics
 ```
 
-`ingest_fps` mobildeki "Gönderim FPS" değeriyle örtüşmelidir.
+`ingest_fps` mobildeki **Gönderim FPS** (başarılı HTTP upload temposu) ile
+örtüşmelidir. **Kamera FPS** kabul metronomunu gösterir.
 
 ---
 
@@ -283,10 +292,11 @@ lib/
     network/api_client.dart     Gateway HTTP istemcisi (keep-alive)
     network/backend_client.dart Backend 2 istemcisi (login, kamera listesi)
   features/
-    camera/                     İzin servisi ve VIGIL dashboard
-    session/                    Atama, offline auth, open/heartbeat/close
+    camera/                     İzin servisi ve STRIX operatör paneli
+    session/                    Login, kamera seçimi, offline auth, oturum
     streaming/                  Kare çıkarma, encode, upload, durum makinesi
   shared/widgets/               Bağlantı rozeti, hata bannerı, sayaç overlay'i
+  core/theme/strix_brand.dart   STRIX tasarım token'ları
 ```
 
 JPEG kodlama Android'de native `YuvImage.compressToJpeg`'e devredilir

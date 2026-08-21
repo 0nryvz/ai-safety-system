@@ -12,7 +12,7 @@ class ApiClient {
   final http.Client _client;
 
   static const Duration jsonTimeout = Duration(seconds: 8);
-  static const Duration jpegTimeout = Duration(seconds: 12);
+  static const Duration jpegTimeout = Duration(seconds: 6);
 
   ApiClient({
     http.Client? client,

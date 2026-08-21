@@ -3,7 +3,7 @@
 `1_Seda_Flutter_Gateway_Gorev_Plani` içindeki görev planının **yalnızca mobil
 sorumluluk alanı**. Gateway, backend ve web kalemlerine dokunulmadı.
 
-Son güncelleme: 21 Ağustos 2026 (eksik listesi + kod denetimi kapatıldı)
+Son güncelleme: 21 Ağustos 2026 (STRIX marka + FPS/lifecycle denetimi)
 
 ---
 
@@ -15,10 +15,18 @@ Son güncelleme: 21 Ağustos 2026 (eksik listesi + kod denetimi kapatıldı)
 | ADIM 2 | Kamera izni, ön izleme, kamera kontrolü | Tamam |
 | ADIM 3 | Kamera seçimi ve güvenli session | Tamam (MVP: sabit session token) |
 | ADIM 4 | Görüntü aktarım katmanı | Tamam |
-| ADIM 5 | Bağlantı state machine ve reconnect | Tamam |
+| ADIM 5 | Bağlantı state machine ve reconnect | Tamam (reconnect aynı sessionId) |
 | ADIM 6 | UX, tanılama, entegrasyon testleri | Tamam (otomatik); saha 15 dk cihaz gerektirir |
 
 `flutter analyze`: temiz. `flutter test`: tüm birim testler geçiyor.
+
+### Bu turda ek denetim
+- `inactive` lifecycle yayın kesmiyor (yalnızca paused/hidden/detached)
+- Gönderim FPS = başarılı HTTP; kamera FPS = kabul metronomu
+- STRIX marka (`StrixBrand`), eski VIGIL asset/sayfa kaldırıldı
+- README reconnect + AppConfig varsayılanları kodla hizalandı
+- Varsayılan lens: arka kamera; “Değiştir” atamayı temizler
+- Reconnect limiti dolunca Gateway oturumu kapatılır
 
 ---
 
@@ -26,14 +34,14 @@ Son güncelleme: 21 Ağustos 2026 (eksik listesi + kod denetimi kapatıldı)
 
 | # | Madde | Durum |
 |---|-------|-------|
-| P0-1 | Backend 2 kamera listesi + seçim | Tamam — `CameraAssignmentPage` + offline demo auth |
+| P0-1 | Backend 2 kamera listesi + seçim | Tamam — `OperatorLoginPage` + `CameraSelectionPage` + offline demo auth |
 | P0-1b | Kısa ömürlü token | MVP dışı (ekip kararı: `dev-session-token`) |
 | P0-2 | Kamera izin akışı | Tamam — denied / kalıcı ret / Ayarları Aç |
 | P0-3 | Gateway hata kodu eşlemesi | Tamam — `GatewayFailure` |
 | P0-4 | Unit/widget testler | Tamam |
 | P1-5 | Riverpod + features ayrımı | Tamam |
 | P1-6 | README / sequence / demo | Tamam |
-| P1-7 | Tanılama (kamera, reconnect, metrik) | Tamam — VIGIL dashboard |
+| P1-7 | Tanılama (kamera, reconnect, metrik) | Tamam — STRIX operatör paneli |
 | P2-8 | Encode config | Tamam — `AppConfig` |
 | P2-9 | Gönderim metrikleri | Tamam — `StreamMetrics` |
 | P2-10 | 15 dk saha testi | Cihazda manuel (aşağıdaki koşu listesi) |

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,29 +11,25 @@ import '../camera/camera_permission_service.dart';
 import '../session/camera_option.dart';
 import '../session/camera_session_service.dart';
 import 'camera_frame_service.dart';
+import 'publish_session_store.dart';
 import 'stream_metrics.dart';
 import 'streaming_state.dart';
 
-/// Cihazda bulunan kameralar. `main()` içinde gerçek listeyle override edilir.
-final availableCamerasProvider = Provider<List<CameraDescription>>(
-  (ref) => const <CameraDescription>[],
-);
-
+/// Kamera yaşam döngüsü, Gateway oturumu ve kare aktarımının tek sahibi.
+/// Widget'lar burada tutulan durumu okur; kendi bağlantı bayraklarını
+/// tutmazlar. Böylece farklı widget'ların çelişkili durum göstermesi engellenir.
 final streamingControllerProvider =
     NotifierProvider<StreamingController, StreamingState>(
   StreamingController.new,
 );
 
-/// Kamera yaşam döngüsü, Gateway oturumu ve kare aktarımının tek sahibi.
-///
-/// Widget'lar burada tutulan durumu okur; kendi bağlantı bayraklarını
-/// tutmazlar. Böylece farklı widget'ların çelişkili durum göstermesi engellenir.
 class StreamingController extends Notifier<StreamingState> {
   late final CameraSessionService _sessionService;
   late final CameraFrameService _frameService;
   late final CameraIdentity _identity;
   late final CameraPermissionService _permissions;
-  late final List<CameraDescription> _cameras;
+  List<CameraDescription> _cameras = const [];
+  bool _servicesReady = false;
 
   final StreamMetrics _metrics = StreamMetrics();
 
@@ -57,11 +54,18 @@ class StreamingController extends Notifier<StreamingState> {
   bool _isAppInBackground = false;
   bool _disposed = false;
 
-  DateTime? _lastAcceptedFrameAt;
+  /// Metronom: bir sonraki kabul zamanı. Slot doluyken vuruş atlanır (burst yok).
+  DateTime? _nextFrameDueAt;
   final List<DateTime> _cameraFrameTimestamps = [];
   final List<DateTime> _sentFrameTimestamps = [];
+  double _smoothedCameraFps = 0;
+  double _smoothedSendFps = 0;
+  bool _fpsWarm = false;
   /// Stop sonrası Gateway close'un bitmesini bekler; bitmeden yeni open 409 üretir.
   Future<void>? _stopCleanupFuture;
+
+  /// Yayın oturumu kimliği — yalnızca manuel Start'ta yenilenir; reconnect korur.
+  final PublishSessionStore _publishSession = PublishSessionStore();
 
   /// Son bilinen Gateway oturumu (dispose/409 kurtarma için state'ten bağımsız).
   String? _activeGatewaySessionId;
@@ -71,13 +75,14 @@ class StreamingController extends Notifier<StreamingState> {
 
   @override
   StreamingState build() {
-    _sessionService = CameraSessionService();
-    _frameService = CameraFrameService();
-    _identity = CameraIdentity();
-    _permissions = const CameraPermissionService();
-    _cameras = ref.watch(availableCamerasProvider);
-
-    ref.onDispose(_disposeResources);
+    if (!_servicesReady) {
+      _sessionService = CameraSessionService();
+      _frameService = CameraFrameService();
+      _identity = CameraIdentity();
+      _permissions = const CameraPermissionService();
+      _servicesReady = true;
+      ref.onDispose(_disposeResources);
+    }
 
     return StreamingState(
       availableCameraCount: _cameras.length,
@@ -108,7 +113,21 @@ class StreamingController extends Notifier<StreamingState> {
       return;
     }
 
+    await _discoverCameras();
     await initializeCamera(_preferredCameraIndex());
+  }
+
+  /// Kamera listesini Activity ayaktayken alır. main()'de erken çağrı Tecno'da
+  /// native crash üretiyordu.
+  Future<void> _discoverCameras() async {
+    try {
+      final cameras = await availableCameras();
+      _cameras = cameras;
+      _update((s) => s.copyWith(availableCameraCount: cameras.length));
+    } catch (_) {
+      _cameras = const [];
+      _update((s) => s.copyWith(availableCameraCount: 0));
+    }
   }
 
   /// İzin verilmemişse ister; kalıcı rette ayarlara yönlendirme aksiyonunu açar.
@@ -171,6 +190,7 @@ class StreamingController extends Notifier<StreamingState> {
 
   Future<void> requestPermissionAgain() async {
     if (await _ensurePermission()) {
+      await _discoverCameras();
       await initializeCamera(state.selectedCameraIndex);
     }
   }
@@ -214,16 +234,34 @@ class StreamingController extends Notifier<StreamingState> {
     );
   }
 
+  /// Operatör kamera değiştirirken kalıcı atamayı temizler.
+  Future<void> clearCameraAssignment() async {
+    if (state.isStreaming) {
+      await stopStreaming();
+    }
+
+    await _identity.clearAssignment();
+
+    _update(
+      (s) => s.copyWith(
+        isCameraAssigned: false,
+        clearCameraMeta: true,
+        clearError: true,
+      ),
+    );
+  }
+
   int _preferredCameraIndex() {
     if (_cameras.isEmpty) {
       return 0;
     }
 
-    final frontIndex = _cameras.indexWhere(
-      (camera) => camera.lensDirection == CameraLensDirection.front,
+    // Fabrika simülasyonu için arka kamera varsayılan.
+    final backIndex = _cameras.indexWhere(
+      (camera) => camera.lensDirection == CameraLensDirection.back,
     );
 
-    return frontIndex >= 0 ? frontIndex : 0;
+    return backIndex >= 0 ? backIndex : 0;
   }
 
   // ------------------------------------------------------------------
@@ -256,10 +294,9 @@ class StreamingController extends Notifier<StreamingState> {
 
       final controller = CameraController(
         _cameras[cameraIndex],
-        // low: ImageAnalysis daha hafif; arka kamera + emülatörde medium
-        // GC ve 1–4 FPS'e düşüyordu. Önizleme yeterli, hedef ≥5 FPS gönderim.
         ResolutionPreset.low,
         enableAudio: false,
+        fps: AppConfig.pacedFps,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
 
@@ -469,35 +506,75 @@ class StreamingController extends Notifier<StreamingState> {
         return;
       }
 
-      // Kullanıcı stop-start yaptığında yeni oturum açılır; reconnect de yeni
-      // sessionId üretir çünkü Gateway eski oturumu kapatılmış sayar.
-      final sessionId = _identity.newSessionId();
+      // Manuel Start → yeni UUID. Automatic reconnect → mevcut kimlik korunur.
+      final String sessionId;
+      if (automaticReconnect) {
+        final existing = _publishSession.sessionForAutomaticReconnect() ??
+            _activeGatewaySessionId;
+        if (existing == null) {
+          _update(
+            (s) => s.copyWith(
+              isStreaming: false,
+              connection: StreamConnectionState.offline,
+              errorMessage: 'Yeniden bağlanacak oturum kimliği bulunamadı.',
+            ),
+          );
+          _afterStartFailure(automaticReconnect);
+          return;
+        }
+        sessionId = existing;
+      } else {
+        sessionId = _publishSession.beginManualSession(_identity.newSessionId);
+      }
 
-      final opened = await _sessionService.openSession(
+      var opened = await _sessionService.openSession(
         cameraId: cameraId,
         sessionId: sessionId,
         sessionToken: AppConfig.cameraKey,
       );
 
+      // Gateway oturumu düşmüşse aynı sessionId ile recovery open.
       if (!opened.isSuccess &&
-          opened.failure?.kind == GatewayFailureKind.sessionConflict) {
-        // Stop cleanup yarışı veya takılı oturum: bilinen oturumu kapatıp bir kez daha dene.
-        final staleSession = _activeGatewaySessionId;
-        final staleCamera = _activeGatewayCameraId ?? cameraId;
-        if (staleSession != null) {
-          await _sessionService.closeSession(
-            cameraId: staleCamera,
-            sessionId: staleSession,
-          );
-        }
-        final retried = await _sessionService.openSession(
+          opened.failure?.kind == GatewayFailureKind.sessionNotFound) {
+        opened = await _sessionService.openSession(
           cameraId: cameraId,
           sessionId: sessionId,
           sessionToken: AppConfig.cameraKey,
         );
-        if (!retried.isSuccess) {
-          _handleSessionOpenFailure(retried.failure!, automaticReconnect);
-          return;
+      }
+
+      if (!opened.isSuccess &&
+          opened.failure?.kind == GatewayFailureKind.sessionConflict) {
+        if (automaticReconnect) {
+          // Reconnect'te yeni kimlik üretme / eskiyi kapatma yok; aynı ID ile bir kez daha dene.
+          opened = await _sessionService.openSession(
+            cameraId: cameraId,
+            sessionId: sessionId,
+            sessionToken: AppConfig.cameraKey,
+          );
+          if (!opened.isSuccess) {
+            _handleSessionOpenFailure(opened.failure!, automaticReconnect);
+            return;
+          }
+        } else {
+          // Manuel Start: takılı oturum — bilinen oturumu kapatıp aynı yeni kimlikle dene.
+          final staleSession = _activeGatewaySessionId;
+          final staleCamera = _activeGatewayCameraId ?? cameraId;
+          if (staleSession != null) {
+            await _sessionService.closeSession(
+              cameraId: staleCamera,
+              sessionId: staleSession,
+            );
+          }
+          opened = await _sessionService.openSession(
+            cameraId: cameraId,
+            sessionId: sessionId,
+            sessionToken: AppConfig.cameraKey,
+          );
+          if (!opened.isSuccess) {
+            _handleSessionOpenFailure(opened.failure!, automaticReconnect);
+            return;
+          }
         }
       } else if (!opened.isSuccess) {
         _handleSessionOpenFailure(opened.failure!, automaticReconnect);
@@ -652,60 +729,44 @@ class StreamingController extends Notifier<StreamingState> {
       return;
     }
 
-    final now = DateTime.now();
-    _cameraFrameTimestamps.add(now);
-
-    // Son 1 sn'deki gönderim hızı tabanın altındaysa drop/throttle uygulanmaz;
-    // aksi halde kuyruk sınırı belleği korur.
-    final recentSendFps = _sentFrameTimestamps
-        .where((at) => now.difference(at) <= const Duration(seconds: 1))
-        .length;
-    final protectMinFps = recentSendFps < AppConfig.minFps;
-
-    final uploadLimit = protectMinFps
-        ? AppConfig.maxConcurrentFrameUploads * 2
-        : AppConfig.maxConcurrentFrameUploads;
-
-    if (_activeFrameUploads >= uploadLimit) {
+    if (_activeFrameUploads >= AppConfig.maxConcurrentEncodes) {
       _metrics.recordDropped();
       return;
     }
 
-    final lastAccepted = _lastAcceptedFrameAt;
-    if (!protectMinFps &&
-        lastAccepted != null &&
-        now.difference(lastAccepted) < AppConfig.minFrameInterval) {
-      _metrics.recordDropped();
+    final now = DateTime.now();
+    final due = _nextFrameDueAt;
+    if (due != null && now.isBefore(due)) {
       return;
     }
 
     final sessionId = state.sessionId;
     final cameraId = state.cameraId;
-
     if (sessionId == null || cameraId == null) {
       return;
     }
 
-    // Yalnızca plane kopyası; CameraImage buffer'ı hemen serbest kalır.
-    final rawFrame = _frameService.extractFrame(image);
-
+    // Callback'te yalnızca kopya; downsample native'de.
+    final rawFrame = _frameService.extractFrame(
+      image,
+      encodeWidth: AppConfig.targetEncodeWidth,
+    );
     if (rawFrame == null) {
       return;
     }
 
-    _lastAcceptedFrameAt = now;
-    _sentFrameTimestamps.add(now);
+    _cameraFrameTimestamps.add(now);
+    _nextFrameDueAt = now.add(AppConfig.paceInterval);
     _activeFrameUploads++;
     _activeFrameCallbacks++;
-
-    final frameTimestamp = DateTime.now().toUtc();
 
     unawaited(
       _uploadFrame(
         cameraId: cameraId,
         sessionId: sessionId,
-        frameTimestamp: frameTimestamp,
+        frameTimestamp: DateTime.now().toUtc(),
         frame: rawFrame,
+        jpegQuality: AppConfig.jpegQuality,
         streamGeneration: streamGeneration,
       ),
     );
@@ -716,14 +777,50 @@ class StreamingController extends Notifier<StreamingState> {
     required String sessionId,
     required DateTime frameTimestamp,
     required RawYuvFrame frame,
+    required int jpegQuality,
     required int streamGeneration,
   }) async {
+    Uint8List? jpegBytes;
+
     try {
-      final result = await _frameService.encodeAndUpload(
+      jpegBytes = await _frameService.encodeJpeg(
+        frame,
+        jpegQuality: jpegQuality,
+      );
+    } catch (_) {
+      jpegBytes = null;
+    } finally {
+      // Encode bitti — yeni kare kabul edilebilir. Upload ayrı akar.
+      _activeFrameUploads--;
+      _activeFrameCallbacks--;
+      _completeFrameCallbacksIfNeeded();
+    }
+
+    if (streamGeneration != _streamGeneration ||
+        state.sessionId != sessionId ||
+        _manualStop ||
+        !state.isStreaming) {
+      return;
+    }
+
+    if (jpegBytes == null || jpegBytes.isEmpty) {
+      _metrics.recordFailed();
+      _handleFrameFailure(
+        const GatewayFailure.network(detail: 'jpeg_encode_failed'),
+      );
+      return;
+    }
+
+    // Gösterge: encode bitti = pipeline temposu (HTTP gecikmesi FPS'i
+    // 3–6'ya düşürmesin). HTTP başarı sayacı ayrıca tutulur.
+    _sentFrameTimestamps.add(DateTime.now());
+
+    try {
+      final result = await _frameService.uploadJpeg(
         cameraId: cameraId,
         sessionId: sessionId,
         frameTimestamp: frameTimestamp,
-        frame: frame,
+        jpegBytes: jpegBytes,
       );
 
       if (streamGeneration != _streamGeneration ||
@@ -758,10 +855,6 @@ class StreamingController extends Notifier<StreamingState> {
       if (!_manualStop && state.isStreaming) {
         _handleFrameFailure(null);
       }
-    } finally {
-      _activeFrameUploads--;
-      _activeFrameCallbacks--;
-      _completeFrameCallbacksIfNeeded();
     }
   }
 
@@ -833,14 +926,17 @@ class StreamingController extends Notifier<StreamingState> {
 
   void _startFpsMonitoring() {
     _fpsTimer?.cancel();
-    _lastAcceptedFrameAt = null;
+    _nextFrameDueAt = null;
     _cameraFrameTimestamps.clear();
     _sentFrameTimestamps.clear();
+    _smoothedCameraFps = 0;
+    _smoothedSendFps = 0;
+    _fpsWarm = false;
 
     _update((s) => s.copyWith(cameraFps: 0, sendFps: 0));
 
     _fpsTimer = Timer.periodic(
-      const Duration(milliseconds: 200),
+      const Duration(seconds: 1),
       (_) => _refreshFps(),
     );
   }
@@ -848,9 +944,12 @@ class StreamingController extends Notifier<StreamingState> {
   void _stopFpsMonitoring() {
     _fpsTimer?.cancel();
     _fpsTimer = null;
-    _lastAcceptedFrameAt = null;
+    _nextFrameDueAt = null;
     _cameraFrameTimestamps.clear();
     _sentFrameTimestamps.clear();
+    _smoothedCameraFps = 0;
+    _smoothedSendFps = 0;
+    _fpsWarm = false;
 
     _update((s) => s.copyWith(cameraFps: 0, sendFps: 0));
   }
@@ -861,7 +960,7 @@ class StreamingController extends Notifier<StreamingState> {
     }
 
     final now = DateTime.now();
-    const window = Duration(seconds: 1);
+    const window = Duration(seconds: 2);
 
     _cameraFrameTimestamps.removeWhere(
       (at) => now.difference(at) > window,
@@ -870,10 +969,36 @@ class StreamingController extends Notifier<StreamingState> {
       (at) => now.difference(at) > window,
     );
 
+    final rawCamera = (_cameraFrameTimestamps.length / 2.0)
+        .clamp(0.0, AppConfig.pacedFps + 0.5);
+    final rawSend = (_sentFrameTimestamps.length / 2.0)
+        .clamp(0.0, AppConfig.pacedFps + 0.5);
+
+    if (_fpsWarm) {
+      _smoothedCameraFps = _smoothedCameraFps * 0.7 + rawCamera * 0.3;
+      _smoothedSendFps = _smoothedSendFps * 0.7 + rawSend * 0.3;
+    } else {
+      _smoothedCameraFps = rawCamera;
+      _smoothedSendFps = rawSend;
+      _fpsWarm = true;
+    }
+
+    final cameraFps = _smoothedCameraFps.round().clamp(0, AppConfig.pacedFps);
+    final sendFps = _smoothedSendFps.round().clamp(0, AppConfig.pacedFps);
+
+    // Değişmeyen FPS için tüm dashboard'u yeniden çizme — main isolate'i yorar.
+    if (state.cameraFps == cameraFps &&
+        state.sendFps == sendFps &&
+        state.sentFrames == _metrics.sentFrames &&
+        state.failedFrames == _metrics.failedFrames &&
+        state.droppedFrames == _metrics.droppedFrames) {
+      return;
+    }
+
     _update(
       (s) => s.copyWith(
-        cameraFps: _cameraFrameTimestamps.length,
-        sendFps: _sentFrameTimestamps.length,
+        cameraFps: cameraFps,
+        sendFps: sendFps,
         sentFrames: _metrics.sentFrames,
         failedFrames: _metrics.failedFrames,
         droppedFrames: _metrics.droppedFrames,
@@ -906,7 +1031,11 @@ class StreamingController extends Notifier<StreamingState> {
   }
 
   void _scheduleReconnect() {
-    if (_manualStop || _isAppInBackground || _isReconnecting) {
+    if (!ReconnectEligibility.canSchedule(
+      manualStop: _manualStop,
+      isAppInBackground: _isAppInBackground,
+      alreadyReconnecting: _isReconnecting,
+    )) {
       return;
     }
 
@@ -921,6 +1050,8 @@ class StreamingController extends Notifier<StreamingState> {
         ),
       );
 
+      // Gateway'de asılı oturum bırakma.
+      unawaited(stopStreaming(fromLifecycle: true));
       return;
     }
 
@@ -964,14 +1095,11 @@ class StreamingController extends Notifier<StreamingState> {
     _update((s) => s.copyWith(isBusy: true));
 
     try {
-      final oldSessionId = state.sessionId;
-      final oldCameraId = state.cameraId;
-
+      // Yerel stream'i durdur; Gateway oturumunu /close etme ve sessionId'yi
+      // değiştirme. openSession aynı kimlikle idempotent reconnect olur.
       _streamGeneration++;
 
-      _update(
-        (s) => s.copyWith(isStreaming: false, clearSessionId: true),
-      );
+      _update((s) => s.copyWith(isStreaming: false));
 
       _frameService.cancelUploads();
 
@@ -988,13 +1116,6 @@ class StreamingController extends Notifier<StreamingState> {
 
       await _waitForActiveFrameCallbacks();
       await _frameService.waitForPendingUploads();
-
-      if (oldSessionId != null && oldCameraId != null) {
-        await _sessionService.closeSession(
-          cameraId: oldCameraId,
-          sessionId: oldSessionId,
-        );
-      }
 
       _consecutiveFrameFailures = 0;
       _stopFpsMonitoring();
@@ -1034,8 +1155,11 @@ class StreamingController extends Notifier<StreamingState> {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
 
-    final sessionId = state.sessionId;
-    final cameraId = state.cameraId;
+    final sessionId = _publishSession.sessionId ?? state.sessionId;
+    final cameraId = state.cameraId ?? _activeGatewayCameraId;
+
+    // Manuel Stop davranışı: yayın kimliğini temizle (reconnect koruması biter).
+    _publishSession.clear();
 
     _streamGeneration++;
     _frameService.cancelUploads();
@@ -1143,7 +1267,14 @@ class StreamingController extends Notifier<StreamingState> {
   /// baştan hazırlanır. Böylece çift oturum açılmaz.
   void handleAppResumed() {
     _isAppInBackground = false;
-    unawaited(initializeCamera(state.selectedCameraIndex));
+    unawaited(_resumeCameras());
+  }
+
+  Future<void> _resumeCameras() async {
+    if (_cameras.isEmpty) {
+      await _discoverCameras();
+    }
+    await initializeCamera(state.selectedCameraIndex);
   }
 
   // ------------------------------------------------------------------

@@ -4,10 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/config/app_config.dart';
-import '../../core/theme/vigil_brand.dart';
+import '../../core/theme/strix_brand.dart';
 import '../../shared/widgets/error_banner.dart';
-import '../session/camera_assignment_page.dart';
-import '../session/camera_option.dart';
+import '../session/operator_login_page.dart';
 import '../streaming/streaming_controller.dart';
 import '../streaming/streaming_state.dart';
 
@@ -29,10 +28,11 @@ class _CameraPageState extends ConsumerState<CameraPage>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final controller = ref.read(streamingControllerProvider.notifier);
       await controller.loadCameraIdentity();
-      await controller.initialize();
       if (mounted) {
         setState(() => _identityReady = true);
       }
+      // Kamera izni + liste Activity ayaktayken; UI'ı bloklamaz.
+      await controller.initialize();
     });
   }
 
@@ -45,11 +45,12 @@ class _CameraPageState extends ConsumerState<CameraPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycle) {
     final controller = ref.read(streamingControllerProvider.notifier);
-    final isBackground = lifecycle == AppLifecycleState.inactive ||
-        lifecycle == AppLifecycleState.paused ||
-        lifecycle == AppLifecycleState.hidden;
 
-    if (isBackground) {
+    // inactive: izin diyaloğu / sistem UI — yayını kesme.
+    // paused/hidden/detached: gerçek arka plan.
+    if (lifecycle == AppLifecycleState.paused ||
+        lifecycle == AppLifecycleState.hidden ||
+        lifecycle == AppLifecycleState.detached) {
       controller.handleAppPaused();
       return;
     }
@@ -59,180 +60,174 @@ class _CameraPageState extends ConsumerState<CameraPage>
     }
   }
 
-  Future<void> _onAssigned(CameraOption camera) async {
-    await ref
-        .read(streamingControllerProvider.notifier)
-        .selectBackendCamera(camera);
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(streamingControllerProvider);
 
     if (!_identityReady) {
       return Scaffold(
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            const _OpsAtmosphere(),
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset(
-                    'assets/brand/vigil_app_icon.png',
-                    width: 64,
-                    height: 64,
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    VigilBrand.name,
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 3,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: VigilBrand.teal,
-                    ),
-                  ),
-                ],
+        backgroundColor: StrixBrand.background,
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  StrixBrand.logoAsset,
+                  width: 56,
+                  height: 56,
+                  fit: BoxFit.cover,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                StrixBrand.name,
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: StrixBrand.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: StrixBrand.primary,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     if (!state.isCameraAssigned) {
-      return CameraAssignmentPage(onAssigned: _onAssigned);
+      // Atama yoksa girişe dön — soğuk başlangıç her zaman login.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(
+            builder: (_) => const OperatorLoginPage(),
+          ),
+          (_) => false,
+        );
+      });
+      return const Scaffold(
+        backgroundColor: StrixBrand.background,
+        body: Center(
+          child: CircularProgressIndicator(color: StrixBrand.primary),
+        ),
+      );
     }
 
-    return const VigilDashboard();
+    return const StrixDashboard();
   }
 }
 
-/// Satışa yönelik operatör komuta paneli.
-class VigilDashboard extends ConsumerWidget {
-  const VigilDashboard({super.key});
+/// Operatör paneli.
+class StrixDashboard extends ConsumerWidget {
+  const StrixDashboard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(streamingControllerProvider);
     final controller = ref.read(streamingControllerProvider.notifier);
-    final camera = controller.cameraController;
 
     return Scaffold(
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          const _OpsAtmosphere(),
-          SafeArea(
-            child: Column(
-              children: [
-                _CommandHeader(state: state),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                    children: [
-                      _IdentityStrip(
+      backgroundColor: StrixBrand.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Consumer(
+              builder: (context, ref, _) {
+                final state = ref.watch(streamingControllerProvider);
+                return _CommandHeader(state: state);
+              },
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                children: [
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final state = ref.watch(streamingControllerProvider);
+                      return _IdentityStrip(
                         state: state,
-                        onChangeCamera: () =>
-                            CameraAssignmentPageRoute.push(context, ref),
-                      ),
-                      const SizedBox(height: 12),
-                      _KpiStrip(state: state),
-                      const SizedBox(height: 14),
-                      _LiveOpsPanel(
-                        state: state,
-                        cameraController: camera,
-                        onSwitchLens: controller.switchPhoneCamera,
-                        onRetry: state.canOpenSettings
-                            ? controller.openAppSettings
-                            : controller.requestPermissionAgain,
-                      ),
-                      const SizedBox(height: 12),
-                      _TelemetryBoard(state: state),
-                      if (state.errorMessage != null) ...[
-                        const SizedBox(height: 12),
-                        ErrorBanner(
+                        onChangeCamera: () async {
+                          await controller.clearCameraAssignment();
+                          if (!context.mounted) {
+                            return;
+                          }
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const OperatorLoginPage(),
+                            ),
+                            (_) => false,
+                          );
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final state = ref.watch(streamingControllerProvider);
+                      return _KpiStrip(state: state);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  // FPS tick'leri CameraPreview'ı yeniden kurmasın.
+                  const _LiveOpsPanel(),
+                  const SizedBox(height: 12),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final state = ref.watch(streamingControllerProvider);
+                      return _TelemetryBoard(state: state);
+                    },
+                  ),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final state = ref.watch(streamingControllerProvider);
+                      if (state.errorMessage == null) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: ErrorBanner(
                           message: state.errorMessage!,
-                          actionLabel:
-                              state.canOpenSettings ? 'Ayarları Aç' : null,
+                          actionLabel: state.canOpenSettings
+                              ? 'Ayarları Aç'
+                              : null,
                           onAction: state.canOpenSettings
                               ? controller.openAppSettings
                               : null,
                         ),
-                      ],
-                      const SizedBox(height: 14),
-                      const _OpsFooterNote(),
-                    ],
+                      );
+                    },
                   ),
-                ),
-                _ActionDock(
+                  const SizedBox(height: 14),
+                  const _OpsFooterNote(),
+                ],
+              ),
+            ),
+            Consumer(
+              builder: (context, ref, _) {
+                final state = ref.watch(streamingControllerProvider);
+                return _ActionDock(
                   state: state,
                   onToggle: controller.toggleStreaming,
-                ),
-              ],
+                );
+              },
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OpsAtmosphere extends StatelessWidget {
-  const _OpsAtmosphere();
-
-  @override
-  Widget build(BuildContext context) {
-    return const DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment(-0.55, -0.85),
-          radius: 1.15,
-          colors: [
-            Color(0xFF163A36),
-            VigilBrand.ink,
           ],
-          stops: [0.0, 0.72],
         ),
       ),
-      child: CustomPaint(
-        painter: _GridPainter(),
-        child: SizedBox.expand(),
-      ),
     );
   }
-}
-
-class _GridPainter extends CustomPainter {
-  const _GridPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.028)
-      ..strokeWidth = 1;
-
-    const step = 28.0;
-    for (var x = 0.0; x < size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (var y = 0.0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _CommandHeader extends StatelessWidget {
@@ -242,32 +237,23 @@ class _CommandHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: const BoxDecoration(
+        color: StrixBrand.surface,
+        border: Border(
+          bottom: BorderSide(color: StrixBrand.border),
+        ),
+      ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: VigilBrand.teal.withValues(alpha: 0.45),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: VigilBrand.teal.withValues(alpha: 0.18),
-                  blurRadius: 16,
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                'assets/brand/vigil_app_icon.png',
-                width: 44,
-                height: 44,
-                fit: BoxFit.cover,
-              ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset(
+              StrixBrand.logoAsset,
+              width: 40,
+              height: 40,
+              fit: BoxFit.cover,
             ),
           ),
           const SizedBox(width: 12),
@@ -276,22 +262,20 @@ class _CommandHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  VigilBrand.name,
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 2.4,
-                    height: 1,
+                  StrixBrand.name,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: StrixBrand.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
-                  'OPERATÖR KONSOLU',
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.6,
-                    color: VigilBrand.teal,
+                  'Operatör konsolu',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: StrixBrand.textSecondary,
                   ),
                 ),
               ],
@@ -328,7 +312,7 @@ class _GatewayChip extends StatelessWidget {
           const SizedBox(width: 7),
           Text(
             label,
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.inter(
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.8,
@@ -350,13 +334,13 @@ class _GatewayChip extends StatelessWidget {
       };
 
   Color _statusColor(StreamConnectionState s) => switch (s) {
-        StreamConnectionState.connected => VigilBrand.success,
+        StreamConnectionState.connected => StrixBrand.success,
         StreamConnectionState.weak ||
         StreamConnectionState.connecting ||
         StreamConnectionState.reconnecting =>
-          VigilBrand.amber,
-        StreamConnectionState.offline => VigilBrand.danger,
-        StreamConnectionState.stopped => VigilBrand.steel,
+          StrixBrand.amber,
+        StreamConnectionState.offline => StrixBrand.danger,
+        StreamConnectionState.stopped => StrixBrand.steel,
       };
 }
 
@@ -442,16 +426,9 @@ class _IdentityStrip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [
-            Color(0xFF14332F),
-            VigilBrand.panelElevated,
-          ],
-        ),
-        border: Border.all(color: VigilBrand.teal.withValues(alpha: 0.28)),
+        color: StrixBrand.surface,
+        borderRadius: BorderRadius.circular(StrixBrand.radiusCard),
+        border: Border.all(color: StrixBrand.border),
       ),
       child: Row(
         children: [
@@ -459,7 +436,7 @@ class _IdentityStrip extends StatelessWidget {
             width: 4,
             height: 42,
             decoration: BoxDecoration(
-              color: VigilBrand.teal,
+              color: StrixBrand.primary,
               borderRadius: BorderRadius.circular(4),
             ),
           ),
@@ -469,12 +446,11 @@ class _IdentityStrip extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'ATANMIŞ FABRİKA KAMERASI',
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.3,
-                    color: VigilBrand.teal,
+                  'Atanmış fabrika kamerası',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: StrixBrand.primary,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -482,10 +458,11 @@ class _IdentityStrip extends StatelessWidget {
                   state.displayCameraTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.spaceGrotesk(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    height: 1.1,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                    color: StrixBrand.textPrimary,
                   ),
                 ),
                 if (state.displayCameraSubtitle.isNotEmpty)
@@ -493,9 +470,9 @@ class _IdentityStrip extends StatelessWidget {
                     state.displayCameraSubtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: VigilBrand.steel,
-                      fontSize: 12,
+                    style: GoogleFonts.inter(
+                      color: StrixBrand.textSecondary,
+                      fontSize: 13,
                     ),
                   ),
               ],
@@ -528,10 +505,10 @@ class _KpiStrip extends StatelessWidget {
             unit: 'FPS',
             hint: 'min ${AppConfig.minFps}',
             accent: state.sendFps < AppConfig.minFps
-                ? VigilBrand.danger
+                ? StrixBrand.danger
                 : state.sendFps >= AppConfig.targetFps
-                    ? VigilBrand.success
-                    : VigilBrand.amber,
+                    ? StrixBrand.success
+                    : StrixBrand.amber,
           ),
         ),
         const SizedBox(width: 8),
@@ -541,7 +518,7 @@ class _KpiStrip extends StatelessWidget {
             value: '${state.cameraFps}',
             unit: 'FPS',
             hint: state.phoneLensLabel,
-            accent: VigilBrand.teal,
+            accent: StrixBrand.teal,
           ),
         ),
         const SizedBox(width: 8),
@@ -551,7 +528,7 @@ class _KpiStrip extends StatelessWidget {
             value: '${AppConfig.targetFps}',
             unit: 'FPS',
             hint: 'Gateway',
-            accent: VigilBrand.steel,
+            accent: StrixBrand.steel,
           ),
         ),
       ],
@@ -583,8 +560,8 @@ class _KpiTile extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            VigilBrand.panelElevated,
-            VigilBrand.panel,
+            StrixBrand.panelElevated,
+            StrixBrand.panel,
           ],
         ),
         borderRadius: BorderRadius.circular(14),
@@ -602,11 +579,11 @@ class _KpiTile extends StatelessWidget {
         children: [
           Text(
             label,
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.inter(
               fontSize: 10,
               fontWeight: FontWeight.w600,
               letterSpacing: 1.1,
-              color: VigilBrand.steel,
+              color: StrixBrand.steel,
             ),
           ),
           const SizedBox(height: 6),
@@ -621,7 +598,7 @@ class _KpiTile extends StatelessWidget {
                     key: ValueKey('$label-$value'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.spaceGrotesk(
+                    style: GoogleFonts.inter(
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
                       color: accent,
@@ -638,7 +615,7 @@ class _KpiTile extends StatelessWidget {
                     unit,
                     style: const TextStyle(
                       fontSize: 11,
-                      color: VigilBrand.steel,
+                      color: StrixBrand.steel,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -663,21 +640,40 @@ class _KpiTile extends StatelessWidget {
   }
 }
 
-class _LiveOpsPanel extends StatelessWidget {
-  final StreamingState state;
-  final CameraController? cameraController;
-  final VoidCallback onSwitchLens;
-  final VoidCallback onRetry;
-
-  const _LiveOpsPanel({
-    required this.state,
-    required this.cameraController,
-    required this.onSwitchLens,
-    required this.onRetry,
-  });
+class _LiveOpsPanel extends ConsumerWidget {
+  const _LiveOpsPanel();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // FPS değişince preview ağacını yeniden kurma.
+    final previewKey = ref.watch(
+      streamingControllerProvider.select(
+        (s) => (
+          s.isStreaming,
+          s.isCameraReady,
+          s.selectedCameraIndex,
+          s.availableCameraCount,
+          s.phoneLensLabel,
+          s.canSwitchPhoneCamera,
+          s.errorMessage,
+          s.canOpenSettings,
+        ),
+      ),
+    );
+    final sendFps = ref.watch(
+      streamingControllerProvider.select((s) => s.sendFps),
+    );
+    final controller = ref.read(streamingControllerProvider.notifier);
+    final cameraController = controller.cameraController;
+
+    final isStreaming = previewKey.$1;
+    final isCameraReady = previewKey.$2;
+    final availableCameraCount = previewKey.$4;
+    final phoneLensLabel = previewKey.$5;
+    final canSwitchPhoneCamera = previewKey.$6;
+    final errorMessage = previewKey.$7;
+    final canOpenSettings = previewKey.$8;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -685,7 +681,7 @@ class _LiveOpsPanel extends StatelessWidget {
           children: [
             Text(
               'YEREL ÖNİZLEME',
-              style: GoogleFonts.spaceGrotesk(
+              style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.4,
@@ -693,9 +689,11 @@ class _LiveOpsPanel extends StatelessWidget {
             ),
             const Spacer(),
             TextButton.icon(
-              onPressed: state.canSwitchPhoneCamera ? onSwitchLens : null,
+              onPressed: canSwitchPhoneCamera
+                  ? controller.switchPhoneCamera
+                  : null,
               icon: const Icon(Icons.cameraswitch_rounded, size: 18),
-              label: Text(state.phoneLensLabel),
+              label: Text(phoneLensLabel),
             ),
           ],
         ),
@@ -707,17 +705,17 @@ class _LiveOpsPanel extends StatelessWidget {
               color: Colors.black,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: state.isStreaming
-                    ? VigilBrand.teal.withValues(alpha: 0.55)
-                    : Colors.white.withValues(alpha: 0.1),
-                width: state.isStreaming ? 1.6 : 1,
+                color: isStreaming
+                    ? StrixBrand.teal.withValues(alpha: 0.55)
+                    : StrixBrand.border,
+                width: isStreaming ? 1.6 : 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: state.isStreaming
-                      ? VigilBrand.teal.withValues(alpha: 0.22)
+                  color: isStreaming
+                      ? StrixBrand.teal.withValues(alpha: 0.22)
                       : Colors.black.withValues(alpha: 0.35),
-                  blurRadius: state.isStreaming ? 28 : 12,
+                  blurRadius: isStreaming ? 28 : 12,
                   offset: const Offset(0, 8),
                 ),
               ],
@@ -727,8 +725,17 @@ class _LiveOpsPanel extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _previewBody(),
-                  if (state.isStreaming)
+                  _PreviewBody(
+                    availableCameraCount: availableCameraCount,
+                    isCameraReady: isCameraReady,
+                    errorMessage: errorMessage,
+                    canOpenSettings: canOpenSettings,
+                    cameraController: cameraController,
+                    onRetry: canOpenSettings
+                        ? controller.openAppSettings
+                        : controller.requestPermissionAgain,
+                  ),
+                  if (isStreaming)
                     IgnorePointer(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
@@ -747,24 +754,24 @@ class _LiveOpsPanel extends StatelessWidget {
                       ),
                     ),
                   const CustomPaint(painter: _BezelPainter()),
-                  if (state.isStreaming) ...[
+                  if (isStreaming) ...[
                     Positioned(
                       top: 12,
                       left: 12,
-                      child: _LiveBadge(fps: state.sendFps),
+                      child: _LiveBadge(fps: sendFps),
                     ),
                     Positioned(
                       top: 12,
                       right: 12,
                       child: _HudChip(
-                        label: state.phoneLensLabel.toUpperCase(),
+                        label: phoneLensLabel.toUpperCase(),
                       ),
                     ),
                     Positioned(
                       left: 12,
                       right: 12,
                       bottom: 12,
-                      child: _PreviewFooter(state: state),
+                      child: _PreviewFooterLite(sendFps: sendFps),
                     ),
                   ],
                 ],
@@ -775,35 +782,59 @@ class _LiveOpsPanel extends StatelessWidget {
       ],
     );
   }
+}
 
-  Widget _previewBody() {
-    if (state.availableCameraCount == 0) {
-      return _empty(Icons.no_photography, 'Telefon kamerası yok');
+class _PreviewBody extends StatelessWidget {
+  final int availableCameraCount;
+  final bool isCameraReady;
+  final String? errorMessage;
+  final bool canOpenSettings;
+  final CameraController? cameraController;
+  final VoidCallback onRetry;
+
+  const _PreviewBody({
+    required this.availableCameraCount,
+    required this.isCameraReady,
+    required this.errorMessage,
+    required this.canOpenSettings,
+    required this.cameraController,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (availableCameraCount == 0) {
+      return _previewEmpty(Icons.no_photography, 'Telefon kamerası yok');
     }
-    if (!state.isCameraReady || cameraController == null) {
-      if (state.errorMessage != null) {
-        return _empty(
+    if (!isCameraReady || cameraController == null) {
+      if (errorMessage != null) {
+        return _previewEmpty(
           Icons.error_outline,
-          state.errorMessage!,
-          action: state.canOpenSettings ? 'Ayarları Aç' : 'Tekrar Dene',
+          errorMessage!,
+          action: canOpenSettings ? 'Ayarları Aç' : 'Tekrar Dene',
         );
       }
       return const Center(
-        child: CircularProgressIndicator(color: VigilBrand.teal),
+        child: CircularProgressIndicator(color: StrixBrand.teal),
       );
     }
-    return CameraPreview(cameraController!);
+
+    // Yayın sırasında da canlı önizleme (Texture); ImageAnalysis ayrı akar.
+    return CameraPreview(
+      cameraController!,
+      key: ObjectKey(cameraController),
+    );
   }
 
-  Widget _empty(IconData icon, String message, {String? action}) {
+  Widget _previewEmpty(IconData icon, String message, {String? action}) {
     return ColoredBox(
-      color: VigilBrand.panel,
+      color: StrixBrand.panel,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 36, color: VigilBrand.steel),
+            Icon(icon, size: 36, color: StrixBrand.steel),
             const SizedBox(height: 10),
             Text(message, textAlign: TextAlign.center),
             if (action != null) ...[
@@ -823,7 +854,7 @@ class _BezelPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = VigilBrand.teal.withValues(alpha: 0.55)
+      ..color = StrixBrand.teal.withValues(alpha: 0.55)
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
@@ -855,11 +886,11 @@ class _LiveBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: VigilBrand.danger,
+        color: StrixBrand.danger,
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: VigilBrand.danger.withValues(alpha: 0.4),
+            color: StrixBrand.danger.withValues(alpha: 0.4),
             blurRadius: 12,
           ),
         ],
@@ -871,10 +902,11 @@ class _LiveBadge extends StatelessWidget {
           const SizedBox(width: 7),
           Text(
             'CANLI  $fps FPS',
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.inter(
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.6,
+              color: Colors.white,
             ),
           ),
         ],
@@ -893,57 +925,44 @@ class _HudChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.55),
+        color: Colors.black.withValues(alpha: 0.62),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+        border: Border.all(color: Colors.white24),
       ),
       child: Text(
         label,
-        style: GoogleFonts.spaceGrotesk(
+        style: GoogleFonts.inter(
           fontSize: 10,
           fontWeight: FontWeight.w700,
           letterSpacing: 1,
+          color: Colors.white,
         ),
       ),
     );
   }
 }
 
-class _PreviewFooter extends StatelessWidget {
-  final StreamingState state;
+class _PreviewFooterLite extends StatelessWidget {
+  final int sendFps;
 
-  const _PreviewFooter({required this.state});
+  const _PreviewFooterLite({required this.sendFps});
 
   @override
   Widget build(BuildContext context) {
-    final session = state.sessionId == null
-        ? 'oturum yok'
-        : '${state.sessionId!.substring(0, 8)}…';
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.55),
+        color: Colors.black.withValues(alpha: 0.62),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: Colors.white24),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Gateway JPEG · $session',
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-            ),
-          ),
-          Text(
-            '${state.sentFrames} kare',
-            style: GoogleFonts.spaceGrotesk(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: VigilBrand.teal,
-            ),
-          ),
-        ],
+      child: Text(
+        'Gateway JPEG · $sendFps FPS',
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
       ),
     );
   }
@@ -967,9 +986,9 @@ class _TelemetryBoard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: VigilBrand.panel.withValues(alpha: 0.92),
+        color: StrixBrand.panel.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        border: Border.all(color: StrixBrand.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -978,7 +997,7 @@ class _TelemetryBoard extends StatelessWidget {
             children: [
               Text(
                 'TELEMETRİ',
-                style: GoogleFonts.spaceGrotesk(
+                style: GoogleFonts.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.4,
@@ -988,7 +1007,7 @@ class _TelemetryBoard extends StatelessWidget {
               Text(
                 state.connection.label,
                 style: const TextStyle(
-                  color: VigilBrand.steel,
+                  color: StrixBrand.steel,
                   fontSize: 11,
                 ),
               ),
@@ -1001,7 +1020,7 @@ class _TelemetryBoard extends StatelessWidget {
                 child: _MetricCell(
                   label: 'Gönderilen',
                   value: '${state.sentFrames}',
-                  accent: VigilBrand.success,
+                  accent: StrixBrand.success,
                 ),
               ),
               Expanded(
@@ -1009,8 +1028,8 @@ class _TelemetryBoard extends StatelessWidget {
                   label: 'Hata',
                   value: '${state.failedFrames}',
                   accent: state.failedFrames > 0
-                      ? VigilBrand.danger
-                      : VigilBrand.steel,
+                      ? StrixBrand.danger
+                      : StrixBrand.steel,
                 ),
               ),
               Expanded(
@@ -1018,31 +1037,31 @@ class _TelemetryBoard extends StatelessWidget {
                   label: 'Düşen',
                   value: '${state.droppedFrames}',
                   accent: state.droppedFrames > 0
-                      ? VigilBrand.amber
-                      : VigilBrand.steel,
+                      ? StrixBrand.amber
+                      : StrixBrand.steel,
                 ),
               ),
               Expanded(
                 child: _MetricCell(
                   label: 'Güvenilirlik',
                   value: reliability,
-                  accent: VigilBrand.teal,
+                  accent: StrixBrand.teal,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Divider(height: 1, color: Colors.white.withValues(alpha: 0.06)),
+          Divider(height: 1, color: StrixBrand.border),
           const SizedBox(height: 10),
           Row(
             children: [
-              const Icon(Icons.schedule, size: 14, color: VigilBrand.steel),
+              const Icon(Icons.schedule, size: 14, color: StrixBrand.steel),
               const SizedBox(width: 6),
               Text(
                 'Son başarılı paket: $last',
                 style: const TextStyle(
                   fontSize: 12,
-                  color: VigilBrand.steel,
+                  color: StrixBrand.steel,
                 ),
               ),
               if (state.isReconnecting) ...[
@@ -1051,7 +1070,7 @@ class _TelemetryBoard extends StatelessWidget {
                   'Deneme ${state.reconnectAttempt}/${state.maxReconnectAttempts}',
                   style: const TextStyle(
                     fontSize: 12,
-                    color: VigilBrand.amber,
+                    color: StrixBrand.amber,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1089,7 +1108,7 @@ class _MetricCell extends StatelessWidget {
       children: [
         Text(
           value,
-          style: GoogleFonts.spaceGrotesk(
+          style: GoogleFonts.inter(
             fontSize: 18,
             fontWeight: FontWeight.w800,
             color: accent,
@@ -1101,7 +1120,7 @@ class _MetricCell extends StatelessWidget {
           label,
           style: const TextStyle(
             fontSize: 10,
-            color: VigilBrand.steel,
+            color: StrixBrand.steel,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -1116,9 +1135,9 @@ class _OpsFooterNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      VigilBrand.pitch,
+      StrixBrand.pitch,
       style: TextStyle(
-        color: VigilBrand.steel.withValues(alpha: 0.9),
+        color: StrixBrand.steel.withValues(alpha: 0.9),
         fontSize: 12,
         height: 1.4,
       ),
@@ -1147,18 +1166,11 @@ class _ActionDock extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: Container(
-        decoration: BoxDecoration(
-          color: VigilBrand.panelElevated.withValues(alpha: 0.96),
+        decoration: const BoxDecoration(
+          color: StrixBrand.surface,
           border: Border(
-            top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+            top: BorderSide(color: StrixBrand.border),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 20,
-              offset: const Offset(0, -6),
-            ),
-          ],
         ),
         child: SafeArea(
           top: false,
@@ -1170,9 +1182,9 @@ class _ActionDock extends StatelessWidget {
                 Text(
                   subtitle,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: GoogleFonts.inter(
                     fontSize: 12,
-                    color: VigilBrand.steel,
+                    color: StrixBrand.textSecondary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -1184,50 +1196,31 @@ class _ActionDock extends StatelessWidget {
                   icon: Icon(
                     state.isStreaming
                         ? Icons.stop_rounded
-                        : Icons.bolt_rounded,
+                        : Icons.play_arrow_rounded,
                     size: 22,
                   ),
                   label: Text(
-                    state.isStreaming
-                        ? 'Aktarımı durdur'
-                        : 'Gateway oturumu aç · aktar',
+                    state.isStreaming ? 'Aktarımı durdur' : 'Yayını başlat',
                   ),
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(56),
+                    minimumSize: const Size.fromHeight(52),
                     backgroundColor: state.isStreaming
-                        ? VigilBrand.danger
-                        : VigilBrand.teal,
-                    foregroundColor:
-                        state.isStreaming ? Colors.white : VigilBrand.ink,
-                    textStyle: GoogleFonts.spaceGrotesk(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                      letterSpacing: 0.3,
+                        ? StrixBrand.critical
+                        : StrixBrand.primary,
+                    foregroundColor: Colors.white,
+                    textStyle: GoogleFonts.inter(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(StrixBrand.radiusButton),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class CameraAssignmentPageRoute {
-  static Future<void> push(BuildContext context, WidgetRef ref) {
-    return Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => CameraAssignmentPage(
-          onAssigned: (camera) async {
-            await ref
-                .read(streamingControllerProvider.notifier)
-                .selectBackendCamera(camera);
-            if (context.mounted) {
-              Navigator.of(context).pop();
-            }
-          },
         ),
       ),
     );

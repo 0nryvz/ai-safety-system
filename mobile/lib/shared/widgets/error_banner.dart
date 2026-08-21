@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/vigil_brand.dart';
+import '../../core/theme/strix_brand.dart';
 
 /// Hata mesajı — stack trace göstermez.
 class ErrorBanner extends StatelessWidget {
@@ -20,23 +20,26 @@ class ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: VigilBrand.danger.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: VigilBrand.danger.withValues(alpha: 0.45)),
+        color: StrixBrand.critical.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(StrixBrand.radiusCard),
+        border: Border.all(color: StrixBrand.critical.withValues(alpha: 0.35)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             message,
-            style: const TextStyle(color: Colors.white, height: 1.35),
+            style: const TextStyle(
+              color: StrixBrand.textPrimary,
+              height: 1.35,
+            ),
             textAlign: TextAlign.center,
           ),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 8),
             TextButton(
               onPressed: onAction,
-              style: TextButton.styleFrom(foregroundColor: VigilBrand.amber),
+              style: TextButton.styleFrom(foregroundColor: StrixBrand.primary),
               child: Text(actionLabel!),
             ),
           ],
