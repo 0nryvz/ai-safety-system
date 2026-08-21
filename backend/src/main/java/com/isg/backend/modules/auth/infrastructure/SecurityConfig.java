@@ -2,6 +2,7 @@ package com.isg.backend.modules.auth.infrastructure;
 
 import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -28,6 +29,10 @@ public class SecurityConfig {
 
     private final UserDetailsService customUserDetailsService;
     private final PasswordEncoder passwordEncoder;
+
+
+    @Value("${application.security.cors.allowed-origins}")
+    private List<String> corsAllowedOrigins;
 
     @Bean
     public AuthenticationProvider authenticationProvider() {
@@ -105,7 +110,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:5173"));
+        configuration.setAllowedOrigins(corsAllowedOrigins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Internal-Api-Key"));
         configuration.setAllowCredentials(true);
