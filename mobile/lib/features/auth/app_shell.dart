@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/error/api_failure.dart';
 import '../../core/theme/strix_brand.dart';
+import '../../features/dashboard/presentation/dashboard_tab_page.dart';
 import '../../features/session/camera_option.dart';
 import '../../features/session/camera_selection_page.dart';
 import '../../shared/widgets/placeholder_page.dart';
@@ -72,7 +73,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   Widget _bodyFor(ShellTab tab, {required bool canManageCameras}) {
     return switch (tab) {
-      ShellTab.dashboard => const PlaceholderPage(title: 'Dashboard'),
+      ShellTab.dashboard => const DashboardTabPage(),
       ShellTab.cameras => PlaceholderPage(
           title: 'Kameralar',
           subtitle: canManageCameras
