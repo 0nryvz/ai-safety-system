@@ -19,8 +19,9 @@ from fastapi import APIRouter, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from app.debug_sample_capture import maybe_capture_debug_sample
 from app.schemas.detection import BBox, DetectionItem, DetectionRequest
-from app.services.backend_client import BackendClientError
+from app.services.backend_client import BackendClientError, detection_json_body
 from app.services.detection_mapper import (
     UnsupportedLabelError,
     map_model_label_to_backend_label,
@@ -136,6 +137,9 @@ async def receive_frame(
             status_code=502,
             detail="Backend detection forwarding failed",
         ) from exc
+
+    # GEÇİCİ DEBUG: trigger varsa 2 sn arayla 5 örnek. send() ile aynı body.
+    maybe_capture_debug_sample(jpeg_bytes, detection_json_body(payload))
 
     return JSONResponse(
         status_code=202,
