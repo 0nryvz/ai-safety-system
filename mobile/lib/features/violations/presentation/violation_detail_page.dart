@@ -1,9 +1,15 @@
+import 'dart:async';
+
 import 'package:camera_stream_app/shared/media/media.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/strix_brand.dart';
 import '../../../shared/widgets/error_banner.dart';
+import '../../notifications/data/notification_event_store.dart';
+import '../../notifications/data/notification_item.dart';
+import '../../notifications/data/realtime_providers.dart';
 import '../data/violations_repository.dart';
 import '../models/violation_detail.dart';
 import '../models/violation_failure.dart';
@@ -11,7 +17,7 @@ import '../models/violation_review_status.dart';
 import 'violation_labels.dart';
 import 'widgets/violation_status_chips.dart';
 
-class ViolationDetailPage extends StatefulWidget {
+class ViolationDetailPage extends ConsumerStatefulWidget {
   final String violationId;
   final ViolationsPort repository;
 
@@ -27,21 +33,61 @@ class ViolationDetailPage extends StatefulWidget {
   });
 
   @override
-  State<ViolationDetailPage> createState() => _ViolationDetailPageState();
+  ConsumerState<ViolationDetailPage> createState() =>
+      _ViolationDetailPageState();
 }
 
-class _ViolationDetailPageState extends State<ViolationDetailPage> {
+class _ViolationDetailPageState extends ConsumerState<ViolationDetailPage> {
   ViolationDetail? _detail;
   ViolationFailure? _failure;
   bool _loading = true;
   bool _reviewing = false;
   String? _reviewMessage;
   bool _reviewConflict = false;
+  StreamSubscription<List<NotificationItem>>? _storeSub;
 
   @override
   void initState() {
     super.initState();
     _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final store = ref.read(notificationEventStoreProvider);
+      _storeSub = store.changes.listen((_) => _onStoreTick(store));
+    });
+  }
+
+  @override
+  void dispose() {
+    _storeSub?.cancel();
+    super.dispose();
+  }
+
+  void _onStoreTick(NotificationEventStore store) {
+    final item = store.itemFor(widget.violationId);
+    final detail = _detail;
+    if (item == null || detail == null) {
+      return;
+    }
+    if (item.recordingStatus != detail.recordingStatus.wireValue ||
+        item.lifecycleStatus != detail.lifecycleStatus.wireValue ||
+        item.clipReady != detail.clipReady) {
+      unawaited(_refreshQuiet());
+    }
+  }
+
+  Future<void> _refreshQuiet() async {
+    try {
+      final detail = await widget.repository.loadDetail(widget.violationId);
+      if (!mounted) {
+        return;
+      }
+      setState(() => _detail = detail);
+    } catch (_) {
+      // Sessiz tazeleme UI'ı error state'e çevirmez.
+    }
   }
 
   Future<void> _load() async {
@@ -177,24 +223,41 @@ class _ViolationDetailPageState extends State<ViolationDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(restRecoveryTickProvider, (previous, next) {
+      if (previous != next) {
+        unawaited(_refreshQuiet());
+      }
+    });
+
     return Scaffold(
       backgroundColor: StrixBrand.background,
       appBar: AppBar(
         title: const Text('İhlal detayı'),
       ),
-      body: _buildBody(),
+      body: RefreshIndicator(
+        color: StrixBrand.primary,
+        onRefresh: _load,
+        child: _buildBody(),
+      ),
     );
   }
 
   Widget _buildBody() {
     if (_loading && _detail == null) {
-      return const Center(
-        child: CircularProgressIndicator(color: StrixBrand.primary),
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 160),
+          Center(
+            child: CircularProgressIndicator(color: StrixBrand.primary),
+          ),
+        ],
       );
     }
 
     if (_failure != null && _detail == null) {
       return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
           const SizedBox(height: 48),
@@ -222,6 +285,7 @@ class _ViolationDetailPageState extends State<ViolationDetailPage> {
 
     final detail = _detail!;
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       children: [
         Text(
@@ -279,9 +343,13 @@ class _ViolationDetailPageState extends State<ViolationDetailPage> {
         for (final status in ViolationReviewStatus.patchable) ...[
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child:             OutlinedButton(
-              onPressed: _reviewing ? null : () => _submitReview(status),
-              child: Text(reviewStatusLabel(status)),
+            child: Semantics(
+              button: true,
+              label: 'İnceleme: ${reviewStatusLabel(status)}',
+              child: OutlinedButton(
+                onPressed: _reviewing ? null : () => _submitReview(status),
+                child: Text(reviewStatusLabel(status)),
+              ),
             ),
           ),
         ],
@@ -320,8 +388,22 @@ class _MetaCard extends StatelessWidget {
           _row('Tespit', formatLocalDateTime(detail.detectedAt)),
           _row('Başlangıç', formatLocalDateTime(detail.startedAt)),
           _row('Bitiş', formatLocalDateTime(detail.endedAt)),
-          _row('Klip', detail.clipReady ? 'Hazır' : 'Hazırlanıyor'),
-          _row('Kapak', detail.coverImageReady ? 'Hazır' : 'Hazırlanıyor'),
+          _row(
+            'Klip',
+            clipReadinessLabel(
+              clipReady: detail.clipReady,
+              recordingStatus: detail.recordingStatus,
+              lifecycleStatus: detail.lifecycleStatus,
+            ),
+          ),
+          _row(
+            'Kapak',
+            coverReadinessLabel(
+              coverImageReady: detail.coverImageReady,
+              recordingStatus: detail.recordingStatus,
+              lifecycleStatus: detail.lifecycleStatus,
+            ),
+          ),
         ],
       ),
     );

@@ -290,5 +290,7 @@ void main() {
 
     expect(find.byType(ViolationClipPlayer), findsOneWidget);
     expect(find.textContaining('Kayıt: Kayıt hatası'), findsOneWidget);
+    expect(find.text('Oluşturulamadı'), findsWidgets);
+    expect(find.text('Hazırlanıyor'), findsNothing);
   });
 }

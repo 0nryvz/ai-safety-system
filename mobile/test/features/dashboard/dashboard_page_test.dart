@@ -306,4 +306,52 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('3'), findsOneWidget);
   });
+
+  testWidgets('canonical olmayan type ham enum basmaz', (tester) async {
+    final repo = _FakeRepository(
+      () async => DashboardSnapshot(
+        summary: const DashboardSummary(
+          todayViolationCount: 1,
+          last7DaysViolationCount: 1,
+          mostFrequentViolationType: 'MISSING_WELDING_JACKET',
+          activeCameraCount: 1,
+          offlineCameraCount: 0,
+          activeViolationCount: 1,
+        ),
+        trend: const [],
+        distribution: const [
+          DashboardDistributionItem(
+            group: 'MISSING_WELDING_JACKET',
+            count: 2,
+          ),
+        ],
+        recentViolations: [
+          RecentViolationItem(
+            violationId: 'viol-jacket',
+            detectedAt: DateTime.utc(2026, 8, 21, 12),
+            startedAt: DateTime.utc(2026, 8, 21, 12),
+            violationType: 'MISSING_WELDING_JACKET',
+            cameraId: 'cam-1',
+            departmentId: 'dep-1',
+            departmentName: 'Kaynak',
+            cameraName: 'Kamera A',
+            cameraCode: 'C1',
+            lifecycleStatus: 'ACTIVE',
+            reviewStatus: 'UNREVIEWED',
+            recordingStatus: 'READY',
+            recordingReadyAt: null,
+            confidence: 0.8,
+            modelVersion: 'v1',
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(wrap(DashboardPage(repository: repo)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('MISSING_WELDING_JACKET'), findsNothing);
+    expect(find.text('Bilinmiyor'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
 }

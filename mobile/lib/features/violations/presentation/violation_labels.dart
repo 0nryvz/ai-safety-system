@@ -73,3 +73,33 @@ String formatConfidence(double? value) {
   final percent = (value <= 1 ? value * 100 : value).round();
   return '%$percent';
 }
+
+String clipReadinessLabel({
+  required bool clipReady,
+  required ViolationRecordingStatus recordingStatus,
+  required ViolationLifecycleStatus lifecycleStatus,
+}) {
+  if (clipReady || recordingStatus == ViolationRecordingStatus.ready) {
+    return 'Hazır';
+  }
+  if (recordingStatus == ViolationRecordingStatus.error ||
+      lifecycleStatus == ViolationLifecycleStatus.error) {
+    return 'Oluşturulamadı';
+  }
+  return 'Hazırlanıyor';
+}
+
+String coverReadinessLabel({
+  required bool coverImageReady,
+  required ViolationRecordingStatus recordingStatus,
+  required ViolationLifecycleStatus lifecycleStatus,
+}) {
+  if (coverImageReady) {
+    return 'Hazır';
+  }
+  if (recordingStatus == ViolationRecordingStatus.error ||
+      lifecycleStatus == ViolationLifecycleStatus.error) {
+    return 'Oluşturulamadı';
+  }
+  return 'Hazırlanıyor';
+}

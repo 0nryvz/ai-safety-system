@@ -386,4 +386,15 @@ void main() {
     expect(find.text('Bu dashboard verisine erişim yetkiniz yok.'), findsOneWidget);
     expect(find.byTooltip('Çıkış'), findsOneWidget);
   });
+
+  testWidgets('dar ekranda 6 sekme overflow üretmez', (tester) async {
+    await pumpSignedIn(tester);
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.text('Dashboard'), findsWidgets);
+  });
 }

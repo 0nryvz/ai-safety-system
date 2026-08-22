@@ -121,6 +121,9 @@ class _UserFormPageState extends State<UserFormPage> {
   }
 
   Future<void> _submit() async {
+    if (_submitting) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       return;
     }

@@ -199,6 +199,8 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: GoogleFonts.inter(
           fontSize: 10,
           fontWeight: FontWeight.w600,

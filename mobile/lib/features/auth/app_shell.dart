@@ -141,11 +141,19 @@ class _AppShellState extends ConsumerState<AppShell> {
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Center(
-                child: Text(
-                  userLabel,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: StrixBrand.textSecondary,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.sizeOf(context).width * 0.38,
+                  ),
+                  child: Text(
+                    userLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: StrixBrand.textSecondary,
+                    ),
                   ),
                 ),
               ),
@@ -171,17 +179,22 @@ class _AppShellState extends ConsumerState<AppShell> {
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
           final destination = destinations[index];
-          setState(() => _tab = destination.tab);
-
           if (destination.tab == ShellTab.cameraBroadcast) {
             _openCameraBroadcast();
+            return;
           }
+          setState(() => _tab = destination.tab);
         },
+        labelBehavior: MediaQuery.sizeOf(context).width < 420
+            ? NavigationDestinationLabelBehavior.onlyShowSelected
+            : NavigationDestinationLabelBehavior.alwaysShow,
         destinations: [
           for (final destination in destinations)
             NavigationDestination(
               icon: Icon(destination.icon),
+              selectedIcon: Icon(destination.icon),
               label: destination.label,
+              tooltip: destination.label,
             ),
         ],
       ),

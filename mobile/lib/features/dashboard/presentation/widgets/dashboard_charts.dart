@@ -73,6 +73,8 @@ class DashboardTrendChart extends StatelessWidget {
                           const SizedBox(height: 6),
                           Text(
                             formatLocalShortDate(point.date),
+                            maxLines: 1,
+                            overflow: TextOverflow.clip,
                             style: GoogleFonts.inter(
                               fontSize: 9,
                               color: StrixBrand.textSecondary,

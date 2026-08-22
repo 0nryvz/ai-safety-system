@@ -106,6 +106,9 @@ class _CameraFormPageState extends State<CameraFormPage> {
   }
 
   Future<void> _submit() async {
+    if (_submitting) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       return;
     }

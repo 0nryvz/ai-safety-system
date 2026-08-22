@@ -1386,10 +1386,15 @@ class StreamingController extends Notifier<StreamingState> {
   /// aktarım ve kamera kontrollü biçimde durdurulur.
   void handleAppPaused() {
     _isAppInBackground = true;
-    unawaited(_pauseForBackground());
+    unawaited(_releaseCameraPreview());
   }
 
-  Future<void> _pauseForBackground() async {
+  /// Route kapanınca önizlemeyi bırakır; arka plan bayrağını set etmez.
+  void releaseForLeave() {
+    unawaited(_releaseCameraPreview());
+  }
+
+  Future<void> _releaseCameraPreview() async {
     if (state.isStreaming) {
       await stopStreaming(fromLifecycle: true);
       final pending = _stopCleanupFuture;

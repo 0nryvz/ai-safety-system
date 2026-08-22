@@ -120,7 +120,12 @@ class _ViolationClipPlayerState extends ConsumerState<ViolationClipPlayer> {
         ),
       ClipPlayerReady() => controller.engine?.buildView() ??
           const SizedBox.shrink(),
-      ClipPlayerNotReady() => _status(state.message, StrixBrand.warning),
+      ClipPlayerNotReady() => _status(
+          state.message,
+          StrixBrand.warning,
+          actionLabel: 'Yeniden dene',
+          onAction: controller.retry,
+        ),
       ClipPlayerForbidden() => _status(state.message, StrixBrand.critical),
       ClipPlayerNotFound() => _status(state.message, StrixBrand.textSecondary),
       ClipPlayerUnauthorized() => const SizedBox.shrink(),
@@ -147,17 +152,35 @@ class _ViolationClipPlayerState extends ConsumerState<ViolationClipPlayer> {
     };
   }
 
-  Widget _status(String message, Color color) {
+  Widget _status(
+    String message,
+    Color color, {
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w600,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: onAction,
+                child: Text(actionLabel),
+              ),
+            ],
+          ],
         ),
       ),
     );

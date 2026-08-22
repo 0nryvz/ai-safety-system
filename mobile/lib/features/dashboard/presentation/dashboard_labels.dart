@@ -18,7 +18,7 @@ String dashboardTypeLabel(String? raw) {
     case 'UNPROTECTED_PERSON':
       return 'Korumasız kişi';
     default:
-      return raw;
+      return 'Bilinmiyor';
   }
 }
 
@@ -53,7 +53,7 @@ String dashboardStatusLabel(String? raw) {
     case 'READY':
       return 'Hazır';
     default:
-      return raw;
+      return 'Bilinmiyor';
   }
 }
 

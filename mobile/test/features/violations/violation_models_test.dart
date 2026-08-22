@@ -6,6 +6,7 @@ import 'package:camera_stream_app/features/violations/models/violation_page.dart
 import 'package:camera_stream_app/features/violations/models/violation_recording_status.dart';
 import 'package:camera_stream_app/features/violations/models/violation_review_status.dart';
 import 'package:camera_stream_app/features/violations/models/violation_type.dart';
+import 'package:camera_stream_app/features/violations/presentation/violation_labels.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -137,6 +138,38 @@ void main() {
       expect(item.lifecycleStatus, ViolationLifecycleStatus.error);
       expect(item.reviewStatus, ViolationReviewStatus.falseAlarm);
       expect(item.recordingStatus, ViolationRecordingStatus.ready);
+    });
+  });
+
+  group('readiness labels', () {
+    test('recording ERROR ham hazırlanıyor yazmaz', () {
+      expect(
+        clipReadinessLabel(
+          clipReady: false,
+          recordingStatus: ViolationRecordingStatus.error,
+          lifecycleStatus: ViolationLifecycleStatus.error,
+        ),
+        'Oluşturulamadı',
+      );
+      expect(
+        coverReadinessLabel(
+          coverImageReady: false,
+          recordingStatus: ViolationRecordingStatus.error,
+          lifecycleStatus: ViolationLifecycleStatus.error,
+        ),
+        'Oluşturulamadı',
+      );
+    });
+
+    test('READY clip Hazır', () {
+      expect(
+        clipReadinessLabel(
+          clipReady: true,
+          recordingStatus: ViolationRecordingStatus.ready,
+          lifecycleStatus: ViolationLifecycleStatus.completed,
+        ),
+        'Hazır',
+      );
     });
   });
 }

@@ -39,6 +39,7 @@ class _CameraPageState extends ConsumerState<CameraPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    ref.read(streamingControllerProvider.notifier).releaseForLeave();
     super.dispose();
   }
 
