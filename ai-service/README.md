@@ -117,9 +117,11 @@ path'ine read-only volume olarak mount edilir.
 
 Örnek config:
 
+```markdown
+Canonical örnek config repo rootundadır:
+
 ```text
-ai-service/.env.example
-```
+.env.example
 
 Temel değişkenler:
 
