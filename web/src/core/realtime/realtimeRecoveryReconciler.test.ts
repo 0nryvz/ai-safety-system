@@ -6,6 +6,8 @@ import {
 import type { RealtimeViolationRecord, RealtimeViolationState } from './realtimeViolationReducer'
 
 const violation: RealtimeViolationRecord = {
+  eventId: 'violation-1',
+  version: 1,
   violationId: 'violation-1',
   type: 'MISSING_GLOVES',
   cameraName: 'Kamera 1',
@@ -125,6 +127,8 @@ describe('reconcileRealtimeViolations', () => {
     ])
 
     expect(result.byId['violation-1']).toMatchObject({
+      eventId: 'violation-1',
+      version: 1,
       cameraName: 'Kamera 1',
       departmentName: 'Kaynak',
       confidence: 0.94,

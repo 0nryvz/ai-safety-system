@@ -1,33 +1,40 @@
 import { describe, expect, it } from 'vitest'
 import { initialRealtimeViolationState, realtimeViolationReducer } from './realtimeViolationReducer'
 import type { ParsedRealtimePayload } from './realtimePayloadParser'
+import type { RealtimeAlertMessage, RealtimeViolationUpdateMessage } from './realtimeTypes'
+
+const alertPayload: RealtimeAlertMessage = {
+  eventId: 'violation-1',
+  version: 1,
+  violationId: 'violation-1',
+  type: 'MISSING_WELDING_MASK',
+  cameraName: 'Kamera 1',
+  departmentName: 'Kaynak',
+  startedAt: '2026-08-17T12:00:00Z',
+  confidence: 0.94,
+  lifecycleStatus: 'ACTIVE',
+  recordingStatus: 'REQUESTED',
+  clipReady: false,
+  coverImageReady: false,
+}
 
 const alert: ParsedRealtimePayload = {
   kind: 'ALERT',
-  payload: {
-    violationId: 'violation-1',
-    type: 'MISSING_WELDING_MASK',
-    cameraName: 'Kamera 1',
-    departmentName: 'Kaynak',
-    startedAt: '2026-08-17T12:00:00Z',
-    confidence: 0.94,
-    lifecycleStatus: 'ACTIVE',
-    recordingStatus: 'REQUESTED',
-    clipReady: false,
-    coverImageReady: false,
-  },
+  payload: alertPayload,
+}
+
+const updatePayload: RealtimeViolationUpdateMessage = {
+  violationId: 'violation-1',
+  lifecycleStatus: 'COMPLETED',
+  recordingStatus: 'READY',
+  clipReady: true,
+  updatedAt: '2026-08-17T12:01:00Z',
+  errorCode: null,
 }
 
 const update: ParsedRealtimePayload = {
   kind: 'VIOLATION_UPDATE',
-  payload: {
-    violationId: 'violation-1',
-    lifecycleStatus: 'COMPLETED',
-    recordingStatus: 'READY',
-    clipReady: true,
-    updatedAt: '2026-08-17T12:01:00Z',
-    errorCode: null,
-  },
+  payload: updatePayload,
 }
 
 describe('realtimeViolationReducer', () => {
@@ -38,8 +45,8 @@ describe('realtimeViolationReducer', () => {
     })
 
     expect(state.byId['violation-1']).toEqual({
-      ...alert.payload,
-      lastEventAt: alert.payload.startedAt,
+      ...alertPayload,
+      lastEventAt: alertPayload.startedAt,
       dismissed: false,
       errorCode: null,
     })
@@ -58,15 +65,16 @@ describe('realtimeViolationReducer', () => {
 
     expect(Object.keys(updatedState.byId)).toEqual(['violation-1'])
     expect(updatedState.byId['violation-1']).toEqual({
-      ...alert.payload,
+      ...alertPayload,
       lifecycleStatus: 'COMPLETED',
       recordingStatus: 'READY',
       clipReady: true,
-      lastEventAt: update.payload.updatedAt,
+      lastEventAt: updatePayload.updatedAt,
       dismissed: false,
       errorCode: null,
     })
   })
+
   it('does not allow an older update to roll back newer state', () => {
     const alertState = realtimeViolationReducer(initialRealtimeViolationState, {
       type: 'EVENT_RECEIVED',
@@ -129,7 +137,8 @@ describe('realtimeViolationReducer', () => {
     const secondAlert: ParsedRealtimePayload = {
       kind: 'ALERT',
       payload: {
-        ...alert.payload,
+        ...alertPayload,
+        eventId: 'violation-2',
         violationId: 'violation-2',
         cameraName: 'Kamera 2',
       },

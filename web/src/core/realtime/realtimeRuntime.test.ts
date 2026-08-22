@@ -125,9 +125,12 @@ describe('realtimeRuntime', () => {
 
     unsubscribe()
   })
+
   it('stores valid realtime messages in the central event store', () => {
     const message: RealtimeMessage = {
       body: JSON.stringify({
+        eventId: 'violation-runtime',
+        version: 1,
         violationId: 'violation-runtime',
         type: 'MISSING_GLOVES',
         cameraName: 'Kamera 3',
@@ -147,6 +150,8 @@ describe('realtimeRuntime', () => {
     getClientOptions().onMessage(message)
 
     expect(realtimeEventStore.getSnapshot().byId['violation-runtime']).toMatchObject({
+      eventId: 'violation-runtime',
+      version: 1,
       violationId: 'violation-runtime',
       recordingStatus: 'REQUESTED',
       dismissed: false,
@@ -156,6 +161,8 @@ describe('realtimeRuntime', () => {
   it('clears central event state when the auth session is cleared', () => {
     getClientOptions().onMessage({
       body: JSON.stringify({
+        eventId: 'violation-runtime',
+        version: 1,
         violationId: 'violation-runtime',
         type: 'MISSING_GLOVES',
         cameraName: 'Kamera 3',
@@ -184,6 +191,7 @@ describe('realtimeRuntime', () => {
 
     expect(realtimeEventStore.getSnapshot().byId).toEqual({})
   })
+
   it('logs only a safe diagnostic when debug logging is enabled', () => {
     runtimeMock.debugLogging = true
 
@@ -210,6 +218,8 @@ describe('realtimeRuntime', () => {
   it('reconciles the realtime store with recovery snapshots before notifying subscribers', async () => {
     getClientOptions().onMessage({
       body: JSON.stringify({
+        eventId: 'violation-runtime',
+        version: 1,
         violationId: 'violation-runtime',
         type: 'MISSING_GLOVES',
         cameraName: 'Kamera 3',

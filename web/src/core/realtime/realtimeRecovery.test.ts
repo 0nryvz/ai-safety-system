@@ -3,6 +3,8 @@ import { RealtimeEventStore } from './RealtimeEventStore'
 import { recoverRealtimeState } from './realtimeRecovery'
 
 const alertBody = JSON.stringify({
+  eventId: 'violation-1',
+  version: 1,
   violationId: 'violation-1',
   type: 'MISSING_WELDING_MASK',
   cameraName: 'Kamera 1',

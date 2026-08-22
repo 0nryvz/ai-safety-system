@@ -35,6 +35,8 @@ export type RealtimeLifecycleStatus = (typeof realtimeLifecycleStatuses)[number]
 
 export type RealtimeRecordingStatus = (typeof realtimeRecordingStatuses)[number] | 'UNKNOWN'
 export interface RealtimeAlertMessage {
+  eventId: string
+  version: number
   violationId: string
   type: RealtimeViolationType
   cameraName: string

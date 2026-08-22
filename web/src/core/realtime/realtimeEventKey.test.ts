@@ -5,6 +5,8 @@ import type { ParsedRealtimePayload } from './realtimePayloadParser'
 const alert: ParsedRealtimePayload = {
   kind: 'ALERT',
   payload: {
+    eventId: 'violation-1',
+    version: 1,
     violationId: 'violation-1',
     type: 'MISSING_WELDING_MASK',
     cameraName: 'Kamera 1',
