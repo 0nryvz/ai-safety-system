@@ -79,7 +79,9 @@ services:
 
     environment:
       AI_MODEL_PATH: /models/best.pt
-      AI_MODEL_VERSION: ${AI_MODEL_VERSION:-ppe-yolo26s-300ep-v1}
+      AI_MODEL_VERSION: ${AI_MODEL_VERSION:-best_update_v1}
+      AI_MODEL_METADATA_PATH: /models/model_info.json
+      AI_MODEL_REQUIRED: ${AI_MODEL_REQUIRED:-true}
       AI_MODEL_DEVICE: ${AI_MODEL_DEVICE:-cpu}
 
       CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-0.5}
