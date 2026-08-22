@@ -7,14 +7,20 @@ dosyası kullanılabilir (bkz. .env.example).
 """
 from functools import lru_cache
 from typing import Optional
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+ROOT_ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+    # Tek config kaynağı repo rootundaki .env dosyasıdır.
+    # ai-service/.env bilinçli olarak okunmaz.
+        env_file=ROOT_ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore",
     )
