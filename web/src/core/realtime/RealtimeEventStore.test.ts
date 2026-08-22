@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { RealtimeEventStore } from './RealtimeEventStore'
 
 const alertBody = JSON.stringify({
+  eventId: 'violation-1',
+  version: 1,
   violationId: 'violation-1',
   type: 'MISSING_WELDING_MASK',
   cameraName: 'Kamera 1',
@@ -23,6 +25,8 @@ describe('RealtimeEventStore', () => {
 
     expect(store.ingest(alertBody)).toBe(true)
     expect(store.getSnapshot().byId['violation-1']).toMatchObject({
+      eventId: 'violation-1',
+      version: 1,
       violationId: 'violation-1',
       recordingStatus: 'REQUESTED',
       dismissed: false,
@@ -71,6 +75,8 @@ describe('RealtimeEventStore', () => {
     })
 
     const unknownEnumBody = JSON.stringify({
+      eventId: 'violation-unknown',
+      version: 1,
       violationId: 'violation-unknown',
       type: 'NEW_BACKEND_VIOLATION_TYPE',
       cameraName: 'Kamera 2',
@@ -85,6 +91,8 @@ describe('RealtimeEventStore', () => {
 
     expect(store.ingest(unknownEnumBody)).toBe(true)
     expect(store.getSnapshot().byId['violation-unknown']).toMatchObject({
+      eventId: 'violation-unknown',
+      version: 1,
       violationId: 'violation-unknown',
       type: 'UNKNOWN',
       lifecycleStatus: 'UNKNOWN',

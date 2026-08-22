@@ -22,6 +22,8 @@ const recentViolation: RecentViolation = {
 }
 
 const realtimeViolation: RealtimeViolationRecord = {
+  eventId: 'violation-1',
+  version: 1,
   violationId: 'violation-1',
   type: 'MISSING_GLOVES',
   cameraName: 'Kamera 1',

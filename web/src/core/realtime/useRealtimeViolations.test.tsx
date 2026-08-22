@@ -5,6 +5,8 @@ import { useRealtimeViolations } from './useRealtimeViolations'
 
 const createAlertPayload = (violationId: string) =>
   JSON.stringify({
+    eventId: violationId,
+    version: 1,
     violationId,
     type: 'MISSING_GLOVES',
     cameraName: 'Kamera 3',
