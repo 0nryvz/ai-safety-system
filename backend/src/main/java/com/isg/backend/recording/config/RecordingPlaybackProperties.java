@@ -10,6 +10,7 @@ import java.time.Duration;
 public class RecordingPlaybackProperties {
 
     private String endpoint = "http://localhost:9000";
+    private String publicEndpoint;
     private String accessKey = "minioadmin";
     private String secretKey = "minioadmin";
     private String bucket = "violation-media";
@@ -23,6 +24,20 @@ public class RecordingPlaybackProperties {
             String endpoint
     ) {
         this.endpoint = endpoint;
+    }
+
+    public String getPublicEndpoint() {
+        if (publicEndpoint == null || publicEndpoint.isBlank()) {
+            return endpoint;
+        }
+
+        return publicEndpoint;
+    }
+
+    public void setPublicEndpoint(
+            String publicEndpoint
+    ) {
+        this.publicEndpoint = publicEndpoint;
     }
 
     public String getAccessKey() {

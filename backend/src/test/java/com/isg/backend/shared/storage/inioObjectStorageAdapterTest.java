@@ -17,12 +17,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class MinioObjectStorageAdapterTest {
 
-    private MinioClient minioClient;
+    private MinioClient internalMinioClient;
+
+    private MinioClient publicMinioClient;
 
     private RecordingPlaybackProperties properties;
 
@@ -30,7 +33,12 @@ class MinioObjectStorageAdapterTest {
 
     @BeforeEach
     void setUp() {
-        minioClient =
+        internalMinioClient =
+                mock(
+                        MinioClient.class
+                );
+
+        publicMinioClient =
                 mock(
                         MinioClient.class
                 );
@@ -40,6 +48,10 @@ class MinioObjectStorageAdapterTest {
 
         properties.setEndpoint(
                 "http://localhost:9000"
+        );
+
+        properties.setPublicEndpoint(
+                "http://192.168.137.1:9000"
         );
 
         properties.setAccessKey(
@@ -68,14 +80,15 @@ class MinioObjectStorageAdapterTest {
 
         adapter =
                 new MinioObjectStorageAdapter(
-                        minioClient,
+                        internalMinioClient,
+                        publicMinioClient,
                         properties,
                         clock
                 );
     }
 
     @Test
-    void uploadsObjectUsingConfiguredMinioClient()
+    void uploadsObjectUsingInternalMinioClient()
             throws Exception {
 
         byte[] data =
@@ -92,7 +105,16 @@ class MinioObjectStorageAdapterTest {
         );
 
         verify(
-                minioClient
+                internalMinioClient
+        ).putObject(
+                any(
+                        PutObjectArgs.class
+                )
+        );
+
+        verify(
+                publicMinioClient,
+                never()
         ).putObject(
                 any(
                         PutObjectArgs.class
@@ -101,19 +123,20 @@ class MinioObjectStorageAdapterTest {
     }
 
     @Test
-    void createsPresignedGetUrlWithConfiguredExpiry()
+    void createsPresignedGetUrlUsingPublicMinioClient()
             throws Exception {
 
         when(
-                minioClient.getPresignedObjectUrl(
+                publicMinioClient.getPresignedObjectUrl(
                         any(
                                 GetPresignedObjectUrlArgs.class
                         )
                 )
         ).thenReturn(
-                "http://localhost:9000/violation-media/"
+                "http://192.168.137.1:9000/violation-media/"
                         + "cameras/camera-1/reference.jpg"
-                        + "?X-Amz-Signature=test"
+                        + "?X-Amz-Expires=300"
+                        + "&X-Amz-Signature=test"
         );
 
         PresignedObjectUrl result =
@@ -123,8 +146,20 @@ class MinioObjectStorageAdapterTest {
 
         assertThat(
                 result.url()
+        ).startsWith(
+                "http://192.168.137.1:9000/violation-media/"
+        );
+
+        assertThat(
+                result.url()
         ).contains(
-                "reference.jpg"
+                "X-Amz-Expires=300"
+        );
+
+        assertThat(
+                result.url()
+        ).contains(
+                "X-Amz-Signature="
         );
 
         assertThat(
@@ -132,6 +167,23 @@ class MinioObjectStorageAdapterTest {
         ).isEqualTo(
                 Instant.parse(
                         "2026-08-20T02:05:00Z"
+                )
+        );
+
+        verify(
+                publicMinioClient
+        ).getPresignedObjectUrl(
+                any(
+                        GetPresignedObjectUrlArgs.class
+                )
+        );
+
+        verify(
+                internalMinioClient,
+                never()
+        ).getPresignedObjectUrl(
+                any(
+                        GetPresignedObjectUrlArgs.class
                 )
         );
     }

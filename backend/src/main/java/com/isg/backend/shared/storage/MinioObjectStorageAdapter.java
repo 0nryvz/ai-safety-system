@@ -1,11 +1,13 @@
 package com.isg.backend.shared.storage;
 
+import com.isg.backend.recording.config.RecordingPlaybackConfig;
 import com.isg.backend.recording.config.RecordingPlaybackProperties;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.Http;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
@@ -17,31 +19,43 @@ import java.util.Objects;
 public class MinioObjectStorageAdapter
         implements ObjectStoragePort {
 
-    private final MinioClient minioClient;
+    private final MinioClient internalMinioClient;
+    private final MinioClient publicMinioClient;
     private final RecordingPlaybackProperties properties;
     private final Clock clock;
 
     @Autowired
     public MinioObjectStorageAdapter(
-            MinioClient minioClient,
+            @Qualifier(RecordingPlaybackConfig.INTERNAL_MINIO_CLIENT_BEAN)
+            MinioClient internalMinioClient,
+            @Qualifier(RecordingPlaybackConfig.PUBLIC_MINIO_CLIENT_BEAN)
+            MinioClient publicMinioClient,
             RecordingPlaybackProperties properties
     ) {
         this(
-                minioClient,
+                internalMinioClient,
+                publicMinioClient,
                 properties,
                 Clock.systemUTC()
         );
     }
 
     MinioObjectStorageAdapter(
-            MinioClient minioClient,
+            MinioClient internalMinioClient,
+            MinioClient publicMinioClient,
             RecordingPlaybackProperties properties,
             Clock clock
     ) {
-        this.minioClient =
+        this.internalMinioClient =
                 Objects.requireNonNull(
-                        minioClient,
-                        "minioClient must not be null"
+                        internalMinioClient,
+                        "internalMinioClient must not be null"
+                );
+
+        this.publicMinioClient =
+                Objects.requireNonNull(
+                        publicMinioClient,
+                        "publicMinioClient must not be null"
                 );
 
         this.properties =
@@ -91,7 +105,7 @@ public class MinioObjectStorageAdapter
         }
 
         try {
-            minioClient.putObject(
+            internalMinioClient.putObject(
                     PutObjectArgs
                             .builder()
                             .bucket(
@@ -148,7 +162,7 @@ public class MinioObjectStorageAdapter
 
         try {
             String url =
-                    minioClient
+                    publicMinioClient
                             .getPresignedObjectUrl(
                                     GetPresignedObjectUrlArgs
                                             .builder()

@@ -15,12 +15,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MinioPlaybackUrlAdapterTest {
 
     @Test
-    void createsPresignedGetUrlWithConfiguredExpiry() {
+    void createsPresignedGetUrlAgainstPublicEndpoint() {
         RecordingPlaybackProperties properties =
                 new RecordingPlaybackProperties();
 
         properties.setEndpoint(
                 "http://localhost:9000"
+        );
+        properties.setPublicEndpoint(
+                "http://192.168.137.1:9000"
         );
         properties.setAccessKey(
                 "minioadmin"
@@ -35,14 +38,17 @@ class MinioPlaybackUrlAdapterTest {
                 Duration.ofMinutes(5)
         );
 
-        MinioClient minioClient =
+        MinioClient publicMinioClient =
                 MinioClient.builder()
                         .endpoint(
-                                properties.getEndpoint()
+                                properties.getPublicEndpoint()
                         )
                         .credentials(
                                 properties.getAccessKey(),
                                 properties.getSecretKey()
+                        )
+                        .region(
+                                "us-east-1"
                         )
                         .build();
 
@@ -59,7 +65,7 @@ class MinioPlaybackUrlAdapterTest {
 
         MinioPlaybackUrlAdapter adapter =
                 new MinioPlaybackUrlAdapter(
-                        minioClient,
+                        publicMinioClient,
                         properties,
                         clock
                 );
@@ -72,7 +78,7 @@ class MinioPlaybackUrlAdapterTest {
         assertThat(
                 result.url()
         ).startsWith(
-                "http://localhost:9000/violation-media/"
+                "http://192.168.137.1:9000/violation-media/"
         );
 
         assertThat(

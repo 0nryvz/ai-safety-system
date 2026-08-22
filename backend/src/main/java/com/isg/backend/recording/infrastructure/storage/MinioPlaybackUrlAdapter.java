@@ -2,13 +2,15 @@ package com.isg.backend.recording.infrastructure.storage;
 
 import com.isg.backend.recording.application.port.PlaybackUrlPort;
 import com.isg.backend.recording.application.port.PresignedPlaybackUrl;
+import com.isg.backend.recording.config.RecordingPlaybackConfig;
 import com.isg.backend.recording.config.RecordingPlaybackProperties;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.Http;
 import io.minio.MinioClient;
 import io.minio.errors.MinioException;
-import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Component;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -18,30 +20,31 @@ import java.util.Objects;
 public class MinioPlaybackUrlAdapter
         implements PlaybackUrlPort {
 
-    private final MinioClient minioClient;
+    private final MinioClient publicMinioClient;
     private final RecordingPlaybackProperties properties;
     private final Clock clock;
 
     @Autowired
     public MinioPlaybackUrlAdapter(
-            MinioClient minioClient,
+            @Qualifier(RecordingPlaybackConfig.PUBLIC_MINIO_CLIENT_BEAN)
+            MinioClient publicMinioClient,
             RecordingPlaybackProperties properties
     ) {
         this(
-                minioClient,
+                publicMinioClient,
                 properties,
                 Clock.systemUTC()
         );
     }
 
     MinioPlaybackUrlAdapter(
-            MinioClient minioClient,
+            MinioClient publicMinioClient,
             RecordingPlaybackProperties properties,
             Clock clock
     ) {
-        this.minioClient =
+        this.publicMinioClient =
                 Objects.requireNonNull(
-                        minioClient
+                        publicMinioClient
                 );
 
         this.properties =
@@ -89,7 +92,7 @@ public class MinioPlaybackUrlAdapter
 
         try {
             String url =
-                    minioClient
+                    publicMinioClient
                             .getPresignedObjectUrl(
                                     GetPresignedObjectUrlArgs
                                             .builder()
