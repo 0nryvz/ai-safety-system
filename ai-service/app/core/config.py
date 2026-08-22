@@ -77,12 +77,15 @@ class Settings(BaseSettings):
 
     # --- Backend'in kabul ettiği label listesi (vizör YOK) ---
     supported_labels: tuple[str, ...] = (
-        "person",
-        "welding",
-        "welding_mask",
-        "welding_apron",
-        "gloves",
-        "welding_jacket",
+      "person",
+      "gloves",
+      "non_gloves",
+      "non_welding_jacket",
+      "non_welding_mask",
+      "welding",
+      "welding_apron",
+      "welding_jacket",
+      "welding_mask",
     )
 
     # --- Class mapping (Adım 0 handoff'tan doldurulacak) ---

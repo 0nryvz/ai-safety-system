@@ -2,9 +2,20 @@
 ModelRunner: model yükleme ve inference çalıştırma sorumluluğu tek burada.
 
 Adım 0 handoff sonucu:
-    model: yolo26s.pt (Ultralytics YOLO), imgsz=640, 6 class
-    names: ['Person', 'gloves', 'welding', 'welding_apron', 'welding_jacket', 'welding_mask']
+    model: best.pt (Ultralytics YOLO), imgsz=640, 9 class
+    names: [
+        'Person',
+        'gloves',
+        'non_gloves',
+        'non_welding_jacket',
+        'non_welding_mask',
+        'welding',
+        'welding_apron',
+        'welding_jacket',
+        'welding_mask',
+    ]
 """
+
 from __future__ import annotations
 
 import logging
@@ -73,6 +84,32 @@ class ModelRunner:
             from ultralytics import YOLO  # lazy import - opsiyonel ağır bağımlılık
 
             self._model = YOLO(model_path)
+
+            model_names = self._model.names
+
+            if isinstance(model_names, dict):
+                actual_labels = tuple(
+                    str(model_names[class_id]).lower()
+                    for class_id in sorted(model_names)
+               )
+            else:
+               actual_labels = tuple(
+                   str(label).lower()
+                   for label in model_names
+               )
+
+            expected_labels = tuple(
+                label.lower()
+                for label in self._settings.supported_labels
+            )
+
+            if actual_labels != expected_labels:
+                raise ValueError(
+                   "Model class contract uyuşmazlığı. "
+                   f"Beklenen={expected_labels}, "
+                   f"Model={actual_labels}"
+                )
+
             self._loaded = True
             self._load_error = None
             logger.info(
