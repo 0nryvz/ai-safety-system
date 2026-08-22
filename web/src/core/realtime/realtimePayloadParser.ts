@@ -60,6 +60,10 @@ function parseAlertPayload(payload: Record<string, unknown>): RealtimeAlertMessa
   const recordingStatus = normalizeRecordingStatus(payload.recordingStatus)
 
   if (
+    !isNonEmptyString(payload.eventId) ||
+    typeof payload.version !== 'number' ||
+    !Number.isInteger(payload.version) ||
+    payload.version < 0 ||
     !isNonEmptyString(payload.violationId) ||
     type === null ||
     !isNonEmptyString(payload.cameraName) ||
@@ -78,6 +82,8 @@ function parseAlertPayload(payload: Record<string, unknown>): RealtimeAlertMessa
   }
 
   return {
+    eventId: payload.eventId,
+    version: payload.version,
     violationId: payload.violationId,
     type,
     cameraName: payload.cameraName,

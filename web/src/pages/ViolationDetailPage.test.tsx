@@ -190,6 +190,8 @@ describe('ViolationDetailPage', () => {
     vi.spyOn(realtimeHook, 'useRealtimeViolations').mockReturnValue({
       violations: [
         {
+          eventId: violation.violationId,
+          version: 1,
           violationId: violation.violationId,
           type: 'MISSING_GLOVES',
           cameraName: 'Kaynak Kamera 1',
@@ -278,6 +280,8 @@ it('refreshes detail when the cover image becomes ready in realtime', async () =
   vi.spyOn(realtimeHook, 'useRealtimeViolations').mockReturnValue({
     violations: [
       {
+        eventId: violation.violationId,
+        version: 1,
         violationId: violation.violationId,
         type: 'MISSING_GLOVES',
         cameraName: 'Kaynak Kamera 1',

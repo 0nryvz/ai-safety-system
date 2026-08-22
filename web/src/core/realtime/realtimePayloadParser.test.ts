@@ -5,6 +5,8 @@ describe('parseRealtimePayload', () => {
   it('parses a valid initial alert', () => {
     const result = parseRealtimePayload(
       JSON.stringify({
+        eventId: 'event-1',
+        version: 1,
         violationId: 'violation-1',
         type: 'MISSING_WELDING_MASK',
         cameraName: 'Kamera 1',
@@ -21,6 +23,8 @@ describe('parseRealtimePayload', () => {
     expect(result).toEqual({
       kind: 'ALERT',
       payload: {
+        eventId: 'event-1',
+        version: 1,
         violationId: 'violation-1',
         type: 'MISSING_WELDING_MASK',
         cameraName: 'Kamera 1',
@@ -60,6 +64,27 @@ describe('parseRealtimePayload', () => {
     })
   })
 
+  it('rejects an initial alert with invalid event metadata', () => {
+    expect(
+      parseRealtimePayload(
+        JSON.stringify({
+          eventId: '',
+          version: -1,
+          violationId: 'violation-1',
+          type: 'MISSING_WELDING_MASK',
+          cameraName: 'Kamera 1',
+          departmentName: 'Kaynak',
+          startedAt: '2026-08-17T12:00:00Z',
+          confidence: 0.94,
+          lifecycleStatus: 'ACTIVE',
+          recordingStatus: 'REQUESTED',
+          clipReady: false,
+          coverImageReady: false,
+        }),
+      ),
+    ).toBeNull()
+  })
+
   it('rejects malformed JSON', () => {
     expect(parseRealtimePayload('{invalid-json')).toBeNull()
   })
@@ -76,9 +101,12 @@ describe('parseRealtimePayload', () => {
       ),
     ).toBeNull()
   })
+
   it('maps unknown enum values to UNKNOWN without crashing', () => {
     const result = parseRealtimePayload(
       JSON.stringify({
+        eventId: 'event-unknown',
+        version: 2,
         violationId: 'violation-unknown',
         type: 'NEW_PPE_TYPE',
         cameraName: 'Kamera 2',
@@ -95,6 +123,8 @@ describe('parseRealtimePayload', () => {
     expect(result).toEqual({
       kind: 'ALERT',
       payload: {
+        eventId: 'event-unknown',
+        version: 2,
         violationId: 'violation-unknown',
         type: 'UNKNOWN',
         cameraName: 'Kamera 2',

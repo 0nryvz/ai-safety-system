@@ -16,6 +16,8 @@ afterEach(() => {
 })
 
 const violation = {
+  eventId: 'violation-1',
+  version: 1,
   violationId: 'violation-1',
   type: 'MISSING_GLOVES' as const,
   cameraName: 'Üretim Kamerası',

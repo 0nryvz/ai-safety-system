@@ -11,6 +11,8 @@ vi.mock('./alertSound', () => ({
 const mockedPlayAlertSound = vi.mocked(playAlertSound)
 
 const violation: RealtimeViolationRecord = {
+  eventId: 'violation-1',
+  version: 1,
   violationId: 'violation-1',
   type: 'MISSING_GLOVES',
   cameraName: 'Üretim Kamerası',
