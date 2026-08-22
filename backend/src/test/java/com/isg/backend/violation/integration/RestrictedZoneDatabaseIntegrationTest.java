@@ -27,15 +27,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Transactional
 class RestrictedZoneDatabaseIntegrationTest {
 
-    private static final UUID CAMERA_ID =
-            UUID.fromString(
-                    "22222222-2222-2222-2222-222222222222"
-            );
+    private UUID cameraId;
 
-    private static final UUID DEPARTMENT_ID =
-            UUID.fromString(
-                    "44444444-4444-4444-4444-444444444444"
-            );
+    private UUID departmentId;
 
     private static final UUID EVENT_ID =
             UUID.fromString(
@@ -63,6 +57,9 @@ class RestrictedZoneDatabaseIntegrationTest {
     @BeforeEach
     void setUp() {
 
+        departmentId = UUID.randomUUID();
+        cameraId = UUID.randomUUID();
+
         jdbcTemplate.update(
                 """
                 INSERT INTO departments (
@@ -75,9 +72,9 @@ class RestrictedZoneDatabaseIntegrationTest {
                 )
                 VALUES (?, ?, ?, ?, true, 0)
                 """,
-                DEPARTMENT_ID,
-                "TEST-DEPT",
-                "Test Department",
+                departmentId,
+                "TD-" + UUID.randomUUID().toString().substring(0, 8),
+                "Test Department " + UUID.randomUUID(),
                 "Restricted zone integration test"
         );
 
@@ -95,10 +92,10 @@ class RestrictedZoneDatabaseIntegrationTest {
                         )
                         VALUES (?, ?, ?, ?, 'ONLINE', true, 0)
                 """,
-                CAMERA_ID,
-                "Restricted Zone Test Camera",
-                "CAM-RESTRICTED-TEST",
-                DEPARTMENT_ID
+                cameraId,
+                "Restricted Zone Test Camera " + UUID.randomUUID(),
+                "CAM-" + UUID.randomUUID().toString().substring(0, 8),
+                departmentId
         );
     }
 
@@ -110,7 +107,7 @@ class RestrictedZoneDatabaseIntegrationTest {
                 new RestrictedZone();
 
         zone.setCameraId(
-                CAMERA_ID
+                cameraId
         );
 
         zone.setName(
@@ -159,7 +156,7 @@ class RestrictedZoneDatabaseIntegrationTest {
                 new RestrictedZone();
 
         zone.setCameraId(
-                CAMERA_ID
+                cameraId
         );
 
         zone.setName(
@@ -207,7 +204,7 @@ class RestrictedZoneDatabaseIntegrationTest {
 
         return new DetectionFrame(
                 EVENT_ID,
-                CAMERA_ID,
+                cameraId,
                 SESSION_ID,
                 Instant.parse(
                         "2026-08-13T00:00:00Z"
