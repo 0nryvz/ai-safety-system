@@ -34,14 +34,14 @@ class StreamStatsOverlay extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           _fpsLine(
-            'Gönderim ${state.sendFps} FPS',
-            state.sendFps,
+            'Kabul ${state.acceptedFps} FPS',
+            state.acceptedFps,
             fontSize: 13,
             weight: FontWeight.w600,
           ),
           const SizedBox(height: 6),
           _detail(
-            'Gönderilen ${state.sentFrames}  '
+            'Kabul ${state.sentFrames}  '
             'Hata ${state.failedFrames}  '
             'Düşen ${state.droppedFrames}',
           ),

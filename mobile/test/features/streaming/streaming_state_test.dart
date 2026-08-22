@@ -126,6 +126,28 @@ void main() {
     });
   });
 
+  group('kabul FPS göstergesi', () {
+    test('varsayılan sıfırdır', () {
+      expect(const StreamingState().acceptedFps, 0);
+    });
+
+    test('copyWith kabul FPS ve kamera FPS için ayrı alan taşır', () {
+      final updated = const StreamingState().copyWith(
+        cameraFps: 15,
+        acceptedFps: 7,
+      );
+
+      expect(updated.cameraFps, 15);
+      expect(updated.acceptedFps, 7);
+    });
+
+    test('kabul FPS kamera FPS güncellenirken korunur', () {
+      const original = StreamingState(acceptedFps: 9);
+
+      expect(original.copyWith(cameraFps: 12).acceptedFps, 9);
+    });
+  });
+
   group('varsayılanlar', () {
     test('uygulama durdurulmuş ve atanmamış başlar', () {
       const state = StreamingState();

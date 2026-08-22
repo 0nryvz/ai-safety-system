@@ -1,7 +1,8 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config/app_config.dart';
@@ -11,6 +12,7 @@ import '../camera/camera_permission_service.dart';
 import '../session/camera_option.dart';
 import '../session/camera_session_service.dart';
 import 'camera_frame_service.dart';
+import 'frame_rotation.dart';
 import 'publish_session_store.dart';
 import 'stream_metrics.dart';
 import 'streaming_state.dart';
@@ -35,6 +37,10 @@ class StreamingController extends Notifier<StreamingState> {
 
   CameraController? _cameraController;
 
+  /// Aktif kameranın tanımı. `sensorOrientation` ve `lensDirection` kare
+  /// döndürme açısının hesabında gerekiyor.
+  CameraDescription? _activeCamera;
+
   Timer? _heartbeatTimer;
   Timer? _reconnectTimer;
   Timer? _fpsTimer;
@@ -57,15 +63,21 @@ class StreamingController extends Notifier<StreamingState> {
   /// Metronom: bir sonraki kabul zamanı. Slot doluyken vuruş atlanır (burst yok).
   DateTime? _nextFrameDueAt;
   final List<DateTime> _cameraFrameTimestamps = [];
-  final List<DateTime> _sentFrameTimestamps = [];
+
+  /// Yalnızca Gateway'in HTTP 202 ile kabul ettiği kareler. Encode tamamlanması
+  /// buraya yazılmaz; kabul kriteri (>= [AppConfig.minFps]) bu listeden çıkar.
+  final List<DateTime> _acceptedFrameTimestamps = [];
   double _smoothedCameraFps = 0;
-  double _smoothedSendFps = 0;
+  double _smoothedAcceptedFps = 0;
   bool _fpsWarm = false;
   /// Stop sonrası Gateway close'un bitmesini bekler; bitmeden yeni open 409 üretir.
   Future<void>? _stopCleanupFuture;
 
   /// Yayın oturumu kimliği — yalnızca manuel Start'ta yenilenir; reconnect korur.
   final PublishSessionStore _publishSession = PublishSessionStore();
+
+  /// Geçici: ilk karede ROT satırını bir kez bas; FPS yolunu kirletme.
+  bool _rotationDebugLogged = false;
 
   /// Son bilinen Gateway oturumu (dispose/409 kurtarma için state'ten bağımsız).
   String? _activeGatewaySessionId;
@@ -292,15 +304,20 @@ class StreamingController extends Notifier<StreamingState> {
         (s) => s.copyWith(isCameraReady: false, clearError: true),
       );
 
+      // medium = 720x480 hedefi (camera_android_camerax boundSize). low 320x240
+      // veriyordu; native encoder step=2 ile onu 160x120'ye çökertip PPE
+      // detayını yok ediyordu. fps burada CameraX'in AE aralığıdır ve Dart
+      // metronomundan (pacedFps) ayrı tutulur.
       final controller = CameraController(
         _cameras[cameraIndex],
-        ResolutionPreset.low,
+        ResolutionPreset.medium,
         enableAudio: false,
-        fps: AppConfig.pacedFps,
+        fps: AppConfig.cameraTargetFpsOrNull,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
 
       _cameraController = controller;
+      _activeCamera = _cameras[cameraIndex];
 
       await controller.initialize();
 
@@ -392,6 +409,7 @@ class StreamingController extends Notifier<StreamingState> {
     }
 
     _cameraController = null;
+    _activeCamera = null;
 
     _update(
       (s) => s.copyWith(isStreaming: false, clearSessionId: true),
@@ -482,6 +500,7 @@ class StreamingController extends Notifier<StreamingState> {
       _reconnectTimer?.cancel();
       _reconnectTimer = null;
       _metrics.reset();
+      _rotationDebugLogged = false;
 
       _update((s) => s.copyWith(reconnectAttempt: 0));
     }
@@ -746,10 +765,17 @@ class StreamingController extends Notifier<StreamingState> {
       return;
     }
 
-    // Callback'te yalnızca kopya; downsample native'de.
+    // Callback'te yalnızca kopya; downsample ve döndürme native'de.
+    final rotation = _currentFrameRotation(
+      sourceWidth: image.width,
+      sourceHeight: image.height,
+    );
     final rawFrame = _frameService.extractFrame(
       image,
       encodeWidth: AppConfig.targetEncodeWidth,
+      rotationDegrees: rotation.appliedDegrees,
+      sensorOrientation: rotation.sensorOrientation,
+      isBackCamera: rotation.lensDirection == CameraLensDirection.back,
     );
     if (rawFrame == null) {
       return;
@@ -772,6 +798,64 @@ class StreamingController extends Notifier<StreamingState> {
     );
   }
 
+  /// Kare başına döndürme. Eklentinin `deviceOrientation` değeri UI ile
+  /// çelişirse pencere en/boy oranı esas alınır; aksi halde 720x480 buffer
+  /// döndürülmeden gider.
+  FrameRotationDecision _currentFrameRotation({
+    required int sourceWidth,
+    required int sourceHeight,
+  }) {
+    final camera = _activeCamera;
+    final controller = _cameraController;
+    final windowSize = _currentWindowSize();
+
+    if (camera == null || controller == null) {
+      return FrameRotationDecision(
+        pluginOrientation: DeviceOrientation.portraitUp,
+        displayOrientation: DeviceOrientation.portraitUp,
+        windowSize: windowSize,
+        sensorOrientation: 0,
+        lensDirection: CameraLensDirection.back,
+        computedDegrees: 0,
+        appliedDegrees: 0,
+      );
+    }
+
+    final decision = decideFrameRotation(
+      sensorOrientationDegrees: camera.sensorOrientation,
+      lensDirection: camera.lensDirection,
+      pluginOrientation: controller.value.deviceOrientation,
+      windowSize: windowSize,
+      sourceWidth: sourceWidth,
+      sourceHeight: sourceHeight,
+    );
+
+    if (!_rotationDebugLogged) {
+      _rotationDebugLogged = true;
+      debugPrint(
+        'ROT | sensor=${decision.sensorOrientation} '
+        'facing=${decision.lensDirection.name} '
+        'plugin=${decision.pluginOrientation.name} '
+        'window=${windowSize.width.toInt()}x${windowSize.height.toInt()} '
+        'display=${decision.displayOrientation.name} '
+        'computed=${decision.computedDegrees} '
+        'applied=${decision.appliedDegrees} '
+        'src=${sourceWidth}x$sourceHeight',
+      );
+    }
+
+    return decision;
+  }
+
+  Size _currentWindowSize() {
+    final views = WidgetsBinding.instance.platformDispatcher.views;
+    if (views.isEmpty) {
+      return Size.zero;
+    }
+
+    return views.first.physicalSize;
+  }
+
   Future<void> _uploadFrame({
     required String cameraId,
     required String sessionId,
@@ -780,15 +864,15 @@ class StreamingController extends Notifier<StreamingState> {
     required int jpegQuality,
     required int streamGeneration,
   }) async {
-    Uint8List? jpegBytes;
+    EncodedFrame? encoded;
 
     try {
-      jpegBytes = await _frameService.encodeJpeg(
+      encoded = await _frameService.encodeJpeg(
         frame,
         jpegQuality: jpegQuality,
       );
     } catch (_) {
-      jpegBytes = null;
+      encoded = null;
     } finally {
       // Encode bitti — yeni kare kabul edilebilir. Upload ayrı akar.
       _activeFrameUploads--;
@@ -803,7 +887,7 @@ class StreamingController extends Notifier<StreamingState> {
       return;
     }
 
-    if (jpegBytes == null || jpegBytes.isEmpty) {
+    if (encoded == null) {
       _metrics.recordFailed();
       _handleFrameFailure(
         const GatewayFailure.network(detail: 'jpeg_encode_failed'),
@@ -811,16 +895,22 @@ class StreamingController extends Notifier<StreamingState> {
       return;
     }
 
-    // Gösterge: encode bitti = pipeline temposu (HTTP gecikmesi FPS'i
-    // 3–6'ya düşürmesin). HTTP başarı sayacı ayrıca tutulur.
-    _sentFrameTimestamps.add(DateTime.now());
+    _metrics.recordEncoded(
+      sourceWidth: frame.sourceWidth,
+      sourceHeight: frame.sourceHeight,
+      encodedWidth: encoded.width,
+      encodedHeight: encoded.height,
+      jpegBytes: encoded.bytes.length,
+      quality: encoded.quality,
+      durationMs: encoded.encodeMs,
+    );
 
     try {
       final result = await _frameService.uploadJpeg(
         cameraId: cameraId,
         sessionId: sessionId,
         frameTimestamp: frameTimestamp,
-        jpegBytes: jpegBytes,
+        jpegBytes: encoded.bytes,
       );
 
       if (streamGeneration != _streamGeneration ||
@@ -832,7 +922,10 @@ class StreamingController extends Notifier<StreamingState> {
 
       switch (result.outcome) {
         case FrameOutcome.sent:
+          // Kabul FPS'i yalnızca burada ilerler: Gateway 202 döndürdü.
+          _acceptedFrameTimestamps.add(DateTime.now());
           _metrics.recordSent();
+          _metrics.recordUploadDuration(result.uploadMs);
           _consecutiveFrameFailures = 0;
 
           if (state.connection != StreamConnectionState.connected &&
@@ -847,8 +940,11 @@ class StreamingController extends Notifier<StreamingState> {
 
         case FrameOutcome.failed:
           _metrics.recordFailed();
+          _metrics.recordUploadDuration(result.uploadMs);
           _handleFrameFailure(result.failure);
       }
+
+      _logFrameDiagnostics(frame: frame, encoded: encoded, result: result);
     } catch (_) {
       _metrics.recordFailed();
 
@@ -856,6 +952,30 @@ class StreamingController extends Notifier<StreamingState> {
         _handleFrameFailure(null);
       }
     }
+  }
+
+  void _logFrameDiagnostics({
+    required RawYuvFrame frame,
+    required EncodedFrame encoded,
+    required FrameUploadResult result,
+  }) {
+    if (!AppConfig.frameDiagnostics) {
+      return;
+    }
+
+    debugPrint(
+      'FRAME | src=${frame.sourceWidth}x${frame.sourceHeight} '
+      'step=${frame.step} '
+      'rot=${frame.rotationDegrees} '
+      'enc=${encoded.width}x${encoded.height} '
+      'q=${encoded.quality} '
+      'bytes=${encoded.bytes.length} '
+      'encodeMs=${encoded.encodeMs} '
+      'uploadMs=${result.uploadMs} '
+      'outcome=${result.outcome.name} '
+      'queue=${_frameService.queuedUploadCount} '
+      'inflight=${_frameService.inFlightUploadCount}',
+    );
   }
 
   void _handleFrameFailure(GatewayFailure? failure) {
@@ -926,14 +1046,7 @@ class StreamingController extends Notifier<StreamingState> {
 
   void _startFpsMonitoring() {
     _fpsTimer?.cancel();
-    _nextFrameDueAt = null;
-    _cameraFrameTimestamps.clear();
-    _sentFrameTimestamps.clear();
-    _smoothedCameraFps = 0;
-    _smoothedSendFps = 0;
-    _fpsWarm = false;
-
-    _update((s) => s.copyWith(cameraFps: 0, sendFps: 0));
+    _resetFpsWindows();
 
     _fpsTimer = Timer.periodic(
       const Duration(seconds: 1),
@@ -944,14 +1057,18 @@ class StreamingController extends Notifier<StreamingState> {
   void _stopFpsMonitoring() {
     _fpsTimer?.cancel();
     _fpsTimer = null;
+    _resetFpsWindows();
+  }
+
+  void _resetFpsWindows() {
     _nextFrameDueAt = null;
     _cameraFrameTimestamps.clear();
-    _sentFrameTimestamps.clear();
+    _acceptedFrameTimestamps.clear();
     _smoothedCameraFps = 0;
-    _smoothedSendFps = 0;
+    _smoothedAcceptedFps = 0;
     _fpsWarm = false;
 
-    _update((s) => s.copyWith(cameraFps: 0, sendFps: 0));
+    _update((s) => s.copyWith(cameraFps: 0, acceptedFps: 0));
   }
 
   void _refreshFps() {
@@ -965,30 +1082,37 @@ class StreamingController extends Notifier<StreamingState> {
     _cameraFrameTimestamps.removeWhere(
       (at) => now.difference(at) > window,
     );
-    _sentFrameTimestamps.removeWhere(
+    _acceptedFrameTimestamps.removeWhere(
       (at) => now.difference(at) > window,
     );
 
     final rawCamera = (_cameraFrameTimestamps.length / 2.0)
         .clamp(0.0, AppConfig.pacedFps + 0.5);
-    final rawSend = (_sentFrameTimestamps.length / 2.0)
+    final rawAccepted = (_acceptedFrameTimestamps.length / 2.0)
         .clamp(0.0, AppConfig.pacedFps + 0.5);
 
     if (_fpsWarm) {
       _smoothedCameraFps = _smoothedCameraFps * 0.7 + rawCamera * 0.3;
-      _smoothedSendFps = _smoothedSendFps * 0.7 + rawSend * 0.3;
+      _smoothedAcceptedFps = _smoothedAcceptedFps * 0.7 + rawAccepted * 0.3;
     } else {
       _smoothedCameraFps = rawCamera;
-      _smoothedSendFps = rawSend;
+      _smoothedAcceptedFps = rawAccepted;
       _fpsWarm = true;
     }
 
     final cameraFps = _smoothedCameraFps.round().clamp(0, AppConfig.pacedFps);
-    final sendFps = _smoothedSendFps.round().clamp(0, AppConfig.pacedFps);
+    final acceptedFps =
+        _smoothedAcceptedFps.round().clamp(0, AppConfig.pacedFps);
+
+    _logStreamDiagnostics(
+      cameraFps: cameraFps,
+      acceptedFps: acceptedFps,
+      rawAcceptedFps: rawAccepted,
+    );
 
     // Değişmeyen FPS için tüm dashboard'u yeniden çizme — main isolate'i yorar.
     if (state.cameraFps == cameraFps &&
-        state.sendFps == sendFps &&
+        state.acceptedFps == acceptedFps &&
         state.sentFrames == _metrics.sentFrames &&
         state.failedFrames == _metrics.failedFrames &&
         state.droppedFrames == _metrics.droppedFrames) {
@@ -998,12 +1122,41 @@ class StreamingController extends Notifier<StreamingState> {
     _update(
       (s) => s.copyWith(
         cameraFps: cameraFps,
-        sendFps: sendFps,
+        acceptedFps: acceptedFps,
         sentFrames: _metrics.sentFrames,
         failedFrames: _metrics.failedFrames,
         droppedFrames: _metrics.droppedFrames,
         lastSuccessAt: _metrics.lastSuccessAt,
       ),
+    );
+  }
+
+  /// Saniyede bir toplu özet. Gerçek cihaz kabul ölçümünün raporlanacağı
+  /// alanların tamamını tek satırda verir.
+  void _logStreamDiagnostics({
+    required int cameraFps,
+    required int acceptedFps,
+    required double rawAcceptedFps,
+  }) {
+    if (!AppConfig.frameDiagnostics) {
+      return;
+    }
+
+    debugPrint(
+      'FRAME 1s | src=${_metrics.lastSourceWidth}x${_metrics.lastSourceHeight} '
+      'enc=${_metrics.lastEncodedWidth}x${_metrics.lastEncodedHeight} '
+      'q=${_metrics.lastJpegQuality} '
+      'jpegAvgBytes=${_metrics.jpegAvgBytes} '
+      'encodeMs=${_metrics.encodeAvgMs}/${_metrics.encodeP95Ms} '
+      'uploadMs=${_metrics.uploadAvgMs}/${_metrics.uploadP95Ms} '
+      'acceptedFps=$acceptedFps '
+      'acceptedFpsRaw=${rawAcceptedFps.toStringAsFixed(1)} '
+      'cameraFps=$cameraFps '
+      'accepted=${_metrics.sentFrames} '
+      'failed=${_metrics.failedFrames} '
+      'dropped=${_metrics.droppedFrames} '
+      'queue=${_frameService.queuedUploadCount} '
+      'inflight=${_frameService.inFlightUploadCount}',
     );
   }
 

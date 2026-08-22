@@ -17,6 +17,11 @@ from app.schemas.detection import DetectionRequest
 logger = logging.getLogger(__name__)
 
 
+def detection_json_body(payload: DetectionRequest) -> dict:
+    """httpx `json=` ile POST edilen dict. Capture ve send aynı kaynağı kullanır."""
+    return payload.model_dump(mode="json", by_alias=True)
+
+
 class BackendClientError(RuntimeError):
     def __init__(self, message: str, status_code: int | None = None):
         super().__init__(message)
@@ -38,7 +43,7 @@ class BackendDetectionClient:
         """
         url = self._settings.backend_detections_url
         headers = {"X-Internal-Api-Key": self._settings.internal_api_key or ""}
-        body = payload.model_dump(mode="json", by_alias=True)
+        body = detection_json_body(payload)
 
         last_exc: Exception | None = None
         for attempt in range(1, self._max_retries + 1):

@@ -5,3 +5,5 @@ __pycache__/
 .env
 models/*.pt
 models/*.onnx
+# GEÇİCİ DEBUG: capture_5.trigger çıktıları
+debug_frames/

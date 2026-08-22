@@ -65,7 +65,7 @@ void main() {
           const StreamStatsOverlay(
             state: StreamingState(
               cameraFps: 30,
-              sendFps: 15,
+              acceptedFps: 15,
               sentFrames: 120,
               failedFrames: 2,
               droppedFrames: 7,
@@ -75,9 +75,9 @@ void main() {
       );
 
       expect(find.text('Kamera 30 FPS'), findsOneWidget);
-      expect(find.text('Gönderim 15 FPS'), findsOneWidget);
+      expect(find.text('Kabul 15 FPS'), findsOneWidget);
       expect(
-        find.text('Gönderilen 120  Hata 2  Düşen 7'),
+        find.text('Kabul 120  Hata 2  Düşen 7'),
         findsOneWidget,
       );
     });
