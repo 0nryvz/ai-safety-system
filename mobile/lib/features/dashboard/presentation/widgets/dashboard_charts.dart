@@ -14,16 +14,20 @@ class DashboardTrendChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (points.isEmpty) {
-      return const _EmptyBlock(message: 'Trend verisi yok');
+      return const _EmptyBlock(
+        title: '7 günlük trend',
+        message: 'Trend verisi yok',
+      );
     }
 
     final maxCount = points
         .map((p) => p.count)
         .fold<int>(0, (a, b) => a > b ? a : b)
         .clamp(1, 1 << 30);
+    final total = points.fold<int>(0, (sum, point) => sum + point.count);
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
         color: StrixBrand.surface,
         borderRadius: BorderRadius.circular(StrixBrand.radiusCard),
@@ -32,17 +36,44 @@ class DashboardTrendChart extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '7 günlük trend',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: StrixBrand.textPrimary,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '7 günlük trend',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: StrixBrand.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Günlük ihlal sayısı',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: StrixBrand.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '$total toplam',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: StrixBrand.textSecondary,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           SizedBox(
-            height: 96,
+            height: 132,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -51,26 +82,50 @@ class DashboardTrendChart extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 3),
                       child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
                         children: [
+                          SizedBox(
+                            height: 16,
+                            child: Text(
+                              point.count == 0 ? '' : '${point.count}',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: StrixBrand.textSecondary,
+                              ),
+                            ),
+                          ),
                           Expanded(
                             child: Align(
                               alignment: Alignment.bottomCenter,
                               child: FractionallySizedBox(
-                                heightFactor: point.count / maxCount,
+                                heightFactor: point.count == 0
+                                    ? 0.06
+                                    : (point.count / maxCount).clamp(0.08, 1),
                                 widthFactor: 1,
                                 child: DecoratedBox(
                                   decoration: BoxDecoration(
-                                    color: StrixBrand.primary.withValues(
-                                      alpha: 0.85,
-                                    ),
-                                    borderRadius: BorderRadius.circular(6),
+                                    color: point.count == 0
+                                        ? StrixBrand.border
+                                        : StrixBrand.primary.withValues(
+                                            alpha: 0.9,
+                                          ),
+                                    borderRadius: BorderRadius.circular(7),
                                   ),
                                 ),
                               ),
                             ),
                           ),
                           const SizedBox(height: 6),
+                          Text(
+                            dashboardWeekdayShort(point.date),
+                            maxLines: 1,
+                            overflow: TextOverflow.clip,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: StrixBrand.textPrimary,
+                            ),
+                          ),
                           Text(
                             formatLocalShortDate(point.date),
                             maxLines: 1,
@@ -101,16 +156,17 @@ class DashboardDistributionChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return const _EmptyBlock(message: 'Dağılım verisi yok');
+      return const _EmptyBlock(
+        title: 'İhlal dağılımı',
+        message: 'Dağılım verisi yok',
+      );
     }
 
-    final maxCount = items
-        .map((e) => e.count)
-        .fold<int>(0, (a, b) => a > b ? a : b)
-        .clamp(1, 1 << 30);
+    final total = items.fold<int>(0, (sum, item) => sum + item.count);
+    final safeTotal = total == 0 ? 1 : total;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
       decoration: BoxDecoration(
         color: StrixBrand.surface,
         borderRadius: BorderRadius.circular(StrixBrand.radiusCard),
@@ -127,67 +183,111 @@ class DashboardDistributionChart extends StatelessWidget {
               color: StrixBrand.textPrimary,
             ),
           ),
-          const SizedBox(height: 10),
-          for (final item in items) ...[
-            Row(
-              children: [
-                Expanded(
-                  flex: 4,
-                  child: Text(
-                    dashboardTypeLabel(item.group),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: StrixBrand.textPrimary,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 5,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: item.count / maxCount,
-                      minHeight: 8,
-                      backgroundColor: StrixBrand.surfaceSubtle,
-                      color: StrixBrand.primary,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 28,
-                  child: Text(
-                    '${item.count}',
-                    textAlign: TextAlign.right,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: StrixBrand.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
+          const SizedBox(height: 2),
+          Text(
+            'Son dönem tür kırılımı',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: StrixBrand.textSecondary,
             ),
-            const SizedBox(height: 8),
-          ],
+          ),
+          const SizedBox(height: 12),
+          for (final item in items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _DistributionRow(
+                item: item,
+                percent: ((item.count / safeTotal) * 100).round(),
+                barValue: item.count / safeTotal,
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
+class _DistributionRow extends StatelessWidget {
+  final DashboardDistributionItem item;
+  final int percent;
+  final double barValue;
+
+  const _DistributionRow({
+    required this.item,
+    required this.percent,
+    required this.barValue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = dashboardTypeColor(item.group);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(dashboardTypeIcon(item.group), size: 16, color: color),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                dashboardTypeLabel(item.group),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: StrixBrand.textPrimary,
+                ),
+              ),
+            ),
+            Text(
+              '${item.count}',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: StrixBrand.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '%$percent',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: StrixBrand.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: barValue.clamp(0, 1),
+            minHeight: 8,
+            backgroundColor: color.withValues(alpha: 0.12),
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _EmptyBlock extends StatelessWidget {
+  final String title;
   final String message;
 
-  const _EmptyBlock({required this.message});
+  const _EmptyBlock({
+    required this.title,
+    required this.message,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 20),
       decoration: BoxDecoration(
         color: StrixBrand.surface,
         borderRadius: BorderRadius.circular(StrixBrand.radiusCard),
@@ -195,6 +295,18 @@ class _EmptyBlock extends StatelessWidget {
       ),
       child: Column(
         children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              title,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: StrixBrand.textPrimary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Icon(
             Icons.insert_chart_outlined,
             color: StrixBrand.textSecondary,

@@ -15,7 +15,6 @@ import '../../features/violations/data/violations_api.dart';
 import '../../features/violations/data/violations_repository.dart';
 import '../../features/violations/presentation/violation_detail_page.dart';
 import '../../features/violations/presentation/violations_tab_page.dart';
-import '../../shared/widgets/placeholder_page.dart';
 import 'auth_controller.dart';
 import 'shell_destinations.dart';
 
@@ -106,12 +105,6 @@ class _AppShellState extends ConsumerState<AppShell> {
       ShellTab.violations => const ViolationsTabPage(),
       ShellTab.notifications => const NotificationsTabPage(),
       ShellTab.users => const UsersTabPage(),
-      ShellTab.cameraBroadcast => PlaceholderPage(
-          title: 'Kamera Yayını',
-          subtitle: _loadingCameras
-              ? 'Kamera listesi yükleniyor…'
-              : 'Mevcut yayın akışını açmak için sekmeye yeniden dokunun.',
-        ),
     };
   }
 
@@ -132,27 +125,74 @@ class _AppShellState extends ConsumerState<AppShell> {
     return Scaffold(
       backgroundColor: StrixBrand.background,
       appBar: AppBar(
-        title: Text(
-          StrixBrand.shortName,
-          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                StrixBrand.logoAsset,
+                width: 28,
+                height: 28,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              StrixBrand.shortName,
+              style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+            ),
+          ],
         ),
         actions: [
+          _BroadcastAction(
+            loading: _loadingCameras,
+            compact: MediaQuery.sizeOf(context).width < 420,
+            onPressed: _openCameraBroadcast,
+          ),
           if (userLabel.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 2),
               child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.sizeOf(context).width * 0.38,
-                  ),
-                  child: Text(
-                    userLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.end,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: StrixBrand.textSecondary,
+                child: Tooltip(
+                  message: userLabel,
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.sizeOf(context).width * 0.28,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: StrixBrand.surfaceSubtle,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: StrixBrand.border),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.person_outline,
+                          size: 16,
+                          color: StrixBrand.textSecondary,
+                        ),
+                        if (MediaQuery.sizeOf(context).width >= 400) ...[
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              userLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: StrixBrand.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),
@@ -163,7 +203,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             onPressed: () {
               ref.read(authSessionProvider.notifier).signOut();
             },
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout_rounded),
           ),
         ],
       ),
@@ -175,28 +215,87 @@ class _AppShellState extends ConsumerState<AppShell> {
           ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) {
-          final destination = destinations[index];
-          if (destination.tab == ShellTab.cameraBroadcast) {
-            _openCameraBroadcast();
-            return;
-          }
-          setState(() => _tab = destination.tab);
-        },
-        labelBehavior: MediaQuery.sizeOf(context).width < 420
-            ? NavigationDestinationLabelBehavior.onlyShowSelected
-            : NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: [
-          for (final destination in destinations)
-            NavigationDestination(
-              icon: Icon(destination.icon),
-              selectedIcon: Icon(destination.icon),
-              label: destination.label,
-              tooltip: destination.label,
-            ),
-        ],
+      bottomNavigationBar: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: StrixBrand.surface,
+          border: Border(
+            top: BorderSide(color: StrixBrand.border),
+          ),
+        ),
+        child: NavigationBar(
+          selectedIndex: selectedIndex,
+          labelBehavior: MediaQuery.sizeOf(context).width < 360
+              ? NavigationDestinationLabelBehavior.onlyShowSelected
+              : NavigationDestinationLabelBehavior.alwaysShow,
+          onDestinationSelected: (index) {
+            setState(() => _tab = destinations[index].tab);
+          },
+          destinations: [
+            for (final destination in destinations)
+              NavigationDestination(
+                icon: Icon(destination.icon),
+                selectedIcon: Icon(
+                  destination.selectedIcon,
+                  color: StrixBrand.primary,
+                ),
+                label: destination.label,
+                tooltip: destination.label,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BroadcastAction extends StatelessWidget {
+  final bool loading;
+  final bool compact;
+  final VoidCallback onPressed;
+
+  const _BroadcastAction({
+    required this.loading,
+    required this.compact,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = loading
+        ? const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : const Icon(Icons.live_tv_outlined, size: 20);
+
+    if (compact) {
+      return IconButton(
+        tooltip: 'Kamera Yayını',
+        onPressed: loading ? null : onPressed,
+        icon: icon,
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      child: Tooltip(
+        message: 'Kamera Yayını',
+        child: FilledButton.tonalIcon(
+          onPressed: loading ? null : onPressed,
+          icon: icon,
+          label: Text(
+            'Yayın',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          ),
+          style: FilledButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            minimumSize: const Size(0, 36),
+            foregroundColor: StrixBrand.primary,
+            backgroundColor: StrixBrand.primary.withValues(alpha: 0.10),
+          ),
+        ),
       ),
     );
   }

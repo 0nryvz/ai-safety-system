@@ -4,11 +4,13 @@ import 'package:camera_stream_app/app.dart';
 import 'package:camera_stream_app/core/network/backend_client.dart';
 import 'package:camera_stream_app/core/realtime/realtime_event_parser.dart';
 import 'package:camera_stream_app/core/realtime/stomp_client_port.dart';
+import 'package:camera_stream_app/features/auth/app_shell.dart';
 import 'package:camera_stream_app/features/auth/auth_controller.dart';
 import 'package:camera_stream_app/features/auth/auth_login_page.dart';
 import 'package:camera_stream_app/features/notifications/data/notification_event_store.dart';
 import 'package:camera_stream_app/features/notifications/data/realtime_providers.dart';
 import 'package:camera_stream_app/features/session/camera_selection_page.dart';
+import 'package:camera_stream_app/features/session/operator_login_page.dart';
 import 'package:camera_stream_app/features/violations/presentation/violation_detail_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -255,7 +257,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(AuthLoginPage), findsNothing);
-    expect(find.text('Dashboard'), findsWidgets);
+    expect(find.text('Özet'), findsWidgets);
     expect(find.text('Bugün'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
   });
@@ -292,7 +294,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Ada Admin'), findsWidgets);
 
-    await tester.tap(find.text('Dashboard'));
+    await tester.tap(find.byTooltip('Özet'));
     await tester.pumpAndSettle();
 
     final recent = find.textContaining('Kapı-A');
@@ -310,8 +312,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Kullanıcılar'), findsNothing);
-    expect(find.text('Dashboard'), findsWidgets);
-    expect(find.text('Kamera Yayını'), findsOneWidget);
+    expect(find.text('Özet'), findsWidgets);
+    expect(find.byTooltip('Kamera Yayını'), findsOneWidget);
   });
 
   testWidgets('Kamera Yayını backend status alanından kamera listeler',
@@ -319,12 +321,32 @@ void main() {
     await pumpSignedIn(tester);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Kamera Yayını'));
+    await tester.tap(find.byTooltip('Kamera Yayını'));
     await tester.pumpAndSettle();
 
     expect(find.byType(CameraSelectionPage), findsOneWidget);
     expect(find.text('Kamera seçimi'), findsOneWidget);
     expect(find.text('Kaynak-1 Kamera A'), findsOneWidget);
+  });
+
+  testWidgets('Kamera Yayınından geri AppShell oturumunu korur', (tester) async {
+    await pumpSignedIn(tester);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Kamera Yayını'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CameraSelectionPage), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Geri'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CameraSelectionPage), findsNothing);
+    expect(find.byType(AuthLoginPage), findsNothing);
+    expect(find.byType(OperatorLoginPage), findsNothing);
+    expect(find.byType(AppShell), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(controller.state.authenticated, isTrue);
   });
 
   testWidgets('notification tap mevcut violation detail açar', (tester) async {
@@ -387,7 +409,7 @@ void main() {
     expect(find.byTooltip('Çıkış'), findsOneWidget);
   });
 
-  testWidgets('dar ekranda 6 sekme overflow üretmez', (tester) async {
+  testWidgets('dar ekranda alt menü overflow üretmez', (tester) async {
     await pumpSignedIn(tester);
     tester.view.physicalSize = const Size(360, 800);
     tester.view.devicePixelRatio = 1;
@@ -395,6 +417,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byType(NavigationBar), findsOneWidget);
-    expect(find.text('Dashboard'), findsWidgets);
+    expect(find.text('Özet'), findsWidgets);
+    expect(find.byTooltip('Kamera Yayını'), findsOneWidget);
   });
 }

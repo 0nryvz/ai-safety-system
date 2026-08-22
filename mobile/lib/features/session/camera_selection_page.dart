@@ -6,7 +6,6 @@ import '../../core/theme/strix_brand.dart';
 import '../camera/camera_page.dart';
 import '../streaming/streaming_controller.dart';
 import 'camera_option.dart';
-import 'operator_login_page.dart';
 
 /// Giriş sonrası fabrika kamerası seçimi.
 class CameraSelectionPage extends ConsumerWidget {
@@ -37,12 +36,8 @@ class CameraSelectionPage extends ConsumerWidget {
     );
   }
 
-  void _backToLogin(BuildContext context) {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => const OperatorLoginPage(),
-      ),
-    );
+  void _onBack(BuildContext context) {
+    leaveCameraFlow(context);
   }
 
   @override
@@ -58,8 +53,9 @@ class CameraSelectionPage extends ConsumerWidget {
           style: GoogleFonts.inter(fontWeight: FontWeight.w700),
         ),
         leading: IconButton(
+          tooltip: 'Geri',
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => _backToLogin(context),
+          onPressed: () => _onBack(context),
         ),
       ),
       body: ListView(

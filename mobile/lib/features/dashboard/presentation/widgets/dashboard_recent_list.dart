@@ -20,7 +20,7 @@ class DashboardRecentList extends StatelessWidget {
     if (items.isEmpty) {
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
         decoration: BoxDecoration(
           color: StrixBrand.surface,
           borderRadius: BorderRadius.circular(StrixBrand.radiusCard),
@@ -28,6 +28,18 @@ class DashboardRecentList extends StatelessWidget {
         ),
         child: Column(
           children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Son ihlaller',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: StrixBrand.textPrimary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
             Icon(
               Icons.inbox_outlined,
               color: StrixBrand.textSecondary,
@@ -67,19 +79,42 @@ class DashboardRecentList extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Son ihlaller',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: StrixBrand.textPrimary,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${items.length} kayıt',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: StrixBrand.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
             child: Text(
-              'Son ihlaller',
+              'Karta dokunarak detayı açın',
               style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: StrixBrand.textPrimary,
+                fontSize: 12,
+                color: StrixBrand.textSecondary,
               ),
             ),
           ),
           for (var i = 0; i < items.length; i++) ...[
-            if (i > 0)
-              const Divider(height: 1, color: StrixBrand.border),
+            if (i > 0) const Divider(height: 1, color: StrixBrand.border),
             _RecentTile(
               item: items[i],
               onTap: onTap == null || items[i].violationId.isEmpty
@@ -110,73 +145,92 @@ class _RecentTile extends StatelessWidget {
       if (item.departmentName != null && item.departmentName!.isNotEmpty)
         item.departmentName!,
     ].join(' · ');
+    final typeColor = dashboardTypeColor(item.violationType);
+    final statusColor = dashboardStatusColor(item.lifecycleStatus);
 
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    dashboardTypeLabel(item.violationType),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: StrixBrand.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle.isEmpty ? 'Kamera bilgisi yok' : subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: StrixBrand.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    formatLocalDateTime(item.detectedAt ?? item.startedAt),
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: StrixBrand.textSecondary,
-                    ),
-                  ),
-                ],
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: typeColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  dashboardTypeIcon(item.violationType),
+                  color: typeColor,
+                  size: 20,
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _StatusChip(label: dashboardStatusLabel(item.lifecycleStatus)),
-                const SizedBox(height: 6),
-                Text(
-                  dashboardStatusLabel(item.reviewStatus),
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      dashboardTypeLabel(item.violationType),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: StrixBrand.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle.isEmpty ? 'Kamera bilgisi yok' : subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: StrixBrand.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _StatusChip(
+                          label: dashboardStatusLabel(item.lifecycleStatus),
+                          color: statusColor,
+                        ),
+                        _StatusChip(
+                          label: dashboardStatusLabel(item.reviewStatus),
+                          color: dashboardStatusColor(item.reviewStatus),
+                        ),
+                        Text(
+                          formatLocalDateTime(item.detectedAt ?? item.startedAt),
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: StrixBrand.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (onTap != null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Icon(
+                    Icons.chevron_right,
                     color: StrixBrand.textSecondary,
+                    size: 22,
                   ),
                 ),
-              ],
-            ),
-            if (onTap != null) ...[
-              const SizedBox(width: 4),
-              const Icon(
-                Icons.chevron_right,
-                color: StrixBrand.textSecondary,
-                size: 20,
-              ),
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -185,17 +239,21 @@ class _RecentTile extends StatelessWidget {
 
 class _StatusChip extends StatelessWidget {
   final String label;
+  final Color color;
 
-  const _StatusChip({required this.label});
+  const _StatusChip({
+    required this.label,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: StrixBrand.surfaceSubtle,
+        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: StrixBrand.border),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
       ),
       child: Text(
         label,
@@ -203,8 +261,8 @@ class _StatusChip extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: GoogleFonts.inter(
           fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: StrixBrand.textPrimary,
+          fontWeight: FontWeight.w700,
+          color: color,
         ),
       ),
     );

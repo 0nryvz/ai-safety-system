@@ -10,6 +10,21 @@ import '../session/operator_login_page.dart';
 import '../streaming/streaming_controller.dart';
 import '../streaming/streaming_state.dart';
 
+/// AppShell altındaysa pop; operatör soğuk başlangıçta login'e dön.
+void leaveCameraFlow(BuildContext context) {
+  final navigator = Navigator.of(context);
+  if (navigator.canPop()) {
+    navigator.pop();
+    return;
+  }
+  navigator.pushAndRemoveUntil(
+    MaterialPageRoute<void>(
+      builder: (_) => const OperatorLoginPage(),
+    ),
+    (_) => false,
+  );
+}
+
 class CameraPage extends ConsumerStatefulWidget {
   const CameraPage({super.key});
 
@@ -20,6 +35,7 @@ class CameraPage extends ConsumerStatefulWidget {
 class _CameraPageState extends ConsumerState<CameraPage>
     with WidgetsBindingObserver {
   bool _identityReady = false;
+  bool _leaveScheduled = false;
 
   @override
   void initState() {
@@ -106,18 +122,15 @@ class _CameraPageState extends ConsumerState<CameraPage>
     }
 
     if (!state.isCameraAssigned) {
-      // Atama yoksa girişe dön — soğuk başlangıç her zaman login.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute<void>(
-            builder: (_) => const OperatorLoginPage(),
-          ),
-          (_) => false,
-        );
-      });
+      if (!_leaveScheduled) {
+        _leaveScheduled = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) {
+            return;
+          }
+          leaveCameraFlow(context);
+        });
+      }
       return const Scaffold(
         backgroundColor: StrixBrand.background,
         body: Center(
@@ -126,13 +139,17 @@ class _CameraPageState extends ConsumerState<CameraPage>
       );
     }
 
-    return const StrixDashboard();
+    return StrixDashboard(
+      onClose: () => leaveCameraFlow(context),
+    );
   }
 }
 
 /// Operatör paneli.
 class StrixDashboard extends ConsumerWidget {
-  const StrixDashboard({super.key});
+  final VoidCallback? onClose;
+
+  const StrixDashboard({super.key, this.onClose});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -146,7 +163,7 @@ class StrixDashboard extends ConsumerWidget {
             Consumer(
               builder: (context, ref, _) {
                 final state = ref.watch(streamingControllerProvider);
-                return _CommandHeader(state: state);
+                return _CommandHeader(state: state, onClose: onClose);
               },
             ),
             Expanded(
@@ -163,12 +180,7 @@ class StrixDashboard extends ConsumerWidget {
                           if (!context.mounted) {
                             return;
                           }
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const OperatorLoginPage(),
-                            ),
-                            (_) => false,
-                          );
+                          leaveCameraFlow(context);
                         },
                       );
                     },
@@ -233,13 +245,14 @@ class StrixDashboard extends ConsumerWidget {
 
 class _CommandHeader extends StatelessWidget {
   final StreamingState state;
+  final VoidCallback? onClose;
 
-  const _CommandHeader({required this.state});
+  const _CommandHeader({required this.state, this.onClose});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.fromLTRB(8, 12, 16, 12),
       decoration: const BoxDecoration(
         color: StrixBrand.surface,
         border: Border(
@@ -248,6 +261,14 @@ class _CommandHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
+          if (onClose != null)
+            IconButton(
+              tooltip: 'Geri',
+              onPressed: onClose,
+              icon: const Icon(Icons.arrow_back),
+            )
+          else
+            const SizedBox(width: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Image.asset(

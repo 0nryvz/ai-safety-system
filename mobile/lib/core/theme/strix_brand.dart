@@ -69,7 +69,7 @@ class StrixBrand {
         backgroundColor: surface,
         foregroundColor: textPrimary,
         elevation: 0,
-        scrolledUnderElevation: 0.5,
+        scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: GoogleFonts.inter(
           fontSize: 20,
@@ -77,6 +77,34 @@ class StrixBrand {
           color: textPrimary,
         ),
         surfaceTintColor: Colors.transparent,
+        shape: const Border(
+          bottom: BorderSide(color: border),
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: surface,
+        elevation: 0,
+        height: 68,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: primary.withValues(alpha: 0.12),
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? primary : textSecondary,
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            size: 24,
+            color: selected ? primary : textSecondary,
+          );
+        }),
       ),
       cardTheme: CardThemeData(
         color: surface,

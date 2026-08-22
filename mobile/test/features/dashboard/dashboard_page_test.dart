@@ -304,7 +304,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('3'), findsOneWidget);
+    expect(find.text('3'), findsWidgets);
   });
 
   testWidgets('canonical olmayan type ham enum basmaz', (tester) async {

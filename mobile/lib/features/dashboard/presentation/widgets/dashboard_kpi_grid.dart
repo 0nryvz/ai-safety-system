@@ -12,43 +12,56 @@ class DashboardKpiGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    final textScale = MediaQuery.textScalerOf(context).scale(1);
-    final tallCards = width < 360 || textScale > 1.15;
-
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: tallCards ? 1.2 : 1.55,
+    return Column(
       children: [
-        _KpiCard(
-          label: 'Bugün',
-          value: '${summary.todayViolationCount}',
-          hint: 'ihlal',
-          accent: dashboardAccentForCount(summary.todayViolationCount),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _KpiCard(
+                icon: Icons.today_outlined,
+                label: 'Bugün',
+                value: '${summary.todayViolationCount}',
+                hint: 'ihlal',
+                accent: dashboardAccentForCount(summary.todayViolationCount),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _KpiCard(
+                icon: Icons.date_range_outlined,
+                label: 'Son 7 gün',
+                value: '${summary.last7DaysViolationCount}',
+                hint: 'ihlal',
+                accent: dashboardAccentForCount(summary.last7DaysViolationCount),
+              ),
+            ),
+          ],
         ),
-        _KpiCard(
-          label: 'Son 7 gün',
-          value: '${summary.last7DaysViolationCount}',
-          hint: 'ihlal',
-          accent: dashboardAccentForCount(summary.last7DaysViolationCount),
-        ),
-        _KpiCard(
-          label: 'Aktif kameralar',
-          value: '${summary.activeCameraCount}',
-          hint: 'çevrimiçi',
-          accent: StrixBrand.success,
-        ),
-        _KpiCard(
-          label: 'Aktif ihlaller',
-          value: '${summary.activeViolationCount}',
-          hint: summary.mostFrequentViolationType == null
-              ? 'açık kayıt'
-              : dashboardTypeLabel(summary.mostFrequentViolationType),
-          accent: dashboardAccentForCount(summary.activeViolationCount),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _KpiCard(
+                icon: Icons.videocam_outlined,
+                label: 'Aktif kameralar',
+                value: '${summary.activeCameraCount}',
+                hint: 'çevrimiçi',
+                accent: StrixBrand.success,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _KpiCard(
+                icon: Icons.warning_amber_outlined,
+                label: 'Aktif ihlaller',
+                value: '${summary.activeViolationCount}',
+                hint: 'açık kayıt',
+                accent: dashboardAccentForCount(summary.activeViolationCount),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -56,12 +69,14 @@ class DashboardKpiGrid extends StatelessWidget {
 }
 
 class _KpiCard extends StatelessWidget {
+  final IconData icon;
   final String label;
   final String value;
   final String hint;
   final Color accent;
 
   const _KpiCard({
+    required this.icon,
     required this.label,
     required this.value,
     required this.hint,
@@ -80,17 +95,33 @@ class _KpiCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: StrixBrand.textSecondary,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 16, color: accent),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: StrixBrand.textSecondary,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const Spacer(),
+          const SizedBox(height: 10),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
@@ -104,7 +135,7 @@ class _KpiCard extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             hint,
             maxLines: 1,

@@ -29,10 +29,10 @@ void main() {
         ShellTab.violations,
         ShellTab.notifications,
         ShellTab.users,
-        ShellTab.cameraBroadcast,
       ]),
     );
-    expect(destinations.last.tab, ShellTab.cameraBroadcast);
+    expect(destinations.last.tab, ShellTab.users);
+    expect(destinations.map((d) => d.label), contains('Özet'));
   });
 
   test('OHS_SPECIALIST Kullanıcılar girişini görmez', () {
@@ -40,7 +40,8 @@ void main() {
         shellDestinationsFor(_sessionWithRoles({'OHS_SPECIALIST'}));
 
     expect(destinations.map((d) => d.tab), isNot(contains(ShellTab.users)));
-    expect(destinations.map((d) => d.tab), contains(ShellTab.cameraBroadcast));
+    expect(destinations.map((d) => d.tab), contains(ShellTab.dashboard));
+    expect(destinations.length, 4);
   });
 
   test('SHIFT_SUPERVISOR kamera yönetimi affordance görmez', () {

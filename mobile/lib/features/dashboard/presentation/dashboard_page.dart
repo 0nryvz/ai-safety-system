@@ -8,6 +8,7 @@ import '../models/dashboard_failure.dart';
 import 'widgets/dashboard_charts.dart';
 import 'widgets/dashboard_kpi_grid.dart';
 import 'widgets/dashboard_recent_list.dart';
+import 'widgets/dashboard_status_card.dart';
 
 /// Operasyon dashboard'u — backend REST verisi.
 ///
@@ -123,6 +124,13 @@ class _DashboardPageState extends State<DashboardPage> {
       appBar: widget.showAppBar
           ? AppBar(
               title: const Text('Dashboard'),
+              actions: [
+                IconButton(
+                  tooltip: 'Yenile',
+                  onPressed: _loading ? null : _load,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
             )
           : null,
       body: RefreshIndicator(
@@ -177,18 +185,59 @@ class _DashboardPageState extends State<DashboardPage> {
     }
 
     final snapshot = _snapshot!;
-    final offlineCameras = snapshot.summary.offlineCameraCount;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (!widget.showAppBar) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Özet',
+                              style: GoogleFonts.inter(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                                color: StrixBrand.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Günün ihlal ve kamera durumuna hızlı bakış.',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: StrixBrand.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Yenile',
+                        onPressed: _loading ? null : _load,
+                        icon: _loading
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.refresh),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 if (_failure != null) ...[
                   ErrorBanner(
                     message: _failure!.message,
@@ -197,35 +246,14 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                   const SizedBox(height: 12),
                 ],
-                if (offlineCameras > 0) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: StrixBrand.warning.withValues(alpha: 0.12),
-                      borderRadius:
-                          BorderRadius.circular(StrixBrand.radiusCard),
-                      border: Border.all(
-                        color: StrixBrand.warning.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    child: Text(
-                      '$offlineCameras kamera çevrimdışı',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: StrixBrand.textPrimary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                DashboardStatusCard(summary: snapshot.summary),
+                const SizedBox(height: 12),
                 DashboardKpiGrid(summary: snapshot.summary),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 DashboardTrendChart(points: snapshot.trend),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 DashboardDistributionChart(items: snapshot.distribution),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 DashboardRecentList(
                   items: snapshot.recentViolations,
                   onTap: widget.onRecentViolationTap,
