@@ -4,8 +4,9 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import * as detailHook from '../features/violations/useViolationDetail'
 import * as violationService from '../services/violationService'
 import ViolationDetailPage from './ViolationDetailPage'
-import * as realtimeHook from '../core/realtime/useRealtimeViolations'
 import { ApiError } from '../core/api/apiError'
+import * as realtimeHook from '../core/realtime/useRealtimeViolations'
+import * as realtimeRuntime from '../core/realtime/realtimeRuntime'
 
 afterEach(() => {
   cleanup()
@@ -146,6 +147,34 @@ describe('ViolationDetailPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'İnceleme durumu güncellenemedi. Lütfen tekrar deneyin.',
     )
+  })
+
+  it('refreshes detail when realtime recovery is requested', () => {
+    const retry = vi.fn()
+
+    vi.spyOn(detailHook, 'useViolationDetail').mockReturnValue({
+      data: violation,
+      isLoading: false,
+      error: null,
+      retry,
+    })
+
+    let recoveryListener:
+      Parameters<typeof realtimeRuntime.subscribeToRealtimeRecovery>[0] | undefined
+
+    vi.spyOn(realtimeRuntime, 'subscribeToRealtimeRecovery').mockImplementation((listener) => {
+      recoveryListener = listener
+
+      return vi.fn()
+    })
+
+    renderPage()
+
+    expect(recoveryListener).toBeDefined()
+
+    recoveryListener?.()
+
+    expect(retry).toHaveBeenCalledTimes(1)
   })
 
   it('refreshes detail once when realtime state changes for the same violation', async () => {

@@ -19,6 +19,7 @@ import StatusBadge from '../shared/ui/StatusBadge/StatusBadge'
 import './ViolationDetailPage.css'
 import ViolationVideoPlayer from '../features/violations/ViolationVideoPlayer'
 import { useRealtimeViolations } from '../core/realtime/useRealtimeViolations'
+import { subscribeToRealtimeRecovery } from '../core/realtime/realtimeRuntime'
 import { ApiError } from '../core/api/apiError'
 import ViolationCoverImage from '../features/violations/ViolationCoverImage'
 
@@ -64,6 +65,12 @@ function ViolationDetailPage() {
     lastHandledRealtimeEventRef.current = realtimeViolation.lastEventAt
     retry()
   }, [data, realtimeViolation, retry])
+
+  useEffect(() => {
+    return subscribeToRealtimeRecovery(() => {
+      retry()
+    })
+  }, [retry])
 
   const lifecyclePresentation = data
     ? getViolationDetailLifecyclePresentation(data.lifecycleStatus)
