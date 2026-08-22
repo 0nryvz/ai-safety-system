@@ -140,14 +140,14 @@ public class ViolationNotificationService {
                         false
                 );
 
-        boolean delivered =
+        boolean dispatched =
                 sendToRecipients(
                         recipients,
                         message,
                         event.violationId()
                 );
 
-        if (delivered) {
+        if (dispatched) {
             Instant notificationSentAt =
                     Instant.now(
                             clock
@@ -237,7 +237,7 @@ public class ViolationNotificationService {
             return false;
         }
 
-        boolean delivered =
+        boolean dispatched =
                 false;
 
         for (String recipient : recipients) {
@@ -252,7 +252,7 @@ public class ViolationNotificationService {
                         message
                 );
 
-                delivered =
+                dispatched =
                         true;
 
             } catch (RuntimeException exception) {
@@ -265,6 +265,6 @@ public class ViolationNotificationService {
             }
         }
 
-        return delivered;
+        return dispatched;
     }
 }
