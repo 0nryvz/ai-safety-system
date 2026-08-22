@@ -17,10 +17,15 @@ import pytest
 
 from app.core.config import Settings
 from app.schemas.detection import DetectionRequest
-from app.services.backend_client import BackendClientError, BackendDetectionClient
+from app.services.backend_client import (
+    BackendClientError,
+    BackendDetectionClient,
+)
 
 
-def make_payload(event_id: str = "11111111-1111-1111-1111-111111111111") -> DetectionRequest:
+def make_payload(
+    event_id: str = "11111111-1111-1111-1111-111111111111",
+) -> DetectionRequest:
     return DetectionRequest(
         eventId=event_id,
         cameraId="cam-1",
@@ -35,15 +40,32 @@ def make_payload(event_id: str = "11111111-1111-1111-1111-111111111111") -> Dete
 class FakeAsyncClient:
     """httpx.AsyncClient.post ile aynı imzayı taklit eden sahte client."""
 
-    def __init__(self, responses: list[httpx.Response | Exception]):
+    def __init__(
+        self,
+        responses: list[httpx.Response | Exception],
+    ):
         self._responses = list(responses)
         self.calls: list[dict] = []
 
-    async def post(self, url, json=None, headers=None):
-        self.calls.append({"url": url, "json": json, "headers": headers})
+    async def post(
+        self,
+        url,
+        json=None,
+        headers=None,
+    ):
+        self.calls.append(
+            {
+                "url": url,
+                "json": json,
+                "headers": headers,
+            }
+        )
+
         item = self._responses.pop(0)
+
         if isinstance(item, Exception):
             raise item
+
         return item
 
     async def aclose(self):
@@ -60,8 +82,19 @@ def _settings() -> Settings:
 
 @pytest.mark.asyncio
 async def test_success_response_no_retry():
-    fake = FakeAsyncClient([httpx.Response(200, json={"status": "ok"})])
-    client = BackendDetectionClient(_settings(), client=fake)
+    fake = FakeAsyncClient(
+        [
+            httpx.Response(
+                200,
+                json={"status": "ok"},
+            )
+        ]
+    )
+
+    client = BackendDetectionClient(
+        _settings(),
+        client=fake,
+    )
 
     response = await client.send(make_payload())
 
@@ -71,20 +104,42 @@ async def test_success_response_no_retry():
 
 @pytest.mark.asyncio
 async def test_4xx_does_not_retry():
-    fake = FakeAsyncClient([httpx.Response(400, json={"error": "bad contract"})])
-    client = BackendDetectionClient(_settings(), client=fake)
+    fake = FakeAsyncClient(
+        [
+            httpx.Response(
+                400,
+                json={"error": "bad contract"},
+            )
+        ]
+    )
+
+    client = BackendDetectionClient(
+        _settings(),
+        client=fake,
+    )
 
     with pytest.raises(BackendClientError) as exc_info:
         await client.send(make_payload())
 
     assert exc_info.value.status_code == 400
-    assert len(fake.calls) == 1  # retry fırtınasına çevrilmedi
+    assert len(fake.calls) == 1
 
 
 @pytest.mark.asyncio
 async def test_401_auth_error_does_not_retry():
-    fake = FakeAsyncClient([httpx.Response(401, json={"error": "unauthorized"})])
-    client = BackendDetectionClient(_settings(), client=fake)
+    fake = FakeAsyncClient(
+        [
+            httpx.Response(
+                401,
+                json={"error": "unauthorized"},
+            )
+        ]
+    )
+
+    client = BackendDetectionClient(
+        _settings(),
+        client=fake,
+    )
 
     with pytest.raises(BackendClientError) as exc_info:
         await client.send(make_payload())
@@ -97,17 +152,30 @@ async def test_401_auth_error_does_not_retry():
 async def test_5xx_retries_then_succeeds():
     fake = FakeAsyncClient(
         [
-            httpx.Response(503, json={"error": "temporarily unavailable"}),
-            httpx.Response(503, json={"error": "temporarily unavailable"}),
-            httpx.Response(200, json={"status": "ok"}),
+            httpx.Response(
+                503,
+                json={"error": "temporarily unavailable"},
+            ),
+            httpx.Response(
+                503,
+                json={"error": "temporarily unavailable"},
+            ),
+            httpx.Response(
+                200,
+                json={"status": "ok"},
+            ),
         ]
     )
-    client = BackendDetectionClient(_settings(), client=fake)
+
+    client = BackendDetectionClient(
+        _settings(),
+        client=fake,
+    )
 
     response = await client.send(make_payload())
 
     assert response.status_code == 200
-    assert len(fake.calls) == 3  # 2 başarısız deneme + 1 başarılı
+    assert len(fake.calls) == 3
 
 
 @pytest.mark.asyncio
@@ -119,26 +187,40 @@ async def test_5xx_exhausts_retries_and_raises():
             httpx.Response(500, json={}),
         ]
     )
-    client = BackendDetectionClient(_settings(), client=fake)
+
+    client = BackendDetectionClient(
+        _settings(),
+        client=fake,
+    )
 
     with pytest.raises(BackendClientError):
         await client.send(make_payload())
 
-    assert len(fake.calls) == 3  # max_retries = 3
+    assert len(fake.calls) == 3
 
 
 @pytest.mark.asyncio
 async def test_event_id_passthrough_across_retries():
     event_id = "22222222-2222-2222-2222-222222222222"
+
     fake = FakeAsyncClient(
         [
             httpx.Response(503, json={}),
-            httpx.Response(200, json={"status": "ok"}),
+            httpx.Response(
+                200,
+                json={"status": "ok"},
+            ),
         ]
     )
-    client = BackendDetectionClient(_settings(), client=fake)
 
-    await client.send(make_payload(event_id=event_id))
+    client = BackendDetectionClient(
+        _settings(),
+        client=fake,
+    )
+
+    await client.send(
+        make_payload(event_id=event_id)
+    )
 
     for call in fake.calls:
         assert call["json"]["eventId"] == event_id
@@ -146,9 +228,59 @@ async def test_event_id_passthrough_across_retries():
 
 @pytest.mark.asyncio
 async def test_internal_api_key_header_sent():
-    fake = FakeAsyncClient([httpx.Response(200, json={"status": "ok"})])
-    client = BackendDetectionClient(_settings(), client=fake)
+    fake = FakeAsyncClient(
+        [
+            httpx.Response(
+                200,
+                json={"status": "ok"},
+            )
+        ]
+    )
+
+    client = BackendDetectionClient(
+        _settings(),
+        client=fake,
+    )
 
     await client.send(make_payload())
 
-    assert fake.calls[0]["headers"]["X-Internal-Api-Key"] == "test-key"
+    assert (
+        fake.calls[0]["headers"]["X-Internal-Api-Key"]
+        == "test-key"
+    )
+
+
+@pytest.mark.asyncio
+async def test_timeout_retries_three_times_and_raises_backend_client_error():
+    request = httpx.Request(
+        "POST",
+        "http://fake-backend:8080/internal/v1/detections",
+    )
+
+    fake = FakeAsyncClient(
+        [
+            httpx.ReadTimeout(
+                "timeout",
+                request=request,
+            ),
+            httpx.ReadTimeout(
+                "timeout",
+                request=request,
+            ),
+            httpx.ReadTimeout(
+                "timeout",
+                request=request,
+            ),
+        ]
+    )
+
+    client = BackendDetectionClient(
+        _settings(),
+        client=fake,
+    )
+
+    with pytest.raises(BackendClientError) as exc_info:
+        await client.send(make_payload())
+
+    assert exc_info.value.status_code is None
+    assert len(fake.calls) == 3
