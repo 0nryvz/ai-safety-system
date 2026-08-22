@@ -27,18 +27,9 @@ from fastapi import (
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-<<<<<<< HEAD
 from app.debug_sample_capture import maybe_capture_debug_sample
 from app.schemas.detection import BBox, DetectionItem, DetectionRequest
 from app.services.backend_client import BackendClientError, detection_json_body
-=======
-from app.schemas.detection import (
-    BBox,
-    DetectionItem,
-    DetectionRequest,
-)
-from app.services.backend_client import BackendClientError
->>>>>>> feature/ai-model-hardening
 from app.services.detection_mapper import (
     UnsupportedLabelError,
     map_model_label_to_backend_label,
@@ -267,10 +258,8 @@ async def receive_frame(
             ),
         ) from exc
 
-<<<<<<< HEAD
     # GEÇİCİ DEBUG: trigger varsa 2 sn arayla 5 örnek. send() ile aynı body.
     maybe_capture_debug_sample(jpeg_bytes, detection_json_body(payload))
-=======
     dispatch_latency_ms = (
         time.perf_counter() - dispatch_started
     ) * 1000
@@ -279,7 +268,6 @@ async def receive_frame(
         success=True,
         latency_ms=dispatch_latency_ms,
     )
->>>>>>> feature/ai-model-hardening
 
     return JSONResponse(
         status_code=202,
