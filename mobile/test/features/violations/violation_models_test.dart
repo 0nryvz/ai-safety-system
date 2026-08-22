@@ -85,7 +85,7 @@ void main() {
       expect(query['recordingStatus'], 'READY');
       expect(query['page'], '1');
       expect(query['size'], '20');
-      expect(query['sort'], 'startedAt,desc');
+      expect(query.containsKey('sort'), isFalse);
       expect(query['from'], isNot(matches(r'^\d{4}-\d{2}-\d{2}$')));
     });
   });

@@ -78,7 +78,6 @@ class ViolationFilters {
     final query = <String, String>{
       'page': '$page',
       'size': '$size',
-      'sort': 'startedAt,desc',
     };
 
     if (from != null) {
