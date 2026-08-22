@@ -235,3 +235,67 @@ describe('ViolationDetailPage', () => {
     expect(retry).toHaveBeenCalledTimes(1)
   })
 })
+
+it('refreshes detail when the cover image becomes ready in realtime', async () => {
+  const retry = vi.fn()
+
+  vi.spyOn(detailHook, 'useViolationDetail').mockReturnValue({
+    data: violation,
+    isLoading: false,
+    error: null,
+    retry,
+  })
+
+  vi.spyOn(realtimeHook, 'useRealtimeViolations').mockReturnValue({
+    violations: [
+      {
+        violationId: violation.violationId,
+        type: 'MISSING_GLOVES',
+        cameraName: 'Kaynak Kamera 1',
+        departmentName: 'Kaynak',
+        startedAt: '2026-08-19T10:00:00Z',
+        confidence: 0.94,
+        lifecycleStatus: 'ACTIVE',
+        recordingStatus: 'PROCESSING',
+        clipReady: false,
+        coverImageReady: true,
+        lastEventAt: '2026-08-19T10:05:00Z',
+        dismissed: false,
+        errorCode: null,
+      },
+    ],
+    dismissViolation: vi.fn(),
+  })
+
+  renderPage()
+
+  await waitFor(() => {
+    expect(retry).toHaveBeenCalledTimes(1)
+  })
+})
+
+it('renders the violation cover image when the cover is ready', async () => {
+  vi.spyOn(detailHook, 'useViolationDetail').mockReturnValue({
+    data: {
+      ...violation,
+      coverImageKey: 'violations/2026/08/test/cover.jpg',
+      coverImageReady: true,
+    },
+    isLoading: false,
+    error: null,
+    retry: vi.fn(),
+  })
+
+  vi.spyOn(violationService, 'getViolationCoverUrl').mockResolvedValue({
+    url: 'https://media.example.test/authorized-cover',
+    expiresAt: '2099-08-18T10:05:00Z',
+  })
+
+  renderPage()
+
+  expect(screen.getByRole('heading', { name: 'İhlal Kapak Görseli' })).toBeInTheDocument()
+
+  const image = await screen.findByAltText('İhlal kapak görseli')
+
+  expect(image).toHaveAttribute('src', 'https://media.example.test/authorized-cover')
+})

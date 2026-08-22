@@ -82,6 +82,11 @@ export interface ViolationClipUrl {
   expiresAt: string
 }
 
+export interface ViolationCoverUrl {
+  url: string
+  expiresAt: string
+}
+
 export interface PageResponse<T> {
   content: T[]
   page: number
@@ -145,6 +150,12 @@ export async function getViolationHistory(
 
 export async function getViolationClipUrl(violationId: string): Promise<ViolationClipUrl> {
   const response = await apiClient.get<ViolationClipUrl>(`/violations/${violationId}/clip-url`)
+
+  return response.data
+}
+
+export async function getViolationCoverUrl(violationId: string): Promise<ViolationCoverUrl> {
+  const response = await apiClient.get<ViolationCoverUrl>(`/violations/${violationId}/cover-url`)
 
   return response.data
 }

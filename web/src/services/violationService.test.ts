@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '../core/api/apiClient'
 import {
   getViolationClipUrl,
+  getViolationCoverUrl,
   getViolationHistory,
   getViolationDetail,
   reviewViolation,
@@ -110,6 +111,26 @@ describe('violationService', () => {
     expect(getSpy).toHaveBeenCalledWith(`/violations/${violationId}/clip-url`)
     expect(getSpy.mock.calls[0]).toHaveLength(1)
     expect(result).toEqual(clipUrlResponse)
+    expect(result).not.toHaveProperty('objectKey')
+  })
+
+  it('loads an authorized cover URL without sending an object key', async () => {
+    const violationId = '11111111-1111-1111-1111-111111111111'
+
+    const coverUrlResponse = {
+      url: 'https://media.example.test/authorized-cover',
+      expiresAt: '2026-08-18T10:05:00Z',
+    }
+
+    const getSpy = vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: coverUrlResponse,
+    })
+
+    const result = await getViolationCoverUrl(violationId)
+
+    expect(getSpy).toHaveBeenCalledWith(`/violations/${violationId}/cover-url`)
+    expect(getSpy.mock.calls[0]).toHaveLength(1)
+    expect(result).toEqual(coverUrlResponse)
     expect(result).not.toHaveProperty('objectKey')
   })
 

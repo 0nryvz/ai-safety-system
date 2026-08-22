@@ -20,6 +20,7 @@ import './ViolationDetailPage.css'
 import ViolationVideoPlayer from '../features/violations/ViolationVideoPlayer'
 import { useRealtimeViolations } from '../core/realtime/useRealtimeViolations'
 import { ApiError } from '../core/api/apiError'
+import ViolationCoverImage from '../features/violations/ViolationCoverImage'
 
 function ViolationDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -53,6 +54,7 @@ function ViolationDetailPage() {
     const detailChanged =
       realtimeViolation.recordingStatus !== data.recordingStatus ||
       realtimeViolation.clipReady !== data.clipReady ||
+      realtimeViolation.coverImageReady !== data.coverImageReady ||
       realtimeViolation.lifecycleStatus !== data.lifecycleStatus
 
     if (!detailChanged) {
@@ -207,6 +209,17 @@ function ViolationDetailPage() {
                 </div>
               )}
             </div>
+            <section className="violation-detail__media">
+              <div>
+                <h3>İhlal Kapak Görseli</h3>
+                <p>Kapak hazır olduğunda güvenli bağlantı üzerinden gösterilir.</p>
+              </div>
+
+              <ViolationCoverImage
+                violationId={data.violationId}
+                coverImageReady={data.coverImageReady}
+              />
+            </section>
             <section className="violation-detail__media">
               <div>
                 <h3>İhlal Videosu</h3>
