@@ -34,6 +34,18 @@ class Settings(BaseSettings):
     ai_model_path: Optional[str] = Field(default=None, alias="AI_MODEL_PATH")
     # AI_MODEL_VERSION: modelVersion olarak backend'e gönderilecek sürüm etiketi
     ai_model_version: str = Field(default="unversioned", alias="AI_MODEL_VERSION")
+    ai_model_metadata_path: Optional[str] = Field(
+        default=None,
+        alias="AI_MODEL_METADATA_PATH",
+    )
+
+    # Runtime ortamında model doğrulanamazsa servis açılmamalıdır.
+    # Test ortamı artifact olmadan çalışabilsin diye varsayılan False;
+    # canonical root .env runtime için True değerini verir.
+    ai_model_required: bool = Field(
+        default=False,
+        alias="AI_MODEL_REQUIRED",
+    )
     # cpu / cuda / mps - model handoff dokümanından gelecek
     ai_model_device: str = Field(default="cpu", alias="AI_MODEL_DEVICE")
 
