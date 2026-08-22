@@ -6,8 +6,15 @@ import '../../core/error/api_failure.dart';
 import '../../core/theme/strix_brand.dart';
 import '../../features/camera_management/presentation/cameras_tab_page.dart';
 import '../../features/dashboard/presentation/dashboard_tab_page.dart';
+import '../../features/notifications/data/realtime_providers.dart';
+import '../../features/notifications/presentation/notifications_tab_page.dart';
 import '../../features/session/camera_option.dart';
 import '../../features/session/camera_selection_page.dart';
+import '../../features/users/presentation/users_tab_page.dart';
+import '../../features/violations/data/violations_api.dart';
+import '../../features/violations/data/violations_repository.dart';
+import '../../features/violations/presentation/violation_detail_page.dart';
+import '../../features/violations/presentation/violations_tab_page.dart';
 import '../../shared/widgets/placeholder_page.dart';
 import 'auth_controller.dart';
 import 'shell_destinations.dart';
@@ -72,13 +79,33 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
   }
 
+  void _openViolationDetail(String violationId) {
+    if (violationId.isEmpty) {
+      return;
+    }
+
+    final api = ref.read(authenticatedApiProvider);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ViolationDetailPage(
+          violationId: violationId,
+          repository: ViolationsRepository(
+            api: ViolationsApi.fromAuthenticated(api),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _bodyFor(ShellTab tab) {
     return switch (tab) {
-      ShellTab.dashboard => const DashboardTabPage(),
+      ShellTab.dashboard => DashboardTabPage(
+          onRecentViolationTap: _openViolationDetail,
+        ),
       ShellTab.cameras => const CamerasTabPage(),
-      ShellTab.violations => const PlaceholderPage(title: 'İhlaller'),
-      ShellTab.notifications => const PlaceholderPage(title: 'Bildirimler'),
-      ShellTab.users => const PlaceholderPage(title: 'Kullanıcılar'),
+      ShellTab.violations => const ViolationsTabPage(),
+      ShellTab.notifications => const NotificationsTabPage(),
+      ShellTab.users => const UsersTabPage(),
       ShellTab.cameraBroadcast => PlaceholderPage(
           title: 'Kamera Yayını',
           subtitle: _loadingCameras
@@ -90,6 +117,8 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Login sonrası tek STOMP bağlantısını başlatır; logout'ta kapatır.
+    ref.watch(realtimeLifecycleProvider);
     final session = ref.watch(authSessionProvider);
     final destinations = shellDestinationsFor(session);
     final rawIndex = destinations.indexWhere((d) => d.tab == _tab);

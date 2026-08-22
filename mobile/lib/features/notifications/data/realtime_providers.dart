@@ -22,10 +22,18 @@ final notificationEventStoreProvider = Provider<NotificationEventStore>((ref) {
   return store;
 });
 
-/// Reconnect sonrası REST recovery hedefleri buraya register edilir
-/// (dashboard/violations/cameras bağlaması O4 handoff'u).
+/// Reconnect sonrası S0/S1/S2 sayfalarının mevcut `_load` yolunu tetikler.
+///
+/// Tek increment = tek recovery. Sayfalar `didUpdateWidget` ile dinler;
+/// repository/API yeniden yazılmaz.
+final restRecoveryTickProvider = StateProvider<int>((ref) => 0);
+
 final realtimeRecoveryProvider = Provider<CompositeRealtimeRecovery>((ref) {
-  return CompositeRealtimeRecovery();
+  return CompositeRealtimeRecovery([
+    CallbackRealtimeRecovery(() async {
+      ref.read(restRecoveryTickProvider.notifier).state++;
+    }),
+  ]);
 });
 
 final stompClientPortProvider = Provider<StompClientPort>((ref) {

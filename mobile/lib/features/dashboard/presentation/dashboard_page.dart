@@ -19,11 +19,15 @@ class DashboardPage extends StatefulWidget {
   final ValueChanged<String>? onRecentViolationTap;
   final bool showAppBar;
 
+  /// Realtime reconnect recovery tick. Artınca mevcut [_load] tekrarlanır.
+  final int recoveryTick;
+
   const DashboardPage({
     super.key,
     this.repository,
     this.onRecentViolationTap,
     this.showAppBar = true,
+    this.recoveryTick = 0,
   }) : assert(
           repository != null,
           'DashboardPage test veya shell için repository gerektirir.',
@@ -44,6 +48,14 @@ class _DashboardPageState extends State<DashboardPage> {
     super.initState();
     _repository = widget.repository!;
     _load();
+  }
+
+  @override
+  void didUpdateWidget(DashboardPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.recoveryTick != widget.recoveryTick) {
+      _load();
+    }
   }
 
   Future<void> _load() async {

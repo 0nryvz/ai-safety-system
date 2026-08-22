@@ -16,11 +16,15 @@ class CamerasPage extends StatefulWidget {
   final bool canManageCameras;
   final ValueChanged<CameraItem>? onOpenBroadcast;
 
+  /// Realtime reconnect recovery tick. Artınca mevcut [_load] tekrarlanır.
+  final int recoveryTick;
+
   const CamerasPage({
     super.key,
     required this.repository,
     required this.canManageCameras,
     this.onOpenBroadcast,
+    this.recoveryTick = 0,
   });
 
   @override
@@ -37,6 +41,14 @@ class _CamerasPageState extends State<CamerasPage> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void didUpdateWidget(CamerasPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.recoveryTick != widget.recoveryTick) {
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -257,6 +269,16 @@ class _CamerasPageState extends State<CamerasPage> {
             color: StrixBrand.textSecondary,
           ),
         ),
+        if (_failure != null) ...[
+          const SizedBox(height: 12),
+          ErrorBanner(
+            message: _failure!.isOffline
+                ? 'Çevrimdışı — backend\'e ulaşılamıyor.'
+                : _failure!.message,
+            actionLabel: 'Yeniden dene',
+            onAction: _load,
+          ),
+        ],
         if (_actionError != null) ...[
           const SizedBox(height: 12),
           ErrorBanner(message: _actionError!),

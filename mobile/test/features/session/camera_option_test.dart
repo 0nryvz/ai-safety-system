@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('CameraOption.fromJson', () {
-    test('Backend 2 CameraResponse alanlarını okur', () {
+    test('Backend CameraResponse status alanını okur', () {
       final camera = CameraOption.fromJson({
         'id': '33333333-0000-4000-8000-000000000001',
         'name': 'Kaynak-1 Kamera A',
@@ -11,7 +11,7 @@ void main() {
         'departmentId': '11111111-0000-4000-8000-000000000001',
         'departmentName': 'Kaynakhane',
         'active': true,
-        'connectionStatus': 'ONLINE',
+        'status': 'ONLINE',
         'lastSeenAt': '2026-08-21T10:00:00Z',
         'activeSessionId': null,
       });
@@ -22,6 +22,29 @@ void main() {
       expect(camera.departmentName, 'Kaynakhane');
       expect(camera.active, isTrue);
       expect(camera.connectionStatus, 'ONLINE');
+    });
+
+    test('status yoksa eski connectionStatus alanına düşer', () {
+      final camera = CameraOption.fromJson({
+        'id': 'uuid',
+        'name': 'Kamera',
+        'active': true,
+        'connectionStatus': 'WEAK',
+      });
+
+      expect(camera.connectionStatus, 'WEAK');
+    });
+
+    test('status, connectionStatus üzerinde önceliklidir', () {
+      final camera = CameraOption.fromJson({
+        'id': 'uuid',
+        'name': 'Kamera',
+        'active': true,
+        'status': 'OFFLINE',
+        'connectionStatus': 'ONLINE',
+      });
+
+      expect(camera.connectionStatus, 'OFFLINE');
     });
 
     test('eksik opsiyonel alanlar çökme üretmez', () {

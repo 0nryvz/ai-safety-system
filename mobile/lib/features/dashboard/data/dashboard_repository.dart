@@ -22,22 +22,21 @@ class DashboardRepository implements DashboardLoader {
     final from = to.subtract(const Duration(days: 6));
 
     try {
-      final summaryFuture = _api.fetchSummary();
-      final trendFuture = _api.fetchTrend(from: from, to: to, bucket: 'DAY');
-      final distributionFuture = _api.fetchDistribution(groupBy: 'TYPE');
-      final recentFuture = _api.fetchRecentViolations();
-
-      final DashboardSummary summary = await summaryFuture;
-      final List<DashboardTrendPoint> trend = await trendFuture;
-      final List<DashboardDistributionItem> distribution =
-          await distributionFuture;
-      final List<RecentViolationItem> recentViolations = await recentFuture;
+      final results = await Future.wait<Object>(
+        [
+          _api.fetchSummary(),
+          _api.fetchTrend(from: from, to: to, bucket: 'DAY'),
+          _api.fetchDistribution(groupBy: 'TYPE'),
+          _api.fetchRecentViolations(),
+        ],
+        eagerError: false,
+      );
 
       return DashboardSnapshot(
-        summary: summary,
-        trend: trend,
-        distribution: distribution,
-        recentViolations: recentViolations,
+        summary: results[0] as DashboardSummary,
+        trend: results[1] as List<DashboardTrendPoint>,
+        distribution: results[2] as List<DashboardDistributionItem>,
+        recentViolations: results[3] as List<RecentViolationItem>,
       );
     } on DashboardFailure {
       rethrow;

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/auth_controller.dart';
 import '../../camera/camera_page.dart';
+import '../../notifications/data/realtime_providers.dart';
 import '../../session/camera_option.dart';
 import '../../streaming/streaming_controller.dart';
 import '../data/camera_management_api.dart';
@@ -58,6 +59,7 @@ class CamerasTabPage extends ConsumerWidget {
       repository: repository,
       canManageCameras: session.canManageCameras,
       onOpenBroadcast: (camera) => _openBroadcast(context, ref, camera),
+      recoveryTick: ref.watch(restRecoveryTickProvider),
     );
   }
 }

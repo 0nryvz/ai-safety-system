@@ -27,7 +27,10 @@ class CameraOption {
       code: json['code'] as String?,
       departmentName: json['departmentName'] as String?,
       active: (json['active'] as bool?) ?? false,
-      connectionStatus: json['connectionStatus'] as String?,
+      // Backend canonical alanı `status`. Streaming modeli yerel olarak
+      // `connectionStatus` tutar; AppShell → Kamera Yayını bu mapping'e bağlıdır.
+      connectionStatus:
+          (json['status'] as String?) ?? json['connectionStatus'] as String?,
     );
   }
 

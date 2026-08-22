@@ -16,9 +16,13 @@ import 'widgets/violation_filter_summary.dart';
 class ViolationsPage extends StatefulWidget {
   final ViolationsPort repository;
 
+  /// Realtime reconnect recovery tick. Artınca mevcut liste yenilenir.
+  final int recoveryTick;
+
   const ViolationsPage({
     super.key,
     required this.repository,
+    this.recoveryTick = 0,
   });
 
   @override
@@ -38,6 +42,14 @@ class _ViolationsPageState extends State<ViolationsPage> {
   void initState() {
     super.initState();
     _load(reset: true);
+  }
+
+  @override
+  void didUpdateWidget(ViolationsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.recoveryTick != widget.recoveryTick) {
+      _load(reset: true);
+    }
   }
 
   Future<void> _load({required bool reset}) async {
@@ -75,9 +87,7 @@ class _ViolationsPageState extends State<ViolationsPage> {
         _failure = failure;
         _loading = false;
         _loadingMore = false;
-        if (reset) {
-          _items = const [];
-        }
+        // Recovery / refresh başarısızsa mevcut liste silinmez.
       });
     } catch (_) {
       if (!mounted) {
@@ -207,6 +217,16 @@ class _ViolationsPageState extends State<ViolationsPage> {
           ),
         ),
         const SizedBox(height: 12),
+        if (_failure != null) ...[
+          ErrorBanner(
+            message: _failure!.isOffline
+                ? 'Çevrimdışı — backend\'e ulaşılamıyor.'
+                : _failure!.message,
+            actionLabel: 'Yeniden dene',
+            onAction: () => _load(reset: true),
+          ),
+          const SizedBox(height: 12),
+        ],
         ViolationFilterSummary(
           filters: _filters,
           onClear: () {
