@@ -136,7 +136,7 @@ INSERT INTO violations (
       -- 2) Tamamlanmis, klibi hazir, henuz incelenmemis
       ('66666666-0000-4000-8000-000000000002', '33333333-0000-4000-8000-000000000001',
        '11111111-0000-4000-8000-000000000001', '55555555-0000-4000-8000-000000000001', NULL,
-       'MISSING_WELDING_JACKET', now() - interval '3 hours', now() - interval '3 hours' + interval '9 seconds',
+       'UNPROTECTED_PERSON', now() - interval '3 hours', now() - interval '3 hours' + interval '9 seconds',
        0.8740, 'yolo-v8n-isg-0.3.1', 'COMPLETED', 'UNREVIEWED', 'covers/2026/66666666-0002.jpg',
        now() - interval '3 hours' - interval '1 second', now() - interval '3 hours' + interval '1 second', NULL, NULL),
 
@@ -166,7 +166,7 @@ INSERT INTO violations (
       -- 6) Kayit HATASI alan ihlal — recording basari orani KPI'sini test eder
       ('66666666-0000-4000-8000-000000000006', '33333333-0000-4000-8000-000000000002',
        '11111111-0000-4000-8000-000000000002', '55555555-0000-4000-8000-000000000002', NULL,
-       'MISSING_WELDING_JACKET', now() - interval '3 days',
+       'UNPROTECTED_PERSON', now() - interval '3 days',
        now() - interval '3 days' + interval '7 seconds', 0.8890, 'yolo-v8n-isg-0.3.0',
        'ERROR', 'UNREVIEWED', NULL,
        now() - interval '3 days', now() - interval '3 days' + interval '1 second', NULL, NULL),
@@ -188,7 +188,7 @@ INSERT INTO violations (
 
       ('66666666-0000-4000-8000-000000000009', '33333333-0000-4000-8000-000000000003',
        '11111111-0000-4000-8000-000000000001', NULL, NULL,
-       'MISSING_WELDING_JACKET', now() - interval '6 days', now() - interval '6 days' + interval '8 seconds',
+       'UNPROTECTED_PERSON', now() - interval '6 days', now() - interval '6 days' + interval '8 seconds',
        0.7930, 'yolo-v8n-isg-0.3.0', 'COMPLETED', 'UNREVIEWED', 'covers/2026/66666666-0009.jpg',
        now() - interval '6 days', now() - interval '6 days' + interval '1 second', NULL, NULL),
 
