@@ -48,52 +48,163 @@ docker exec isg-postgres psql -U isg_user -d isg_restore_demo -c "\dt"
 
 > Aktif gelistirme veritabaninin uzerine restore yapilmamalidir. Restore islemi bos bir hedef veritabanina yapilmalidir.
 
+
 ## Canonical MVP Runtime Contract
 
-Local ve MVP runtime icin tek source of truth root `.env` dosyasidir.
+MVP local runtime icin canonical sozlesme root `README.md` ve `.env.example` dosyalaridir.
 
-Ornek dosya:
+`.env.example`, paylasilan runtime degisken adlarini ve canonical local degerleri tanimlar. Gercek `.env` dosyasi local calisma ve secret degerleri icindir; repoya commit edilmemelidir.
 
-```text
-.env.example
+### Canonical servis adresleri
+
+| Servis | Canonical adres / port | Health / erisim |
+| --- | --- | --- |
+| Backend | `http://localhost:8080` | `GET /actuator/health` |
+| Gateway | `http://localhost:8000` | `GET /health` |
+| AI Worker | `http://localhost:8001` | `GET /health` |
+| PostgreSQL | `localhost:5432` | Docker healthcheck |
+| MinIO API | `http://localhost:9000` | API endpoint |
+| MinIO Console | `http://localhost:9001` | Web console |
+
+Canonical MinIO bucket adi `violation-media`'dir.
+
+### Temel runtime env kurallari
+
+- Backend, Gateway ve AI Worker ayni `INTERNAL_API_KEY` degerini kullanmalidir.
+- `BACKEND_BASE_URL=http://localhost:8080`
+- `GATEWAY_BASE_URL=http://localhost:8000`
+- `AI_WORKER_BASE_URL=http://localhost:8001`
+- `RECORDING_GATEWAY_BASE_URL=http://localhost:8000`
+- `APP_CORS_ALLOWED_ORIGINS`, Backend REST CORS ve WebSocket allowed-origins icin ortak source-of-truth'tur.
+- Local secret veya makineye ozel degerler `.env` icinde tutulmalidir.
+
 
 ## Local Calistirma
 
 ### Gereksinimler
+
 - Java 21
+- Python
 - Docker Desktop
 - Docker Compose
 
-### Altyapi servislerini baslat
-docker compose up -d
-docker compose ps
+### 1. Local env hazirligi
 
-PostgreSQL ve MinIO servislerinin healthy durumda oldugunu kontrol edin.
-- PostgreSQL: localhost:5432
-- MinIO API: localhost:9000
-- MinIO Console: localhost:9001
+Ilk kurulumda `.env.example` dosyasini `.env` olarak kopyalayin ve gerekli local/secret degerleri ayarlayin.
 
-### Backend'i baslat
-.\backend\mvnw.cmd -f backend\pom.xml spring-boot:run
+Mevcut `.env` dosyasinin uzerine yazmayin.
 
-Backend varsayilan olarak http://localhost:8080 adresinde calisir.
-Flyway migrationlari backend baslarken otomatik uygulanir.
-
-### Demo verisini yukle
-Get-Content backend\src\main\resources\db\seed\demo-seed.sql -Raw | docker exec -i isg-postgres psql -U isg_user -d isg_db
-
-Demo kullanicilari icin ortak sifre: 123456
-Ornek admin kullanicisi: admin@isgvision.local
-
-### Backend testlerini calistir
-.\backend\mvnw.cmd -f backend\pom.xml test
-
-
----
-
-## 6. Hızlı config smoke
-
-Önce root’ta:
+PowerShell oturumuna root `.env` degerlerini yuklemek icin:
 
 ```powershell
 . .\scripts\import-env.ps1
+```
+
+Bu script env degerlerini yalnizca mevcut PowerShell process'ine yukler ve secret degerleri ekrana yazdirmaz.
+
+
+### 2. PostgreSQL ve MinIO'yu baslat
+
+Root dizinde:
+
+```powershell
+docker compose up -d postgres minio minio-init
+docker compose ps
+```
+
+PostgreSQL `5432`, MinIO API `9000`, MinIO Console `9001` portunu kullanir.
+`minio-init`, local MinIO icinde gerekli bucket hazirligini yapar.
+
+### 3. Backend'i baslat
+
+Root dizinde yeni bir terminal acin ve env'i yukledikten sonra:
+
+```powershell
+.\backend\mvnw.cmd -f backend\pom.xml spring-boot:run
+```
+
+Backend varsayilan olarak `http://localhost:8080` adresinde calisir.
+Flyway migrationlari Backend baslarken otomatik uygulanir.
+
+Health kontrolu:
+
+```powershell
+Invoke-RestMethod http://localhost:8080/actuator/health
+```
+
+
+### 4. AI Worker'i baslat
+
+Backend ayaga kalktiktan sonra root dizinde:
+
+```powershell
+docker compose up -d ai-service
+```
+
+AI Worker canonical olarak `http://localhost:8001` adresinde calisir.
+
+Health kontrolu:
+
+```powershell
+Invoke-RestMethod http://localhost:8001/health
+```
+
+### 5. Gateway'i baslat
+
+Gateway giris noktasi `gateway/app/main.py` icindeki `app` nesnesidir.
+
+Gateway Python runtime bagimliliklari `gateway/requirements.txt` dosyasinda tanimlidir.
+
+Ilk kurulumda root dizinde:
+
+```powershell
+python -m pip install -r gateway\requirements.txt
+```
+
+Root dizinde yeni bir terminal acin, env'i yukleyin ve Gateway'i baslatin:
+
+```powershell
+. .\scripts\import-env.ps1
+Set-Location gateway
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Gateway canonical olarak `http://localhost:8000` adresinde calisir.
+
+Health kontrolu:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/health
+```
+
+Gateway health cevabi AI dispatch durumunu da raporlar.
+
+### 6. Canonical startup sirasi
+
+Local MVP icin onerilen sira:
+
+1. Root `.env` degerlerini hazirla/yukle.
+2. PostgreSQL ve MinIO'yu baslat.
+3. Backend'i baslat ve `/actuator/health` kontrolunu yap.
+4. AI Worker'i baslat ve `/health` kontrolunu yap.
+5. Gateway'i baslat ve `/health` kontrolunu yap.
+
+### Demo verisini yukle
+
+Backend ve PostgreSQL hazir olduktan sonra:
+
+```powershell
+Get-Content backend\src\main\resources\db\seed\demo-seed.sql -Raw | docker exec -i isg-postgres psql -U isg_user -d isg_db
+```
+
+Demo kullanicilari icin ortak sifre: `123456`
+
+Ornek admin kullanicisi: `admin@isgvision.local`
+
+### Backend testlerini calistir
+
+Root dizinde:
+
+```powershell
+.\backend\mvnw.cmd -f backend\pom.xml test
+```

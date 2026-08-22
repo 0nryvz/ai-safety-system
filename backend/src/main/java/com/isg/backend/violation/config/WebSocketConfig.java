@@ -7,18 +7,25 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import java.util.Optional;
+
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig
         implements WebSocketMessageBrokerConfigurer {
 
     private final WebSocketJwtChannelInterceptor jwtChannelInterceptor;
+    private final WebSocketProperties websocketProperties;
 
     public WebSocketConfig(
-            WebSocketJwtChannelInterceptor jwtChannelInterceptor
+            WebSocketJwtChannelInterceptor jwtChannelInterceptor,
+            WebSocketProperties websocketProperties
     ) {
         this.jwtChannelInterceptor =
                 jwtChannelInterceptor;
+
+        this.websocketProperties =
+                websocketProperties;
     }
 
     @Override
@@ -46,8 +53,15 @@ public class WebSocketConfig
                         "/ws"
                 )
                 .setAllowedOrigins(
-                        "http://localhost:3000",
-                        "http://localhost:5173"
+                        Optional.ofNullable(
+                                        websocketProperties.getAllowedOrigins()
+                                )
+                                .orElseThrow(
+                                        () -> new IllegalStateException(
+                                                "application.security.cors.allowed-origins must be configured"
+                                        )
+                                )
+                                .toArray(new String[0])
                 );
     }
 
