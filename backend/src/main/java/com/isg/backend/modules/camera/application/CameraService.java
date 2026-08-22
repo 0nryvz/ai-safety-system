@@ -48,6 +48,13 @@ public class CameraService {
                         )
                 );
 
+        if (!department.isActive()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Pasif departmana kamera atanamaz."
+            );
+        }
+
         Camera camera = Camera.builder()
                 .name(request.getName())
                 .code(request.getCode())
@@ -160,6 +167,17 @@ public class CameraService {
                                     "Departman bulunamadı!"
                             )
                     );
+
+            boolean sameDepartment =
+                    camera.getDepartment() != null
+                            && camera.getDepartment().getId().equals(department.getId());
+
+            if (!department.isActive() && !sameDepartment) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Pasif departmana kamera yeni olarak atanamaz."
+                );
+            }
 
             camera.setDepartment(department);
         }

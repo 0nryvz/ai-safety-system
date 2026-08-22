@@ -9,6 +9,8 @@ import com.isg.backend.modules.user.entity.User;
 import com.isg.backend.modules.user.infrastructure.DepartmentRepository;
 import com.isg.backend.modules.user.infrastructure.UserRepository;
 import com.isg.backend.modules.user.service.AuthorizationService;
+import com.isg.backend.modules.camera.api.dto.CameraCreateRequest;
+import com.isg.backend.modules.camera.api.dto.CameraUpdateRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -218,6 +220,128 @@ class CameraServiceDepartmentAuthorizationTest {
                         ex -> assertThat(ex.getStatusCode())
                                 .isEqualTo(HttpStatus.FORBIDDEN)
                 );
+    }
+
+    @Test
+    void createCameraRejectsInactiveDepartment() {
+        UUID inactiveDepartmentId = UUID.randomUUID();
+
+        Department inactiveDepartment = Department.builder()
+                .id(inactiveDepartmentId)
+                .code("PASIF-DEPT")
+                .name("Pasif Departman")
+                .active(false)
+                .build();
+
+        CameraCreateRequest request =
+                org.mockito.Mockito.mock(CameraCreateRequest.class);
+
+        when(request.getDepartmentId())
+                .thenReturn(inactiveDepartmentId);
+
+        when(departmentRepository.findById(inactiveDepartmentId))
+                .thenReturn(Optional.of(inactiveDepartment));
+
+        ResponseStatusException exception =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        ResponseStatusException.class,
+                        () -> cameraService.createCamera(request)
+                );
+
+        assertThat(exception.getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+
+        verify(cameraRepository, never())
+                .save(org.mockito.ArgumentMatchers.any(Camera.class));
+    }
+
+    @Test
+    void updateCameraRejectsNewInactiveDepartmentAndKeepsExistingDepartment() {
+        UUID cameraId = UUID.randomUUID();
+
+        Department existingDepartment = Department.builder()
+                .id(UUID.randomUUID())
+                .code("MEVCUT-DEPT")
+                .name("Mevcut Departman")
+                .active(true)
+                .build();
+
+        Department inactiveDepartment = Department.builder()
+                .id(UUID.randomUUID())
+                .code("PASIF-DEPT")
+                .name("Pasif Departman")
+                .active(false)
+                .build();
+
+        Camera camera = Camera.builder()
+                .id(cameraId)
+                .name("Camera A")
+                .code("CAM-A")
+                .department(existingDepartment)
+                .active(true)
+                .build();
+
+        CameraUpdateRequest request = new CameraUpdateRequest();
+        request.setDepartmentId(inactiveDepartment.getId());
+
+        when(cameraRepository.findById(cameraId))
+                .thenReturn(Optional.of(camera));
+
+        when(departmentRepository.findById(inactiveDepartment.getId()))
+                .thenReturn(Optional.of(inactiveDepartment));
+
+        ResponseStatusException exception =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        ResponseStatusException.class,
+                        () -> cameraService.updateCamera(cameraId, request)
+                );
+
+        assertThat(exception.getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+
+        assertThat(camera.getDepartment())
+                .isSameAs(existingDepartment);
+
+        verify(cameraRepository, never())
+                .save(org.mockito.ArgumentMatchers.any(Camera.class));
+    }
+
+    @Test
+    void updateCameraAllowsKeepingExistingInactiveDepartment() {
+        Department existingInactiveDepartment = Department.builder()
+                .id(UUID.randomUUID())
+                .code("MEVCUT-PASIF")
+                .name("Mevcut Pasif Departman")
+                .active(false)
+                .build();
+
+        Camera camera = camera(
+                existingInactiveDepartment,
+                "CAM-PASIF"
+        );
+
+        CameraUpdateRequest request = new CameraUpdateRequest();
+        request.setDepartmentId(existingInactiveDepartment.getId());
+
+        when(cameraRepository.findById(camera.getId()))
+                .thenReturn(Optional.of(camera));
+
+        when(departmentRepository.findById(existingInactiveDepartment.getId()))
+                .thenReturn(Optional.of(existingInactiveDepartment));
+
+        when(cameraRepository.save(camera))
+                .thenReturn(camera);
+
+        cameraService.updateCamera(
+                camera.getId(),
+                request
+        );
+
+        assertThat(camera.getDepartment())
+                .isSameAs(existingInactiveDepartment);
+
+        verify(cameraRepository)
+                .save(camera);
     }
 
     private Camera camera(
