@@ -1,0 +1,10 @@
+.department-form {
+    display: grid;
+    gap: 16px;
+  }
+  
+  .department-form__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
