@@ -7,6 +7,7 @@ import {
 } from '../../services/dashboardService'
 import type { Camera, DashboardSummary, RecentViolation } from './dashboardTypes'
 import { subscribeToRealtimeRecovery } from '../../core/realtime/realtimeRuntime'
+import { useRealtimeRestRefresh } from '../../core/realtime/useRealtimeRestRefresh'
 
 interface UseDashboardDataOptions {
   includeSummary: boolean
@@ -39,7 +40,38 @@ function normalizeDashboardError(error: unknown): ApiError {
 export function useDashboardData({ includeSummary }: UseDashboardDataOptions) {
   const [state, setState] = useState<DashboardDataState>(initialState)
   const [requestVersion, setRequestVersion] = useState(0)
-  const summaryRefreshInFlightRef = useRef(false)
+  const backgroundRefreshInFlightRef = useRef(false)
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    isMountedRef.current = true
+
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  useRealtimeRestRefresh(
+    () => {
+      void getRecentViolations()
+        .then((recentViolations) => {
+          if (!isMountedRef.current) {
+            return
+          }
+
+          setState((currentState) => ({
+            ...currentState,
+            recentViolations,
+          }))
+        })
+        .catch(() => {
+          // Background refresh failure keeps the last known recent violations visible.
+        })
+    },
+    {
+      onRecovery: false,
+    },
+  )
 
   useEffect(() => {
     let isActive = true
@@ -86,36 +118,50 @@ export function useDashboardData({ includeSummary }: UseDashboardDataOptions) {
   }, [includeSummary, requestVersion])
 
   useEffect(() => {
-    if (!includeSummary) {
-      return
-    }
-
     let isActive = true
 
     const intervalId = window.setInterval(() => {
-      if (summaryRefreshInFlightRef.current) {
+      if (backgroundRefreshInFlightRef.current) {
         return
       }
 
-      summaryRefreshInFlightRef.current = true
+      backgroundRefreshInFlightRef.current = true
 
-      void getDashboardSummary()
-        .then((summary) => {
+      const summaryRefresh = includeSummary
+        ? getDashboardSummary()
+            .then((summary) => {
+              if (!isActive) {
+                return
+              }
+
+              setState((currentState) => ({
+                ...currentState,
+                summary,
+              }))
+            })
+            .catch(() => {
+              // Background refresh failure keeps the last known dashboard state visible.
+            })
+        : Promise.resolve()
+
+      const camerasRefresh = getCameras()
+        .then((cameras) => {
           if (!isActive) {
             return
           }
 
           setState((currentState) => ({
             ...currentState,
-            summary,
+            cameras,
           }))
         })
         .catch(() => {
-          // Background refresh failure keeps the last known dashboard state visible.
+          // Background camera refresh failure keeps the last known camera list visible.
         })
-        .finally(() => {
-          summaryRefreshInFlightRef.current = false
-        })
+
+      void Promise.allSettled([summaryRefresh, camerasRefresh]).finally(() => {
+        backgroundRefreshInFlightRef.current = false
+      })
     }, 10_000)
 
     return () => {

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRealtimeRestRefresh } from '../../core/realtime/useRealtimeRestRefresh'
 import { getCameras, type CameraResponse } from '../../services/cameraService'
 
 interface CameraManagementState {
@@ -20,6 +21,39 @@ export function useCameraManagement() {
   const retry = useCallback(() => {
     setRetryVersion((current) => current + 1)
   }, [])
+
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    isMountedRef.current = true
+
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  useRealtimeRestRefresh(
+    () => {
+      void getCameras()
+        .then((data) => {
+          if (!isMountedRef.current) {
+            return
+          }
+
+          setState({
+            data,
+            isLoading: false,
+            error: null,
+          })
+        })
+        .catch(() => {
+          // Recovery refresh failure keeps the last known camera list visible.
+        })
+    },
+    {
+      onMessages: false,
+    },
+  )
 
   useEffect(() => {
     let cancelled = false

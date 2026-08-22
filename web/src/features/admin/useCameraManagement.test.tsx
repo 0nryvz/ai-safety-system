@@ -1,6 +1,8 @@
-import { cleanup, renderHook, waitFor } from '@testing-library/react'
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as cameraService from '../../services/cameraService'
+import * as realtimeRuntime from '../../core/realtime/realtimeRuntime'
+import { REALTIME_REST_REFRESH_DEBOUNCE_MS } from '../../core/realtime/useRealtimeRestRefresh'
 import { useCameraManagement } from './useCameraManagement'
 
 const cameras = [
@@ -68,5 +70,73 @@ describe('useCameraManagement', () => {
     })
 
     expect(getCamerasSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('refreshes cameras after realtime recovery without clearing the list on failure', async () => {
+    vi.useFakeTimers()
+
+    let recoveryListener: (() => void) | undefined
+
+    vi.spyOn(realtimeRuntime, 'subscribeToRealtimeRecovery').mockImplementation((listener) => {
+      recoveryListener = listener
+      return vi.fn()
+    })
+    vi.spyOn(realtimeRuntime, 'subscribeToRealtimeMessages').mockReturnValue(vi.fn())
+
+    const refreshedCameras = [
+      {
+        ...cameras[0],
+        status: 'OFFLINE',
+      },
+    ]
+
+    const getCamerasSpy = vi
+      .spyOn(cameraService, 'getCameras')
+      .mockResolvedValueOnce(cameras)
+      .mockResolvedValueOnce(refreshedCameras)
+
+    const { result } = renderHook(() => useCameraManagement())
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(result.current.data).toEqual(cameras)
+
+    await act(async () => {
+      recoveryListener?.()
+      vi.advanceTimersByTime(REALTIME_REST_REFRESH_DEBOUNCE_MS)
+      await Promise.resolve()
+    })
+
+    expect(getCamerasSpy).toHaveBeenCalledTimes(2)
+    expect(result.current.data).toEqual(refreshedCameras)
+    expect(result.current.isLoading).toBe(false)
+
+    getCamerasSpy.mockRejectedValueOnce(new Error('recovery refresh failed'))
+
+    await act(async () => {
+      recoveryListener?.()
+      vi.advanceTimersByTime(REALTIME_REST_REFRESH_DEBOUNCE_MS)
+      await Promise.resolve()
+    })
+
+    expect(result.current.data).toEqual(refreshedCameras)
+    expect(result.current.error).toBeNull()
+
+    vi.useRealTimers()
+  })
+
+  it('does not refresh cameras on violation realtime messages', async () => {
+    const getCamerasSpy = vi.spyOn(cameraService, 'getCameras').mockResolvedValue(cameras)
+    const subscribeMessagesSpy = vi.spyOn(realtimeRuntime, 'subscribeToRealtimeMessages')
+
+    renderHook(() => useCameraManagement())
+
+    await waitFor(() => {
+      expect(getCamerasSpy).toHaveBeenCalledTimes(1)
+    })
+
+    expect(subscribeMessagesSpy).not.toHaveBeenCalled()
   })
 })

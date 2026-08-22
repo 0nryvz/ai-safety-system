@@ -8,7 +8,10 @@ import {
 } from '../../services/dashboardService'
 import type { DashboardSummary } from './dashboardTypes'
 import { useDashboardData } from './useDashboardData'
-import { subscribeToRealtimeRecovery } from '../../core/realtime/realtimeRuntime'
+import { subscribeToRealtimeMessages, subscribeToRealtimeRecovery } from '../../core/realtime/realtimeRuntime'
+import type { RealtimeMessageHandler } from '../../core/realtime/realtimeTypes'
+import { REALTIME_REST_REFRESH_DEBOUNCE_MS } from '../../core/realtime/useRealtimeRestRefresh'
+import type { RecentViolation } from './dashboardTypes'
 
 vi.mock('../../services/dashboardService', () => ({
   getDashboardSummary: vi.fn(),
@@ -17,7 +20,8 @@ vi.mock('../../services/dashboardService', () => ({
 }))
 
 vi.mock('../../core/realtime/realtimeRuntime', () => ({
-  subscribeToRealtimeRecovery: vi.fn(),
+  subscribeToRealtimeRecovery: vi.fn(() => vi.fn()),
+  subscribeToRealtimeMessages: vi.fn(() => vi.fn()),
 }))
 
 const summary: DashboardSummary = {
@@ -33,6 +37,25 @@ const mockedGetDashboardSummary = vi.mocked(getDashboardSummary)
 const mockedGetRecentViolations = vi.mocked(getRecentViolations)
 const mockedGetCameras = vi.mocked(getCameras)
 const mockedSubscribeToRealtimeRecovery = vi.mocked(subscribeToRealtimeRecovery)
+const mockedSubscribeToRealtimeMessages = vi.mocked(subscribeToRealtimeMessages)
+
+const recentViolation: RecentViolation = {
+  violationId: 'violation-1',
+  detectedAt: '2026-08-18T12:00:00Z',
+  startedAt: '2026-08-18T12:01:00Z',
+  violationType: 'MISSING_GLOVES',
+  cameraId: 'camera-1',
+  departmentId: 'department-1',
+  departmentName: 'Montaj',
+  cameraName: 'Kamera 1',
+  cameraCode: 'CAM-001',
+  lifecycleStatus: 'ACTIVE',
+  reviewStatus: null,
+  recordingStatus: 'REQUESTED',
+  recordingReadyAt: null,
+  confidence: 0.88,
+  modelVersion: null,
+}
 
 afterEach(() => {
   cleanup()
@@ -155,7 +178,7 @@ describe('useDashboardData', () => {
     })
   })
 
-  it('refreshes only the dashboard summary every 10 seconds in the background', async () => {
+  it('refreshes dashboard summary and cameras every 10 seconds without polling recent violations', async () => {
     vi.useFakeTimers()
 
     const refreshedSummary: DashboardSummary = {
@@ -186,7 +209,7 @@ describe('useDashboardData', () => {
     expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(2)
 
     expect(mockedGetRecentViolations).toHaveBeenCalledTimes(1)
-    expect(mockedGetCameras).toHaveBeenCalledTimes(1)
+    expect(mockedGetCameras).toHaveBeenCalledTimes(2)
 
     expect(result.current.summary).toEqual(refreshedSummary)
     expect(result.current.isLoading).toBe(false)
@@ -252,6 +275,7 @@ describe('useDashboardData', () => {
     })
 
     expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+    expect(mockedGetCameras).toHaveBeenCalledTimes(1)
 
     unmount()
 
@@ -261,6 +285,86 @@ describe('useDashboardData', () => {
     })
 
     expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+    expect(mockedGetCameras).toHaveBeenCalledTimes(1)
+
+    vi.useRealTimers()
+  })
+
+  it('refreshes recent violations after a realtime event without polling them', async () => {
+    vi.useFakeTimers()
+
+    let messageListener: RealtimeMessageHandler | undefined
+
+    mockedSubscribeToRealtimeMessages.mockImplementation((listener) => {
+      messageListener = listener
+      return vi.fn()
+    })
+
+    mockedGetDashboardSummary.mockResolvedValue(summary)
+    mockedGetRecentViolations
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([recentViolation])
+    mockedGetCameras.mockResolvedValue([])
+
+    const { result } = renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(result.current.recentViolations).toEqual([])
+
+    const message = { body: '', headers: {} }
+
+    await act(async () => {
+      messageListener?.(message)
+      messageListener?.(message)
+      messageListener?.(message)
+      vi.advanceTimersByTime(REALTIME_REST_REFRESH_DEBOUNCE_MS)
+      await Promise.resolve()
+    })
+
+    expect(mockedGetRecentViolations).toHaveBeenCalledTimes(2)
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+    expect(result.current.recentViolations).toEqual([recentViolation])
+    expect(result.current.isLoading).toBe(false)
+
+    vi.useRealTimers()
+  })
+
+  it('keeps recent violations when a realtime refresh fails', async () => {
+    vi.useFakeTimers()
+
+    let messageListener: RealtimeMessageHandler | undefined
+
+    mockedSubscribeToRealtimeMessages.mockImplementation((listener) => {
+      messageListener = listener
+      return vi.fn()
+    })
+
+    mockedGetDashboardSummary.mockResolvedValue(summary)
+    mockedGetRecentViolations
+      .mockResolvedValueOnce([recentViolation])
+      .mockRejectedValueOnce(new ApiError('Network error', 0))
+    mockedGetCameras.mockResolvedValue([])
+
+    const { result } = renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(result.current.recentViolations).toEqual([recentViolation])
+
+    await act(async () => {
+      messageListener?.({ body: '', headers: {} })
+      vi.advanceTimersByTime(REALTIME_REST_REFRESH_DEBOUNCE_MS)
+      await Promise.resolve()
+    })
+
+    expect(result.current.recentViolations).toEqual([recentViolation])
+    expect(result.current.error).toBeNull()
+    expect(result.current.isLoading).toBe(false)
 
     vi.useRealTimers()
   })
