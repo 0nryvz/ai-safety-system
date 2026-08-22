@@ -1,0 +1,46 @@
+.department-management {
+    display: grid;
+    gap: 24px;
+  }
+  
+  .department-management__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  
+  .department-management__header h2,
+  .department-management__header p {
+    margin: 0;
+  }
+  
+  .department-management__header p {
+    margin-top: 8px;
+  }
+  
+  .department-management__loading {
+    display: grid;
+    gap: 8px;
+  }
+  .department-management__actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .department-management__form-section {
+    display: grid;
+    gap: 16px;
+    padding: 20px;
+    border-radius: 12px;
+    background: var(--color-card, #1e293b);
+  }
+  
+  .department-management__form-section h3 {
+    margin: 0;
+  }
+  
+  .department-management__submit-error {
+    margin: 0;
+    color: #eb2121;
+  }

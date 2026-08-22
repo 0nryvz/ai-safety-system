@@ -11,6 +11,7 @@ import RequireRole from './app/RequireRole'
 import CameraManagementPage from './pages/CameraManagementPage'
 import UserManagementPage from './pages/UserManagementPage'
 import RestrictedZoneEditorPage from './pages/RestrictedZoneEditorPage'
+import DepartmentManagementPage from './pages/DepartmentManagementPage'
 
 interface LoginLocationState {
   from?: {
@@ -61,6 +62,7 @@ function App() {
         <Route path={ROUTE_PATHS.adminCameras} element={<CameraManagementPage />} />
         <Route path={ROUTE_PATHS.restrictedZoneEditor} element={<RestrictedZoneEditorPage />} />
         <Route path={ROUTE_PATHS.adminUsers} element={<UserManagementPage />} />
+        <Route path={ROUTE_PATHS.adminDepartments} element={<DepartmentManagementPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />
