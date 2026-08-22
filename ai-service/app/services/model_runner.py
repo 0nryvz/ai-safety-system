@@ -27,6 +27,7 @@ import numpy as np
 
 from app.core.config import Settings
 from app.services.detection_mapper import normalize_and_clamp_bbox
+from app.services.model_contract import validate_model_contract
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +72,71 @@ class ModelRunner:
     @property
     def load_error(self) -> str | None:
         return self._load_error
-
+    
     def load(self) -> None:
+        model_path = self._settings.ai_model_path
+        metadata_path = (
+            self._settings.ai_model_metadata_path
+        )
+
+        if not model_path:
+            self._loaded = False
+            self._load_error = (
+                "AI_MODEL_PATH tanımlı değil; "
+                "model artifact teslim edilmedi."
+            )
+            logger.error(self._load_error)
+            return
+
+        if not metadata_path:
+            self._loaded = False
+            self._load_error = (
+                "AI_MODEL_METADATA_PATH tanımlı değil; "
+                "artifact sözleşmesi doğrulanamaz."
+            )
+            logger.error(self._load_error)
+            return
+
+        try:
+            # Ağır bağımlılık yalnızca model yüklenirken import edilir.
+            from ultralytics import YOLO
+
+            model = YOLO(model_path)
+
+            metadata = validate_model_contract(
+                model_path=model_path,
+                metadata_path=metadata_path,
+                configured_model_version=(
+                    self._settings.ai_model_version
+                ),
+                model_names=model.names,
+            )
+
+            # Bütün doğrulamalar geçmeden model aktif edilmez.
+            self._model = model
+            self._loaded = True
+            self._load_error = None
+
+            logger.info(
+                "Model doğrulandı ve yüklendi "
+                "path=%s version=%s sha256=%s "
+                "device=%s classes=%s",
+                model_path,
+                self._settings.ai_model_version,
+                metadata["sha256"],
+                self._settings.ai_model_device,
+                model.names,
+            )
+
+        except Exception as exc:  # noqa: BLE001
+            self._model = None
+            self._loaded = False
+            self._load_error = str(exc)
+
+            logger.exception(
+                "Model artifact doğrulanamadı/yüklenemedi"
+            )
+    """ def load(self) -> None:
         model_path = self._settings.ai_model_path
         if not model_path:
             self._loaded = False
@@ -121,7 +185,7 @@ class ModelRunner:
         except Exception as exc:  # noqa: BLE001 - health endpoint'inde raporlanır
             self._loaded = False
             self._load_error = str(exc)
-            logger.exception("Model yüklenemedi")
+            logger.exception("Model yüklenemedi")"""
 
     def predict(self, jpeg_bytes: bytes) -> InferenceResult:
         if not self._loaded or self._model is None:
