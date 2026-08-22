@@ -7,7 +7,7 @@ names: ['Person', 'gloves', 'non_gloves', 'non_welding_jacket', 'non_welding_mas
 
 roboflow:
   workspace: dilara-ozturk-p4iqf
-  project: dina_ekleyecek
-  version: 1
-  license: Private
-  url: https://app.roboflow.com/dilara-ozturk-p4iqf/dina_ekleyecek/1
+  project: dina_ekleyecek_welding
+  version: 2
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/dilara-ozturk-p4iqf/dina_ekleyecek_welding/dataset/2

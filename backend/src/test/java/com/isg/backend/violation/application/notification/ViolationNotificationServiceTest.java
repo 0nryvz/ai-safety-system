@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -80,6 +81,94 @@ class ViolationNotificationServiceTest {
                         meterRegistry,
                         clock
                 );
+    }
+
+    @Test
+    void sendsStartedNotificationWithoutSecurityContext() {
+
+        SecurityContextHolder.clearContext();
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID sessionId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        Instant startedAt =
+                Instant.now()
+                        .minusSeconds(1);
+
+        ViolationJpaEntity violation =
+                initialViolation(
+                        violationId,
+                        departmentId,
+                        startedAt
+                );
+
+        when(violationRepository.findById(
+                violationId
+        )).thenReturn(
+                Optional.of(
+                        violation
+                )
+        );
+
+        when(cameraQueryService.findCameraName(
+                cameraId
+        )).thenReturn(
+                Optional.of(
+                        "Kaynak Kamera 1"
+                )
+        );
+
+        when(departmentNameResolver.resolveDepartmentName(
+                departmentId
+        )).thenReturn(
+                "Kaynak Bölümü"
+        );
+
+        when(recipientResolver.resolveRecipients(
+                departmentId
+        )).thenReturn(
+                List.of(
+                        "expert@example.com"
+                )
+        );
+
+
+        ViolationStartedEvent event =
+                new ViolationStartedEvent(
+                        UUID.randomUUID(),
+                        violationId,
+                        cameraId,
+                        sessionId,
+                        ViolationType.MISSING_WELDING_MASK,
+                        startedAt,
+                        Instant.now()
+                                .minusMillis(100)
+                );
+
+
+        service.sendViolationStarted(
+                event
+        );
+
+
+        verify(
+                messagingTemplate
+        )
+                .convertAndSendToUser(
+                        eq("expert@example.com"),
+                        eq("/queue/alerts"),
+                        any()
+                );
+
     }
 
     @Test
@@ -174,6 +263,16 @@ class ViolationNotificationServiceTest {
         AlertMessage message =
                 messageCaptor.getValue();
 
+        assertThat(message.eventId())
+                .isEqualTo(
+                        violationId
+                );
+
+        assertThat(message.version())
+                .isEqualTo(
+                        0L
+                );
+
         assertThat(message.violationId())
                 .isEqualTo(
                         violationId
@@ -234,6 +333,266 @@ class ViolationNotificationServiceTest {
         )
                 .save(
                         violation
+                );
+    }
+
+    @Test
+    void persistsAlertSentTimestampAfterSuccessfulDispatch() {
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        UUID cameraId =
+                UUID.randomUUID();
+
+        ViolationJpaEntity violation =
+                realViolation(
+                        violationId,
+                        cameraId,
+                        departmentId,
+                        Instant.now().minusSeconds(1)
+                );
+
+        when(
+                violationRepository.findById(
+                        violationId
+                )
+        ).thenReturn(
+                Optional.of(violation)
+        );
+
+
+        when(
+                cameraQueryService.findCameraName(
+                        cameraId
+                )
+        ).thenReturn(
+                Optional.of("Camera-1")
+        );
+
+        when(
+                departmentNameResolver.resolveDepartmentName(
+                        departmentId
+                )
+        )
+                .thenReturn(
+                        "Test Department"
+                );
+
+
+        when(
+                recipientResolver.resolveRecipients(
+                        departmentId
+                )
+        ).thenReturn(
+                List.of("user@test.com")
+        );
+
+
+        ViolationStartedEvent event =
+                new ViolationStartedEvent(
+                        UUID.randomUUID(),
+                        violationId,
+                        cameraId,
+                        UUID.randomUUID(),
+                        ViolationType.MISSING_GLOVES,
+                        Instant.now().minusSeconds(1),
+                        Instant.now().minusMillis(100)
+                );
+
+
+        service.sendViolationStarted(
+                event
+        );
+
+
+        assertThat(
+                violation.getAlertSentAt()
+        )
+                .isNotNull();
+
+
+        verify(
+                violationRepository
+        )
+                .save(
+                        violation
+                );
+
+        verify(
+                messagingTemplate
+        )
+                .convertAndSendToUser(
+                        eq("user@test.com"),
+                        eq("/queue/alerts"),
+                        any()
+                );
+    }
+
+    @Test
+    void doesNotPersistAlertTimestampWhenNoRecipientExists() {
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+        ViolationJpaEntity violation =
+                initialViolation(
+                        violationId,
+                        departmentId,
+                        Instant.now()
+                );
+
+
+        when(
+                violationRepository.findById(
+                        violationId
+                )
+        ).thenReturn(
+                Optional.of(violation)
+        );
+
+        when(
+                departmentNameResolver.resolveDepartmentName(
+                        departmentId
+                )
+        )
+                .thenReturn(
+                        "Test Department"
+                );
+
+
+        when(
+                recipientResolver.resolveRecipients(
+                        departmentId
+                )
+        ).thenReturn(
+                List.of()
+        );
+
+
+        service.sendViolationStarted(
+                new ViolationStartedEvent(
+                        UUID.randomUUID(),
+                        violationId,
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        ViolationType.MISSING_GLOVES,
+                        Instant.now(),
+                        Instant.now()
+                )
+        );
+
+
+        assertThat(
+                violation.getAlertSentAt()
+        )
+                .isNull();
+
+
+        verify(
+                violationRepository,
+                never()
+        )
+                .save(
+                        any()
+                );
+    }
+
+    @Test
+    void doesNotPersistAlertTimestampWhenAllDispatchesFail() {
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID departmentId =
+                UUID.randomUUID();
+
+
+        UUID cameraId =
+                UUID.randomUUID();
+
+        ViolationJpaEntity violation =
+                realViolation(
+                        violationId,
+                        cameraId,
+                        departmentId,
+                        Instant.now()
+                );
+
+
+        when(
+                violationRepository.findById(
+                        violationId
+                )
+        )
+                .thenReturn(
+                        Optional.of(violation)
+                );
+
+        when(
+                departmentNameResolver.resolveDepartmentName(
+                        departmentId
+                )
+        )
+                .thenReturn(
+                        "Test Department"
+                );
+
+
+        when(
+                recipientResolver.resolveRecipients(
+                        departmentId
+                )
+        )
+                .thenReturn(
+                        List.of("user@test.com")
+                );
+
+
+        doThrow(
+                new RuntimeException("websocket failed")
+        )
+                .when(
+                        messagingTemplate
+                )
+                .convertAndSendToUser(
+                        anyString(),
+                        anyString(),
+                        any()
+                );
+
+
+        service.sendViolationStarted(
+                new ViolationStartedEvent(
+                        UUID.randomUUID(),
+                        violationId,
+                        cameraId,
+                        UUID.randomUUID(),
+                        ViolationType.MISSING_GLOVES,
+                        Instant.now(),
+                        Instant.now()
+                )
+        );
+
+
+        assertThat(
+                violation.getAlertSentAt()
+        )
+                .isNull();
+
+
+        verify(
+                violationRepository,
+                never()
+        )
+                .save(
+                        any()
                 );
     }
 
@@ -659,6 +1018,28 @@ class ViolationNotificationServiceTest {
                 anyString(),
                 anyString(),
                 any()
+        );
+    }
+
+    private ViolationJpaEntity realViolation(
+            UUID violationId,
+            UUID cameraId,
+            UUID departmentId,
+            Instant startedAt
+    ) {
+        return new ViolationJpaEntity(
+                violationId,
+                cameraId,
+                departmentId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                ViolationType.MISSING_GLOVES,
+                startedAt,
+                BigDecimal.valueOf(0.92),
+                "model-v1",
+                ViolationLifecycleStatus.ACTIVE,
+                com.isg.backend.violation.domain.ViolationReviewStatus.UNREVIEWED,
+                startedAt
         );
     }
 

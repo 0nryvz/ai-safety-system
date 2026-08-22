@@ -58,7 +58,20 @@ public class UserServiceImpl implements UserService {
                 .build();
 
         if (request.getDepartmentIds() != null && !request.getDepartmentIds().isEmpty()) {
-            List<Department> departments = departmentRepository.findAllById(request.getDepartmentIds());
+            List<Department> departments =
+                    departmentRepository.findAllById(request.getDepartmentIds());
+
+            boolean hasInactiveDepartment =
+                    departments.stream()
+                            .anyMatch(department -> !department.isActive());
+
+            if (hasInactiveDepartment) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Pasif departman kullanıcıya atanamaz."
+                );
+            }
+
             user.getDepartments().addAll(departments);
         }
 
@@ -91,11 +104,32 @@ public class UserServiceImpl implements UserService {
 
         // Departman ID listesi gönderildiyse güncelle
         if (request.getDepartmentIds() != null) {
-            user.getDepartments().clear();
-            if (!request.getDepartmentIds().isEmpty()) {
-                List<Department> depts = departmentRepository.findAllById(request.getDepartmentIds());
-                user.getDepartments().addAll(depts);
+            List<Department> depts =
+                    request.getDepartmentIds().isEmpty()
+                            ? List.of()
+                            : departmentRepository.findAllById(request.getDepartmentIds());
+
+            Set<UUID> existingDepartmentIds =
+                    user.getDepartments().stream()
+                            .map(Department::getId)
+                            .collect(Collectors.toSet());
+
+            boolean hasNewInactiveDepartment =
+                    depts.stream()
+                            .anyMatch(department ->
+                                    !department.isActive()
+                                            && !existingDepartmentIds.contains(department.getId())
+                            );
+
+            if (hasNewInactiveDepartment) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Pasif departman kullanıcıya yeni olarak atanamaz."
+                );
             }
+
+            user.getDepartments().clear();
+            user.getDepartments().addAll(depts);
         }
 
         // Rol isimleri gönderildiyse güncelle

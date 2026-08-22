@@ -86,7 +86,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/users/me", "/api/v1/users/me/departments").authenticated()
                         .requestMatchers("/api/v1/users/**").hasRole("ADMIN")
 
-                        // 3.1. Kamera Yönetim Uç Noktaları (Mutasyonlar ADMIN'e özel, listeleme/detay rollerine açık)
+                        // 3.1. Departman Yönetim Uç Noktaları (Mutasyonlar ADMIN'e özel)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/departments").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/departments/**").hasRole("ADMIN")
+
+                        // 3.2. Kamera Yönetim Uç Noktaları (Mutasyonlar ADMIN'e özel, listeleme/detay rollerine açık)
                         .requestMatchers(HttpMethod.POST, "/api/v1/cameras/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/cameras/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/cameras/**").hasRole("ADMIN")

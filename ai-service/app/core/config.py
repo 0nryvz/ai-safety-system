@@ -7,14 +7,20 @@ dosyası kullanılabilir (bkz. .env.example).
 """
 from functools import lru_cache
 from typing import Optional
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+ROOT_ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+    # Tek config kaynağı repo rootundaki .env dosyasıdır.
+    # ai-service/.env bilinçli olarak okunmaz.
+        env_file=ROOT_ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -28,6 +34,18 @@ class Settings(BaseSettings):
     ai_model_path: Optional[str] = Field(default=None, alias="AI_MODEL_PATH")
     # AI_MODEL_VERSION: modelVersion olarak backend'e gönderilecek sürüm etiketi
     ai_model_version: str = Field(default="unversioned", alias="AI_MODEL_VERSION")
+    ai_model_metadata_path: Optional[str] = Field(
+        default=None,
+        alias="AI_MODEL_METADATA_PATH",
+    )
+
+    # Runtime ortamında model doğrulanamazsa servis açılmamalıdır.
+    # Test ortamı artifact olmadan çalışabilsin diye varsayılan False;
+    # canonical root .env runtime için True değerini verir.
+    ai_model_required: bool = Field(
+        default=False,
+        alias="AI_MODEL_REQUIRED",
+    )
     # cpu / cuda / mps - model handoff dokümanından gelecek
     ai_model_device: str = Field(default="cpu", alias="AI_MODEL_DEVICE")
 
@@ -77,12 +95,15 @@ class Settings(BaseSettings):
 
     # --- Backend'in kabul ettiği label listesi (vizör YOK) ---
     supported_labels: tuple[str, ...] = (
-        "person",
-        "welding",
-        "welding_mask",
-        "welding_apron",
-        "gloves",
-        "welding_jacket",
+      "person",
+      "gloves",
+      "non_gloves",
+      "non_welding_jacket",
+      "non_welding_mask",
+      "welding",
+      "welding_apron",
+      "welding_jacket",
+      "welding_mask",
     )
 
     # --- Class mapping (Adım 0 handoff'tan doldurulacak) ---
