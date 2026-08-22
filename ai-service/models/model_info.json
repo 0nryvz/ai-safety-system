@@ -1,0 +1,31 @@
+{
+  "modelVersion": "best_update_v1",
+  "file": "weights/best_update_v1.pt",
+  "sha256": "80efdb978337932e29b839e6e69c23a4fb7b59d15b2acbb54a1ae7e52cdbf947",
+  "raw_model_names": {
+    "0": "Person",
+    "1": "gloves",
+    "2": "non_gloves",
+    "3": "non_welding_jacket",
+    "4": "non_welding_mask",
+    "5": "welding",
+    "6": "welding_apron",
+    "7": "welding_jacket",
+    "8": "welding_mask"
+  },
+  "canonical_class_order": [
+    "person", "gloves", "welding_jacket", "welding_apron",
+    "welding_mask", "welding", "non_welding_mask",
+    "non_welding_jacket", "non_gloves"
+  ],
+  "index_remap": {
+    "0": 0, "1": 1, "2": 8, "3": 7, "4": 6,
+    "5": 5, "6": 3, "7": 2, "8": 4
+  },
+  "input_size": 640,
+  "preprocess": "letterbox resize, RGB",
+  "case_sensitivity_note": "raw_model_names[0] = 'Person' (buyuk P), canonical'da 'person' (kucuk p). Startup fail-fast kontrolu case-insensitive yapilmali.",
+  "conf_threshold": null,
+  "iou_threshold": null,
+  "threshold_status": "Threshold değerleri görsellere göre ve model değerlerine göre ayrı ayrı belirleniyor"
+}
