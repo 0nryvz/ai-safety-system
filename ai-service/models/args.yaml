@@ -113,4 +113,4 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: tracktrack.yaml
-save_dir: C:\Users\apodn\OneDrive\Desktop\Weldin_Dataset\With_Non\runs\detect\auto_optimizer_300_epochs
+save_dir: C:\Users\apodn\OneDrive\Desktop\Weldin_Dataset\Welding_Augmented\runs\detect\auto_optimizer_300_epochs

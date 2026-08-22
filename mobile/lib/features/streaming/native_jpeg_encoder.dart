@@ -20,7 +20,10 @@ class NativeJpegEncoder {
     required int sourceWidth,
     required int sourceHeight,
     required int step,
+    required int rotationDegrees,
     required int quality,
+    int sensorOrientation = 0,
+    bool isBackCamera = true,
   }) async {
     try {
       final result = await _channel.invokeMethod<Uint8List>(
@@ -37,6 +40,9 @@ class NativeJpegEncoder {
           'width': sourceWidth,
           'height': sourceHeight,
           'step': step,
+          'rotationDegrees': rotationDegrees,
+          'sensorOrientation': sensorOrientation,
+          'isBackCamera': isBackCamera,
           'quality': quality,
         },
       );

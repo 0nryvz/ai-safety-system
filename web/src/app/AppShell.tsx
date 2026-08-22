@@ -59,6 +59,8 @@ function AppShell({ children }: AppShellProps) {
               <NavLink to={ROUTE_PATHS.violations}>İhlaller</NavLink>
 
               {canAccessAdmin && <NavLink to={ROUTE_PATHS.adminUsers}>Kullanıcılar</NavLink>}
+
+              {canAccessAdmin && <NavLink to={ROUTE_PATHS.adminDepartments}>Departmanlar</NavLink>}
             </nav>
           </nav>
         </aside>

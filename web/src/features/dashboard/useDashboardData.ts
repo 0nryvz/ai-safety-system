@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from '../../core/api/apiError'
 import {
   getCameras,
@@ -39,6 +39,7 @@ function normalizeDashboardError(error: unknown): ApiError {
 export function useDashboardData({ includeSummary }: UseDashboardDataOptions) {
   const [state, setState] = useState<DashboardDataState>(initialState)
   const [requestVersion, setRequestVersion] = useState(0)
+  const summaryRefreshInFlightRef = useRef(false)
 
   useEffect(() => {
     let isActive = true
@@ -83,6 +84,45 @@ export function useDashboardData({ includeSummary }: UseDashboardDataOptions) {
       isActive = false
     }
   }, [includeSummary, requestVersion])
+
+  useEffect(() => {
+    if (!includeSummary) {
+      return
+    }
+
+    let isActive = true
+
+    const intervalId = window.setInterval(() => {
+      if (summaryRefreshInFlightRef.current) {
+        return
+      }
+
+      summaryRefreshInFlightRef.current = true
+
+      void getDashboardSummary()
+        .then((summary) => {
+          if (!isActive) {
+            return
+          }
+
+          setState((currentState) => ({
+            ...currentState,
+            summary,
+          }))
+        })
+        .catch(() => {
+          // Background refresh failure keeps the last known dashboard state visible.
+        })
+        .finally(() => {
+          summaryRefreshInFlightRef.current = false
+        })
+    }, 10_000)
+
+    return () => {
+      isActive = false
+      window.clearInterval(intervalId)
+    }
+  }, [includeSummary])
 
   useEffect(() => {
     return subscribeToRealtimeRecovery(() => {

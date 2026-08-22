@@ -127,6 +127,8 @@ public class ViolationNotificationService {
         AlertMessage message =
                 new AlertMessage(
                         violation.getId(),
+                        violation.getVersion(),
+                        violation.getId(),
                         violation.getViolationType(),
                         cameraName,
                         departmentName,

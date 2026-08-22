@@ -169,6 +169,170 @@ class UserServiceImplTest {
     }
 
     @Test
+    void createUserRejectsInactiveDepartment() {
+        CreateUserRequest request =
+                org.mockito.Mockito.mock(CreateUserRequest.class);
+
+        UUID departmentId = UUID.randomUUID();
+
+        Role role = Role.builder()
+                .id(UUID.randomUUID())
+                .name("SHIFT_SUPERVISOR")
+                .build();
+
+        Department inactiveDepartment = Department.builder()
+                .id(departmentId)
+                .code("KAYNAK-PASIF")
+                .name("Pasif Departman")
+                .active(false)
+                .build();
+
+        when(request.getEmail())
+                .thenReturn("inactive.department@test.local");
+
+        when(request.getPassword())
+                .thenReturn("StrongPassword123!");
+
+        when(request.getFullName())
+                .thenReturn("Inactive Department User");
+
+        when(request.getRoleNames())
+                .thenReturn(Set.of("SHIFT_SUPERVISOR"));
+
+        when(request.getDepartmentIds())
+                .thenReturn(Set.of(departmentId));
+
+        when(userRepository.existsByEmail("inactive.department@test.local"))
+                .thenReturn(false);
+
+        when(roleRepository.findByName("SHIFT_SUPERVISOR"))
+                .thenReturn(Optional.of(role));
+
+        when(passwordEncoder.encode("StrongPassword123!"))
+                .thenReturn("encoded-password");
+
+        when(departmentRepository.findAllById(Set.of(departmentId)))
+                .thenReturn(List.of(inactiveDepartment));
+
+
+        ResponseStatusException exception =
+                assertThrows(
+                        ResponseStatusException.class,
+                        () -> userService.createUser(request)
+                );
+
+        assertThat(exception.getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+
+        verify(userRepository, never())
+                .save(any(User.class));
+    }
+
+    @Test
+    void updateUserRejectsNewInactiveDepartmentAndKeepsExistingDepartments() {
+        UUID userId = UUID.randomUUID();
+        UUID existingDepartmentId = UUID.randomUUID();
+        UUID inactiveDepartmentId = UUID.randomUUID();
+
+        Department existingDepartment = Department.builder()
+                .id(existingDepartmentId)
+                .code("MEVCUT")
+                .name("Mevcut Departman")
+                .active(true)
+                .build();
+
+        Department inactiveDepartment = Department.builder()
+                .id(inactiveDepartmentId)
+                .code("PASIF")
+                .name("Pasif Departman")
+                .active(false)
+                .build();
+
+        User target = user(
+                userId,
+                "worker@test.local",
+                "SHIFT_SUPERVISOR",
+                true
+        );
+
+        target.getDepartments().add(existingDepartment);
+
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setDepartmentIds(Set.of(inactiveDepartmentId));
+
+        when(userRepository.findById(userId))
+                .thenReturn(Optional.of(target));
+
+        when(departmentRepository.findAllById(Set.of(inactiveDepartmentId)))
+                .thenReturn(List.of(inactiveDepartment));
+
+        ResponseStatusException exception =
+                assertThrows(
+                        ResponseStatusException.class,
+                        () -> userService.updateUser(
+                                userId,
+                                request,
+                                "admin@test.local"
+                        )
+                );
+
+        assertThat(exception.getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+
+        assertThat(target.getDepartments())
+                .containsExactly(existingDepartment);
+
+        verify(userRepository, never())
+                .save(any(User.class));
+    }
+
+    @Test
+    void updateUserAllowsKeepingExistingInactiveDepartment() {
+        UUID userId = UUID.randomUUID();
+        UUID departmentId = UUID.randomUUID();
+
+        Department existingInactiveDepartment = Department.builder()
+                .id(departmentId)
+                .code("MEVCUT-PASIF")
+                .name("Mevcut Pasif Departman")
+                .active(false)
+                .build();
+
+        User target = user(
+                userId,
+                "worker@test.local",
+                "SHIFT_SUPERVISOR",
+                true
+        );
+
+        target.getDepartments().add(existingInactiveDepartment);
+
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setDepartmentIds(Set.of(departmentId));
+
+        when(userRepository.findById(userId))
+                .thenReturn(Optional.of(target));
+
+        when(departmentRepository.findAllById(Set.of(departmentId)))
+                .thenReturn(List.of(existingInactiveDepartment));
+
+        when(userRepository.save(target))
+                .thenReturn(target);
+
+        userService.updateUser(
+                userId,
+                request,
+                "admin@test.local"
+        );
+
+        assertThat(target.getDepartments())
+                .containsExactly(existingInactiveDepartment);
+
+        verify(userRepository)
+                .save(target);
+    }
+
+    @Test
     void unknownRoleReturnsNotFoundAndDoesNotPersist() {
         CreateUserRequest request =
                 org.mockito.Mockito.mock(CreateUserRequest.class);

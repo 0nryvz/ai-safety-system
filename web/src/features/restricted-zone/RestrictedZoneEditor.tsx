@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import type { RestrictedZonePoint } from '../../services/cameraService'
 import { clampPoint } from './polygonUtils'
@@ -12,18 +12,68 @@ interface RestrictedZoneEditorProps {
 
 function RestrictedZoneEditor({ points, onChange, imageUrl }: RestrictedZoneEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
   const [draggingPointIndex, setDraggingPointIndex] = useState<number | null>(null)
+  const [overlayStyle, setOverlayStyle] = useState({
+    left: 0,
+    top: 0,
+    width: 0,
+    height: 0,
+  })
+
+  function updateOverlayStyle() {
+    const container = containerRef.current
+    const image = imageRef.current
+
+    if (!container || !image) {
+      return
+    }
+
+    const containerRect = container.getBoundingClientRect()
+    const imageRect = image.getBoundingClientRect()
+
+    setOverlayStyle({
+      left: imageRect.left - containerRect.left,
+      top: imageRect.top - containerRect.top,
+      width: imageRect.width,
+      height: imageRect.height,
+    })
+  }
+
+  useEffect(() => {
+    if (!imageUrl) {
+      return
+    }
+
+    updateOverlayStyle()
+
+    window.addEventListener('resize', updateOverlayStyle)
+
+    return () => {
+      window.removeEventListener('resize', updateOverlayStyle)
+    }
+  }, [imageUrl])
 
   function getNormalizedPoint(clientX: number, clientY: number): RestrictedZonePoint | null {
+    const image = imageRef.current
     const container = containerRef.current
 
     if (!container) {
       return null
     }
 
-    const rect = container.getBoundingClientRect()
+    const rect = image?.getBoundingClientRect() ?? container.getBoundingClientRect()
 
     if (rect.width === 0 || rect.height === 0) {
+      return null
+    }
+
+    if (
+      clientX < rect.left ||
+      clientX > rect.right ||
+      clientY < rect.top ||
+      clientY > rect.bottom
+    ) {
       return null
     }
 
@@ -89,6 +139,8 @@ function RestrictedZoneEditor({ points, onChange, imageUrl }: RestrictedZoneEdit
       {imageUrl ? (
         <img
           src={imageUrl}
+          ref={imageRef}
+          onLoad={updateOverlayStyle}
           alt=""
           aria-label="Kamera referans görüntüsü"
           draggable={false}
@@ -107,11 +159,13 @@ function RestrictedZoneEditor({ points, onChange, imageUrl }: RestrictedZoneEdit
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
         aria-hidden="true"
+        data-testid="restricted-zone-overlay"
         style={{
           position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
+          left: `${overlayStyle.left}px`,
+          top: `${overlayStyle.top}px`,
+          width: `${overlayStyle.width}px`,
+          height: `${overlayStyle.height}px`,
         }}
       >
         {points.length >= 2 && (

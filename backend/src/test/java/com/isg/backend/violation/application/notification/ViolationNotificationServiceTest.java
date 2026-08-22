@@ -263,6 +263,16 @@ class ViolationNotificationServiceTest {
         AlertMessage message =
                 messageCaptor.getValue();
 
+        assertThat(message.eventId())
+                .isEqualTo(
+                        violationId
+                );
+
+        assertThat(message.version())
+                .isEqualTo(
+                        0L
+                );
+
         assertThat(message.violationId())
                 .isEqualTo(
                         violationId

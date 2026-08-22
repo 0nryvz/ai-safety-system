@@ -53,7 +53,10 @@ class StreamingState {
   final String? sessionId;
 
   final int cameraFps;
-  final int sendFps;
+
+  /// Gateway'in HTTP 202 ile kabul ettiği saniyedeki kare sayısı. Encode
+  /// temposu değildir; kabul kriteri (>= AppConfig.minFps) bu değere bakar.
+  final int acceptedFps;
 
   final int reconnectAttempt;
   final int maxReconnectAttempts;
@@ -81,7 +84,7 @@ class StreamingState {
     this.departmentName,
     this.sessionId,
     this.cameraFps = 0,
-    this.sendFps = 0,
+    this.acceptedFps = 0,
     this.reconnectAttempt = 0,
     this.maxReconnectAttempts = 3,
     this.sentFrames = 0,
@@ -139,7 +142,7 @@ class StreamingState {
     String? sessionId,
     bool clearSessionId = false,
     int? cameraFps,
-    int? sendFps,
+    int? acceptedFps,
     int? reconnectAttempt,
     int? maxReconnectAttempts,
     int? sentFrames,
@@ -166,7 +169,7 @@ class StreamingState {
           clearCameraMeta ? null : (departmentName ?? this.departmentName),
       sessionId: clearSessionId ? null : (sessionId ?? this.sessionId),
       cameraFps: cameraFps ?? this.cameraFps,
-      sendFps: sendFps ?? this.sendFps,
+      acceptedFps: acceptedFps ?? this.acceptedFps,
       reconnectAttempt: reconnectAttempt ?? this.reconnectAttempt,
       maxReconnectAttempts: maxReconnectAttempts ?? this.maxReconnectAttempts,
       sentFrames: sentFrames ?? this.sentFrames,

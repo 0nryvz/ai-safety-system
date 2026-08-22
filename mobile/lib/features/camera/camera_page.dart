@@ -500,13 +500,13 @@ class _KpiStrip extends StatelessWidget {
       children: [
         Expanded(
           child: _KpiTile(
-            label: 'GÖNDERİM',
-            value: '${state.sendFps}',
+            label: 'KABUL',
+            value: '${state.acceptedFps}',
             unit: 'FPS',
             hint: 'min ${AppConfig.minFps}',
-            accent: state.sendFps < AppConfig.minFps
+            accent: state.acceptedFps < AppConfig.minFps
                 ? StrixBrand.danger
-                : state.sendFps >= AppConfig.targetFps
+                : state.acceptedFps >= AppConfig.targetFps
                     ? StrixBrand.success
                     : StrixBrand.amber,
           ),
@@ -660,8 +660,8 @@ class _LiveOpsPanel extends ConsumerWidget {
         ),
       ),
     );
-    final sendFps = ref.watch(
-      streamingControllerProvider.select((s) => s.sendFps),
+    final acceptedFps = ref.watch(
+      streamingControllerProvider.select((s) => s.acceptedFps),
     );
     final controller = ref.read(streamingControllerProvider.notifier);
     final cameraController = controller.cameraController;
@@ -758,7 +758,7 @@ class _LiveOpsPanel extends ConsumerWidget {
                     Positioned(
                       top: 12,
                       left: 12,
-                      child: _LiveBadge(fps: sendFps),
+                      child: _LiveBadge(fps: acceptedFps),
                     ),
                     Positioned(
                       top: 12,
@@ -771,7 +771,7 @@ class _LiveOpsPanel extends ConsumerWidget {
                       left: 12,
                       right: 12,
                       bottom: 12,
-                      child: _PreviewFooterLite(sendFps: sendFps),
+                      child: _PreviewFooterLite(acceptedFps: acceptedFps),
                     ),
                   ],
                 ],
@@ -943,9 +943,9 @@ class _HudChip extends StatelessWidget {
 }
 
 class _PreviewFooterLite extends StatelessWidget {
-  final int sendFps;
+  final int acceptedFps;
 
-  const _PreviewFooterLite({required this.sendFps});
+  const _PreviewFooterLite({required this.acceptedFps});
 
   @override
   Widget build(BuildContext context) {
@@ -957,7 +957,7 @@ class _PreviewFooterLite extends StatelessWidget {
         border: Border.all(color: Colors.white24),
       ),
       child: Text(
-        'Gateway JPEG · $sendFps FPS',
+        'Gateway JPEG · $acceptedFps FPS kabul',
         style: const TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
@@ -1158,7 +1158,7 @@ class _ActionDock extends StatelessWidget {
   Widget build(BuildContext context) {
     final canPress = state.isStreaming ? true : state.canStartStream;
     final subtitle = state.isStreaming
-        ? 'Gateway oturumu açık · ${state.sendFps} FPS gönderiliyor'
+        ? 'Gateway oturumu açık · ${state.acceptedFps} FPS kabul ediliyor'
         : state.canStartStream
             ? 'Atama hazır · JPEG kareleri Gateway’e gidecek'
             : 'Kamera veya izin hazır değil';

@@ -7,6 +7,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 public record AlertMessage(
+        UUID eventId,
+        long version,
         UUID violationId,
         ViolationType type,
         String cameraName,
@@ -26,9 +28,20 @@ public record AlertMessage(
         );
 
         Objects.requireNonNull(
+                eventId,
+                "eventId must not be null"
+        );
+
+        Objects.requireNonNull(
                 type,
                 "type must not be null"
         );
+
+        if (version < 0) {
+            throw new IllegalArgumentException(
+                    "version must not be negative"
+            );
+        }
 
         if (cameraName == null || cameraName.isBlank()) {
             throw new IllegalArgumentException(

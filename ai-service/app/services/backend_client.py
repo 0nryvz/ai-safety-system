@@ -17,6 +17,11 @@ from app.schemas.detection import DetectionRequest
 logger = logging.getLogger(__name__)
 
 
+def detection_json_body(payload: DetectionRequest) -> dict:
+    """httpx `json=` ile POST edilen dict. Capture ve send aynı kaynağı kullanır."""
+    return payload.model_dump(mode="json", by_alias=True)
+
+
 class BackendClientError(RuntimeError):
     def __init__(self, message: str, status_code: int | None = None):
         super().__init__(message)
@@ -38,12 +43,17 @@ class BackendDetectionClient:
         """
         url = self._settings.backend_detections_url
         headers = {"X-Internal-Api-Key": self._settings.internal_api_key or ""}
-        body = payload.model_dump(mode="json", by_alias=True)
+        body = detection_json_body(payload)
 
         last_exc: Exception | None = None
+
         for attempt in range(1, self._max_retries + 1):
             try:
-                response = await self._client.post(url, json=body, headers=headers)
+                response = await self._client.post(
+                    url,
+                    json=body,
+                    headers=headers,
+                )
             except httpx.RequestError as exc:
                 last_exc = exc
                 logger.warning(
@@ -67,7 +77,8 @@ class BackendDetectionClient:
                     response.text,
                 )
                 raise BackendClientError(
-                    f"Backend {response.status_code} döndü", response.status_code
+                    f"Backend {response.status_code} döndü",
+                    response.status_code,
                 )
 
             # 5xx: bounded retry
@@ -79,10 +90,23 @@ class BackendDetectionClient:
                 response.status_code,
             )
             last_exc = BackendClientError(
-                f"Backend {response.status_code} döndü", response.status_code
+                f"Backend {response.status_code} döndü",
+                response.status_code,
             )
 
-        raise last_exc or BackendClientError("Backend'e ulaşılamadı")
+        if isinstance(last_exc, BackendClientError):
+            raise last_exc
+
+        if last_exc is not None:
+            raise BackendClientError(
+                "Backend'e ulaşılamadı",
+                status_code=None,
+            ) from last_exc
+
+        raise BackendClientError(
+            "Backend'e ulaşılamadı",
+            status_code=None,
+        )
 
     async def aclose(self) -> None:
         await self._client.aclose()
