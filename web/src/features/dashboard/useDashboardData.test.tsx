@@ -154,4 +154,114 @@ describe('useDashboardData', () => {
       expect(mockedGetCameras).toHaveBeenCalledTimes(2)
     })
   })
+
+  it('refreshes only the dashboard summary every 10 seconds in the background', async () => {
+    vi.useFakeTimers()
+
+    const refreshedSummary: DashboardSummary = {
+      ...summary,
+      todayViolationCount: 5,
+    }
+
+    mockedGetDashboardSummary.mockResolvedValueOnce(summary).mockResolvedValueOnce(refreshedSummary)
+
+    mockedGetRecentViolations.mockResolvedValue([])
+    mockedGetCameras.mockResolvedValue([])
+
+    const { result } = renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+    expect(mockedGetRecentViolations).toHaveBeenCalledTimes(1)
+    expect(mockedGetCameras).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000)
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(2)
+
+    expect(mockedGetRecentViolations).toHaveBeenCalledTimes(1)
+    expect(mockedGetCameras).toHaveBeenCalledTimes(1)
+
+    expect(result.current.summary).toEqual(refreshedSummary)
+    expect(result.current.isLoading).toBe(false)
+
+    vi.useRealTimers()
+  })
+
+  it('does not start another summary refresh while the previous refresh is still running', async () => {
+    vi.useFakeTimers()
+
+    let resolveRefresh: ((value: DashboardSummary) => void) | undefined
+
+    const pendingRefresh = new Promise<DashboardSummary>((resolve) => {
+      resolveRefresh = resolve
+    })
+
+    mockedGetDashboardSummary.mockResolvedValueOnce(summary).mockReturnValueOnce(pendingRefresh)
+
+    mockedGetRecentViolations.mockResolvedValue([])
+    mockedGetCameras.mockResolvedValue([])
+
+    renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000)
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000)
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      resolveRefresh?.(summary)
+      await pendingRefresh
+    })
+
+    vi.useRealTimers()
+  })
+
+  it('stops summary polling after unmount', async () => {
+    vi.useFakeTimers()
+
+    mockedGetDashboardSummary.mockResolvedValue(summary)
+    mockedGetRecentViolations.mockResolvedValue([])
+    mockedGetCameras.mockResolvedValue([])
+
+    const { unmount } = renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+
+    unmount()
+
+    await act(async () => {
+      vi.advanceTimersByTime(20_000)
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+
+    vi.useRealTimers()
+  })
 })
