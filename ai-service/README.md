@@ -1,6 +1,6 @@
 # AI Worker (`ai-service`)
 
-Gateway'den gelen JPEG kareleri alan, YOLO modeli ile inference çalıştıran ve
+Gateway'den gelen JPEG karelerini alan, YOLO modeli ile inference çalıştıran ve
 normalize edilmiş detection sonuçlarını Spring Boot Backend'e gönderen FastAPI servisidir.
 
 ## Sistem Akışı
@@ -34,13 +34,15 @@ Violation Engine
 - [x] 9-class mapping
 - [x] BBox normalize/clamp edge-case düzeltmeleri
 - [x] Backend 4xx/5xx hata propagation
+- [x] Runtime metrics ve `/internal/v1/metrics` endpointi
+- [x] Artifact SHA-256/modelVersion/9-class fail-fast doğrulaması
 - [x] Unit/integration testleri
 - [x] Dockerfile
 - [x] Root `docker-compose.yml` içine `ai-service` tanımı
+- [x] Docker runtime doğrulaması
 - [ ] Gerçek ACTIVE camera/session ile AI -> Backend `202 Accepted` smoke testi
 - [ ] Gerçek Gateway -> AI -> Backend E2E testi
 - [ ] 3 FPS / uzun süreli performans doğrulaması
-- [ ] Docker runtime doğrulaması
 
 Gerçek E2E testleri için Backend tarafında kayıtlı kamera ve ACTIVE session gereklidir.
 
@@ -55,8 +57,22 @@ models/best.pt
 Model versiyonu:
 
 ```text
-ppe-yolo26s-300ep-v1
+best_update_v1
 ```
+
+Artifact doğrulama bilgileri:
+
+```text
+Host runtime path: ./ai-service/models/best.pt
+Docker runtime path: /models/best.pt
+Metadata path: /models/model_info.json
+SHA-256: 80efdb978337932e29b839e6e69c23a4fb7b59d15b2acbb54a1ae7e52cdbf947
+```
+
+Servis başlangıcında model dosyası, metadata, SHA-256, modelVersion,
+ham 9-class sırası, canonical class sırası ve index remap sözleşmesi
+doğrulanır. `AI_MODEL_REQUIRED=true` olduğunda herhangi bir uyuşmazlıkta
+AI Worker fail-fast davranarak başlamaz.
 
 Model özellikleri:
 
@@ -67,7 +83,7 @@ imgsz = 640
 9 class
 ```
 
-Class listesi:
+Ham model class listesi:
 
 ```text
 Person
@@ -79,6 +95,20 @@ welding
 welding_apron
 welding_jacket
 welding_mask
+```
+
+Canonical class sırası:
+
+```text
+person
+gloves
+welding_jacket
+welding_apron
+welding_mask
+welding
+non_welding_mask
+non_welding_jacket
+non_gloves
 ```
 
 Backend mapping:
@@ -115,19 +145,19 @@ path'ine read-only volume olarak mount edilir.
 
 ## Environment
 
-Örnek config:
-
-```markdown
 Canonical örnek config repo rootundadır:
 
 ```text
 .env.example
+```
 
 Temel değişkenler:
 
 ```env
 AI_MODEL_PATH=./models/best.pt
-AI_MODEL_VERSION=ppe-yolo26s-300ep-v1
+AI_MODEL_VERSION=best_update_v1
+AI_MODEL_METADATA_PATH=./models/model_info.json
+AI_MODEL_REQUIRED=true
 AI_MODEL_DEVICE=cpu
 
 CONFIDENCE_THRESHOLD=0.50
@@ -156,11 +186,18 @@ olarak kullanılır.
 
 ## Windows'ta Local Çalıştırma
 
+Önce canonical root `.env` dosyası mevcut PowerShell oturumuna yüklenir:
+
+```powershell
+cd C:\Users\Lenovo\Documents\GitHub\ai-safety-system
+.\scripts\import-env.ps1 -EnvFile .\.env
+```
+
+Ardından AI Worker başlatılır:
+
 ```powershell
 cd ai-service
-
 .\.venv\Scripts\Activate.ps1
-
 uvicorn app.main:app --host 0.0.0.0 --port 8001
 ```
 
@@ -178,12 +215,35 @@ Model başarıyla yüklenmişse:
   "service": "ai-worker",
   "model": {
     "loaded": true,
-    "version": "ppe-yolo26s-300ep-v1",
+    "version": "best_update_v1",
     "device": "cpu",
     "error": null
   }
 }
 ```
+
+## Runtime Metrics
+
+Metrik endpointi:
+
+```text
+GET /internal/v1/metrics
+```
+
+Kontrol:
+
+```powershell
+curl.exe http://127.0.0.1:8001/internal/v1/metrics
+```
+
+Ölçülen temel değerler:
+
+- İşlenen frame toplamı
+- Inference hata toplamı
+- Invalid JPEG toplamı
+- Backend dispatch success/error toplamı
+- Backend dispatch latency
+- Son 60 saniyelik gerçek processed throughput
 
 ## Testler
 
@@ -198,20 +258,27 @@ pytest -v
 Testlerde temel olarak şunlar doğrulanır:
 
 - JPEG validation
-- model loaded / not-loaded davranışı
-- bbox normalization
-- frame dışındaki geçersiz bbox davranışı
+- Model loaded/not-loaded davranışı
+- Artifact varlığı ve SHA-256 doğrulaması
+- modelVersion doğrulaması
+- Ham ve canonical 9-class sözleşmesi
+- `index_remap` doğrulaması
+- Startup fail-fast davranışı
+- BBox normalization
+- Frame dışındaki geçersiz bbox davranışı
 - 9-class mapping
 - `non_*` classlarının korunması
-- eventId passthrough
+- `eventId` passthrough
 - Backend authentication header
 - Backend 4xx davranışı
 - Backend 5xx retry davranışı
+- Backend timeout davranışı
 - Backend failure propagation
+- Runtime metrics sayaçları
 
 ## Docker
 
-Root dizinden:
+Root dizinden compose doğrulaması:
 
 ```powershell
 docker compose config
@@ -253,6 +320,12 @@ Docker içindeki model path:
 /models/best.pt
 ```
 
+Docker içindeki metadata path:
+
+```text
+/models/model_info.json
+```
+
 AI Worker portu:
 
 ```text
@@ -274,6 +347,9 @@ Backend 5xx / connection failure
 -> AI Worker bounded retry
 -> retry başarısızsa AI Worker 502
 ```
+
+Retry sırasında aynı frame için aynı `eventId` korunur. Backend 4xx cevaplarında
+gereksiz retry yapılmaz.
 
 Bu davranış Gateway retry sözleşmesiyle uyumludur.
 
