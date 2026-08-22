@@ -2,6 +2,7 @@ package com.isg.backend.recording.application.port;
 
 import com.isg.backend.recording.domain.Recording;
 import com.isg.backend.recording.domain.RecordingStatus;
+import java.util.List;
 
 import java.util.Collection;
 import java.util.Map;
@@ -21,6 +22,10 @@ public interface RecordingRepository {
 
     Map<UUID, Recording> findByViolationIds(
             Collection<UUID> violationIds
+    );
+
+    List<Recording> findByClipGroupId(
+            UUID clipGroupId
     );
 
     Set<UUID> findViolationIdsByStatus(

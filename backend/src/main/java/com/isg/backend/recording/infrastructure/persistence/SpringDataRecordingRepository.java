@@ -21,6 +21,10 @@ public interface SpringDataRecordingRepository
             Collection<UUID> violationIds
     );
 
+    List<RecordingJpaEntity> findByClipGroupId(
+            UUID clipGroupId
+    );
+
     @Query("""
             select r.violationId
             from RecordingJpaEntity r

@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 public interface SpringDataViolationRepository
         extends JpaRepository<ViolationJpaEntity, UUID>,
@@ -19,6 +20,20 @@ public interface SpringDataViolationRepository
             Collection<ViolationLifecycleStatus> statuses
     );
 
+    @Query("""
+            select v.id
+            from ViolationJpaEntity v
+            where v.cameraId = :cameraId
+              and v.cameraSessionId = :cameraSessionId
+              and v.subjectKey = :subjectKey
+              and v.lifecycleStatus = :lifecycleStatus
+            """)
+    Set<UUID> findIdsByGroupingContextAndLifecycleStatus(
+            @Param("cameraId") UUID cameraId,
+            @Param("cameraSessionId") UUID cameraSessionId,
+            @Param("subjectKey") String subjectKey,
+            @Param("lifecycleStatus") ViolationLifecycleStatus lifecycleStatus
+    );
     @Query(
             value = """
                     SELECT

@@ -51,6 +51,9 @@ public class RecordingJpaEntity {
 
     @Column(name = "stop_command_id")
     private UUID stopCommandId;
+    @Column(name = "clip_group_id")
+    private UUID clipGroupId;
+
 
     @Column(name = "ready_at")
     private Instant readyAt;

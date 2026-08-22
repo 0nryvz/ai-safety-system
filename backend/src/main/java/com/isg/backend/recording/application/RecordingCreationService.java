@@ -35,4 +35,32 @@ public class RecordingCreationService {
 
         return recordingRepository.save(recording);
     }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Recording createRequested(
+            UUID violationId,
+            UUID startCommandId,
+            UUID clipGroupId
+    ) {
+        Recording recording = Recording.createRequested(
+                violationId,
+                startCommandId,
+                clipGroupId
+        );
+
+        return recordingRepository.save(recording);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Recording createSharedRequested(
+            UUID violationId,
+            UUID clipGroupId
+    ) {
+        Recording recording = Recording.createSharedRequested(
+                violationId,
+                clipGroupId
+        );
+
+        return recordingRepository.save(recording);
+    }
 }
