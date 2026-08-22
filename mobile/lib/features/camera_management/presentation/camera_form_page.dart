@@ -165,20 +165,24 @@ class _CameraFormPageState extends State<CameraFormPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: StrixBrand.background,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: Text(_isEdit ? 'Kamerayı düzenle' : 'Yeni kamera'),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: [
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            children: [
             if (_submitError != null) ...[
               ErrorBanner(message: _submitError!),
               const SizedBox(height: 12),
             ],
             TextFormField(
               controller: _nameController,
+              enabled: !_submitting,
               decoration: const InputDecoration(
                 labelText: 'Kamera adı',
               ),
@@ -188,6 +192,7 @@ class _CameraFormPageState extends State<CameraFormPage> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _codeController,
+              enabled: !_submitting,
               decoration: const InputDecoration(
                 labelText: 'Kamera kodu',
               ),
@@ -197,6 +202,7 @@ class _CameraFormPageState extends State<CameraFormPage> {
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _departmentId,
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Departman',
               ),
@@ -204,7 +210,10 @@ class _CameraFormPageState extends State<CameraFormPage> {
                 for (final dept in _departmentOptions)
                   DropdownMenuItem(
                     value: dept.id,
-                    child: Text(dept.name),
+                    child: Text(
+                      dept.name,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
               ],
               onChanged: _submitting
@@ -250,6 +259,7 @@ class _CameraFormPageState extends State<CameraFormPage> {
                   : Text(_isEdit ? 'Kaydet' : 'Oluştur'),
             ),
           ],
+          ),
         ),
       ),
     );

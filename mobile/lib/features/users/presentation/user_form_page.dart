@@ -183,20 +183,24 @@ class _UserFormPageState extends State<UserFormPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: StrixBrand.background,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: Text(_isEdit ? 'Kullanıcıyı düzenle' : 'Yeni kullanıcı'),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: [
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            children: [
             if (_submitError != null) ...[
               ErrorBanner(message: _submitError!),
               const SizedBox(height: 12),
             ],
             TextFormField(
               controller: _nameController,
+              enabled: !_submitting,
               decoration: const InputDecoration(labelText: 'Ad soyad'),
               textInputAction: TextInputAction.next,
               validator: (value) => _required(value, 'Ad soyad'),
@@ -204,7 +208,7 @@ class _UserFormPageState extends State<UserFormPage> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _emailController,
-              enabled: !_isEdit,
+              enabled: !_isEdit && !_submitting,
               decoration: const InputDecoration(labelText: 'E-posta'),
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
@@ -214,6 +218,7 @@ class _UserFormPageState extends State<UserFormPage> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _passwordController,
+                enabled: !_submitting,
                 decoration: const InputDecoration(labelText: 'Şifre'),
                 obscureText: true,
                 validator: _password,
@@ -293,9 +298,16 @@ class _UserFormPageState extends State<UserFormPage> {
             const SizedBox(height: 24),
             FilledButton(
               onPressed: _submitting ? null : _submit,
-              child: Text(_isEdit ? 'Kaydet' : 'Oluştur'),
+              child: _submitting
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(_isEdit ? 'Kaydet' : 'Oluştur'),
             ),
           ],
+          ),
         ),
       ),
     );

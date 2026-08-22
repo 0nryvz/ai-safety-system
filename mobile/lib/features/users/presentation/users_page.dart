@@ -31,6 +31,8 @@ class _UsersPageState extends State<UsersPage> {
   UserFailure? _failure;
   bool _loading = true;
   String? _actionError;
+  String? _mutatingId;
+  Future<void>? _inFlight;
 
   @override
   void initState() {
@@ -38,7 +40,27 @@ class _UsersPageState extends State<UsersPage> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load() {
+    final pending = _inFlight;
+    if (pending != null) {
+      return pending;
+    }
+
+    late final Future<void> future;
+    future = () async {
+      try {
+        await _loadBody();
+      } finally {
+        if (identical(_inFlight, future)) {
+          _inFlight = null;
+        }
+      }
+    }();
+    _inFlight = future;
+    return future;
+  }
+
+  Future<void> _loadBody() async {
     setState(() {
       _loading = true;
       _failure = null;
@@ -108,6 +130,11 @@ class _UsersPageState extends State<UsersPage> {
       ),
     );
     if (created == true) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kullanıcı oluşturuldu.')),
+        );
+      }
       await _load();
     }
   }
@@ -127,12 +154,23 @@ class _UsersPageState extends State<UsersPage> {
       ),
     );
     if (saved == true) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kullanıcı güncellendi.')),
+        );
+      }
       await _load();
     }
   }
 
   Future<void> _deactivate(UserSummary user) async {
-    setState(() => _actionError = null);
+    if (_mutatingId != null) {
+      return;
+    }
+    setState(() {
+      _actionError = null;
+      _mutatingId = user.id;
+    });
     try {
       await widget.repository.deactivateUser(user.id);
       await _load();
@@ -146,11 +184,21 @@ class _UsersPageState extends State<UsersPage> {
         return;
       }
       setState(() => _actionError = 'Kullanıcı pasifleştirilemedi.');
+    } finally {
+      if (mounted) {
+        setState(() => _mutatingId = null);
+      }
     }
   }
 
   Future<void> _toggleActive(UserSummary user, bool active) async {
-    setState(() => _actionError = null);
+    if (_mutatingId != null) {
+      return;
+    }
+    setState(() {
+      _actionError = null;
+      _mutatingId = user.id;
+    });
     try {
       if (!active) {
         await widget.repository.deactivateUser(user.id);
@@ -168,6 +216,10 @@ class _UsersPageState extends State<UsersPage> {
         return;
       }
       setState(() => _actionError = 'Kullanıcı durumu güncellenemedi.');
+    } finally {
+      if (mounted) {
+        setState(() => _mutatingId = null);
+      }
     }
   }
 
@@ -216,6 +268,19 @@ class _UsersPageState extends State<UsersPage> {
             actionLabel: 'Yeniden dene',
             onAction: _load,
           ),
+          const SizedBox(height: 16),
+          Text(
+            _failure!.isOffline
+                ? 'Bağlantınızı kontrol edip yeniden deneyin.'
+                : _failure!.isForbidden
+                    ? 'Bu işlem için yönetici yetkisi gerekir.'
+                    : 'Biraz sonra yeniden deneyebilirsiniz.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: StrixBrand.textSecondary,
+            ),
+          ),
         ],
       );
     }
@@ -243,6 +308,16 @@ class _UsersPageState extends State<UsersPage> {
             color: StrixBrand.textSecondary,
           ),
         ),
+        if (_failure != null) ...[
+          const SizedBox(height: 12),
+          ErrorBanner(
+            message: _failure!.isOffline
+                ? 'Çevrimdışı — backend\'e ulaşılamıyor.'
+                : _failure!.message,
+            actionLabel: 'Yeniden dene',
+            onAction: _load,
+          ),
+        ],
         if (_actionError != null) ...[
           const SizedBox(height: 12),
           ErrorBanner(message: _actionError!),
@@ -250,32 +325,58 @@ class _UsersPageState extends State<UsersPage> {
         const SizedBox(height: 16),
         if (users.isEmpty)
           Container(
-            padding: const EdgeInsets.all(24),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
             decoration: BoxDecoration(
               color: StrixBrand.surface,
               borderRadius: BorderRadius.circular(StrixBrand.radiusCard),
               border: Border.all(color: StrixBrand.border),
             ),
-            child: Text(
-              'Kullanıcı bulunmuyor.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(color: StrixBrand.textSecondary),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.people_outline,
+                  size: 36,
+                  color: StrixBrand.textSecondary,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Kullanıcı bulunmuyor.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                    color: StrixBrand.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  widget.canManageUsers
+                      ? 'Yeni hesap eklemek için alttaki düğmeyi kullanın.'
+                      : 'Görüntülenecek operatör hesabı yok.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: StrixBrand.textSecondary,
+                  ),
+                ),
+              ],
             ),
           )
         else
           ...users.map(
             (user) {
               final isSelf = widget.currentUserId == user.id;
+              final canMutate =
+                  widget.canManageUsers && _mutatingId == null && !isSelf;
               return UserCard(
                 user: user,
                 canManage: widget.canManageUsers,
                 onEdit: widget.canManageUsers ? () => _openEdit(user) : null,
-                onDeactivate: widget.canManageUsers && !isSelf && user.active
+                onDeactivate: canMutate && user.active
                     ? () => _deactivate(user)
                     : null,
-                onActiveChanged: widget.canManageUsers && !isSelf
-                    ? (value) => _toggleActive(user, value)
-                    : null,
+                onActiveChanged:
+                    canMutate ? (value) => _toggleActive(user, value) : null,
               );
             },
           ),

@@ -42,6 +42,7 @@ class _DashboardPageState extends State<DashboardPage> {
   DashboardSnapshot? _snapshot;
   DashboardFailure? _failure;
   bool _loading = true;
+  Future<void>? _inFlight;
 
   @override
   void initState() {
@@ -58,7 +59,27 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  Future<void> _load() async {
+  Future<void> _load() {
+    final pending = _inFlight;
+    if (pending != null) {
+      return pending;
+    }
+
+    late final Future<void> future;
+    future = () async {
+      try {
+        await _loadBody();
+      } finally {
+        if (identical(_inFlight, future)) {
+          _inFlight = null;
+        }
+      }
+    }();
+    _inFlight = future;
+    return future;
+  }
+
+  Future<void> _loadBody() async {
     setState(() {
       _loading = true;
       _failure = null;
@@ -138,17 +159,19 @@ class _DashboardPageState extends State<DashboardPage> {
             actionLabel: 'Yeniden dene',
             onAction: _load,
           ),
-          if (_failure!.isOffline) ...[
-            const SizedBox(height: 16),
-            Text(
-              'Bağlantı gelince aşağı çekerek yenileyebilirsiniz.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: StrixBrand.textSecondary,
-              ),
+          const SizedBox(height: 16),
+          Text(
+            _failure!.isOffline
+                ? 'Bağlantınızı kontrol edip yeniden deneyin.'
+                : _failure!.kind == DashboardFailureKind.forbidden
+                    ? 'Bu işlem için yönetici yetkisi gerekir.'
+                    : 'Biraz sonra yeniden deneyebilirsiniz.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: StrixBrand.textSecondary,
             ),
-          ],
+          ),
         ],
       );
     }

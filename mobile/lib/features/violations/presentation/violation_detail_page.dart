@@ -205,6 +205,17 @@ class _ViolationDetailPageState extends State<ViolationDetailPage> {
             actionLabel: 'Yeniden dene',
             onAction: _load,
           ),
+          const SizedBox(height: 16),
+          Text(
+            _failure!.isOffline
+                ? 'Bağlantınızı kontrol edip yeniden deneyin.'
+                : 'Biraz sonra yeniden deneyebilirsiniz.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: StrixBrand.textSecondary,
+            ),
+          ),
         ],
       );
     }
@@ -215,6 +226,8 @@ class _ViolationDetailPageState extends State<ViolationDetailPage> {
       children: [
         Text(
           violationTypeLabel(detail.type),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: GoogleFonts.inter(
             fontSize: 22,
             fontWeight: FontWeight.w700,
@@ -266,7 +279,7 @@ class _ViolationDetailPageState extends State<ViolationDetailPage> {
         for (final status in ViolationReviewStatus.patchable) ...[
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: OutlinedButton(
+            child:             OutlinedButton(
               onPressed: _reviewing ? null : () => _submitReview(status),
               child: Text(reviewStatusLabel(status)),
             ),
@@ -333,6 +346,8 @@ class _MetaCard extends StatelessWidget {
           Expanded(
             child: Text(
               value,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
               style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,

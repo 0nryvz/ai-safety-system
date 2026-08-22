@@ -37,6 +37,8 @@ class CameraStatusBadge extends StatelessWidget {
       ),
       child: Text(
         status.label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,

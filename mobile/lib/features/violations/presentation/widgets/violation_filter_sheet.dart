@@ -116,9 +116,10 @@ class _ViolationFilterSheetState extends State<_ViolationFilterSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + bottom),
-      child: SingleChildScrollView(
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + bottom),
+        child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
@@ -165,7 +166,10 @@ class _ViolationFilterSheetState extends State<_ViolationFilterSheet> {
                 for (final camera in widget.cameras)
                   DropdownMenuItem(
                     value: camera.id,
-                    child: Text(camera.name),
+                    child: Text(
+                      camera.name,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
               ],
               onChanged: (value) => setState(() => _cameraId = value),
@@ -177,7 +181,10 @@ class _ViolationFilterSheetState extends State<_ViolationFilterSheet> {
                 for (final dept in widget.departments)
                   DropdownMenuItem(
                     value: dept.id,
-                    child: Text(dept.name),
+                    child: Text(
+                      dept.name,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
               ],
               onChanged: (value) => setState(() => _departmentId = value),
@@ -231,6 +238,7 @@ class _ViolationFilterSheetState extends State<_ViolationFilterSheet> {
           ],
         ),
       ),
+    ),
     );
   }
 }
@@ -259,8 +267,10 @@ class _DateRow extends StatelessWidget {
         children: [
           if (onClear != null)
             IconButton(
+              tooltip: 'Tarihi temizle',
               onPressed: onClear,
               icon: const Icon(Icons.close, size: 18),
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             ),
           const Icon(Icons.calendar_today_outlined, size: 18),
         ],
@@ -294,6 +304,7 @@ class _Dropdown<T> extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: DropdownButtonFormField<T>(
         initialValue: effectiveValue,
+        isExpanded: true,
         decoration: InputDecoration(labelText: label),
         items: [
           DropdownMenuItem<T>(

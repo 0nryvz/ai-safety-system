@@ -36,6 +36,8 @@ class _CamerasPageState extends State<CamerasPage> {
   CameraManagementFailure? _failure;
   bool _loading = true;
   String? _actionError;
+  String? _mutatingId;
+  Future<void>? _inFlight;
 
   @override
   void initState() {
@@ -51,7 +53,27 @@ class _CamerasPageState extends State<CamerasPage> {
     }
   }
 
-  Future<void> _load() async {
+  Future<void> _load() {
+    final pending = _inFlight;
+    if (pending != null) {
+      return pending;
+    }
+
+    late final Future<void> future;
+    future = () async {
+      try {
+        await _loadBody();
+      } finally {
+        if (identical(_inFlight, future)) {
+          _inFlight = null;
+        }
+      }
+    }();
+    _inFlight = future;
+    return future;
+  }
+
+  Future<void> _loadBody() async {
     setState(() {
       _loading = true;
       _failure = null;
@@ -121,6 +143,11 @@ class _CamerasPageState extends State<CamerasPage> {
     );
 
     if (created == true) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kamera kaydedildi.')),
+        );
+      }
       await _load();
     }
   }
@@ -158,12 +185,23 @@ class _CamerasPageState extends State<CamerasPage> {
     );
 
     if (saved == true) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kamera güncellendi.')),
+        );
+      }
       await _load();
     }
   }
 
   Future<void> _toggleActive(CameraItem camera, bool active) async {
-    setState(() => _actionError = null);
+    if (_mutatingId != null) {
+      return;
+    }
+    setState(() {
+      _actionError = null;
+      _mutatingId = camera.id;
+    });
 
     try {
       await widget.repository.updateCamera(camera.id, active: active);
@@ -178,6 +216,10 @@ class _CamerasPageState extends State<CamerasPage> {
         return;
       }
       setState(() => _actionError = 'Kamera durumu güncellenemedi.');
+    } finally {
+      if (mounted) {
+        setState(() => _mutatingId = null);
+      }
     }
   }
 
@@ -241,6 +283,19 @@ class _CamerasPageState extends State<CamerasPage> {
             actionLabel: 'Yeniden dene',
             onAction: _load,
           ),
+          const SizedBox(height: 16),
+          Text(
+            _failure!.isOffline
+                ? 'Bağlantınızı kontrol edip yeniden deneyin.'
+                : _failure!.isForbidden
+                    ? 'Bu işlem için yönetici yetkisi gerekir.'
+                    : 'Biraz sonra yeniden deneyebilirsiniz.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: StrixBrand.textSecondary,
+            ),
+          ),
         ],
       );
     }
@@ -286,16 +341,41 @@ class _CamerasPageState extends State<CamerasPage> {
         const SizedBox(height: 16),
         if (cameras.isEmpty)
           Container(
-            padding: const EdgeInsets.all(24),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
             decoration: BoxDecoration(
               color: StrixBrand.surface,
               borderRadius: BorderRadius.circular(StrixBrand.radiusCard),
               border: Border.all(color: StrixBrand.border),
             ),
-            child: Text(
-              'Kamera bulunmuyor.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(color: StrixBrand.textSecondary),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.videocam_off_outlined,
+                  size: 36,
+                  color: StrixBrand.textSecondary,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Kamera bulunmuyor.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                    color: StrixBrand.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  widget.canManageCameras
+                      ? 'Yeni kamera eklemek için alttaki düğmeyi kullanın.'
+                      : 'Kayıtlı kamera olmadığında liste boş görünür.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: StrixBrand.textSecondary,
+                  ),
+                ),
+              ],
             ),
           )
         else
@@ -309,7 +389,7 @@ class _CamerasPageState extends State<CamerasPage> {
               onEdit: widget.canManageCameras
                   ? () => _openEdit(camera)
                   : null,
-              onActiveChanged: widget.canManageCameras
+              onActiveChanged: widget.canManageCameras && _mutatingId == null
                   ? (value) => _toggleActive(camera, value)
                   : null,
             ),

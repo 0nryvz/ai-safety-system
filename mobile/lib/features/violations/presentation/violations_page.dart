@@ -37,6 +37,7 @@ class _ViolationsPageState extends State<ViolationsPage> {
   bool _loading = true;
   bool _loadingMore = false;
   ViolationFailure? _failure;
+  Future<void>? _inFlight;
 
   @override
   void initState() {
@@ -52,7 +53,27 @@ class _ViolationsPageState extends State<ViolationsPage> {
     }
   }
 
-  Future<void> _load({required bool reset}) async {
+  Future<void> _load({required bool reset}) {
+    final pending = _inFlight;
+    if (pending != null) {
+      return pending;
+    }
+
+    late final Future<void> future;
+    future = () async {
+      try {
+        await _loadBody(reset: reset);
+      } finally {
+        if (identical(_inFlight, future)) {
+          _inFlight = null;
+        }
+      }
+    }();
+    _inFlight = future;
+    return future;
+  }
+
+  Future<void> _loadBody({required bool reset}) async {
     if (reset) {
       setState(() {
         _loading = true;
@@ -192,6 +213,19 @@ class _ViolationsPageState extends State<ViolationsPage> {
             actionLabel: 'Yeniden dene',
             onAction: () => _load(reset: true),
           ),
+          const SizedBox(height: 16),
+          Text(
+            _failure!.isOffline
+                ? 'Bağlantınızı kontrol edip yeniden deneyin.'
+                : _failure!.kind == ViolationFailureKind.forbidden
+                    ? 'Bu işlem için yetkiniz yok. Yöneticinizle görüşün.'
+                    : 'Biraz sonra yeniden deneyebilirsiniz.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: StrixBrand.textSecondary,
+            ),
+          ),
         ],
       );
     }
@@ -236,16 +270,41 @@ class _ViolationsPageState extends State<ViolationsPage> {
         ),
         if (_items.isEmpty)
           Container(
-            padding: const EdgeInsets.all(24),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
             decoration: BoxDecoration(
               color: StrixBrand.surface,
               borderRadius: BorderRadius.circular(StrixBrand.radiusCard),
               border: Border.all(color: StrixBrand.border),
             ),
-            child: Text(
-              'İhlal bulunmuyor.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(color: StrixBrand.textSecondary),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.policy_outlined,
+                  size: 36,
+                  color: StrixBrand.textSecondary,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'İhlal bulunmuyor.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                    color: StrixBrand.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _filters.isEmpty
+                      ? 'Kayıtlı ihlal yok. Filtre uyguladıysanız koşulları genişletin.'
+                      : 'Bu filtrelere uyan ihlal yok. Filtreleri temizleyebilirsiniz.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: StrixBrand.textSecondary,
+                  ),
+                ),
+              ],
             ),
           )
         else ...[

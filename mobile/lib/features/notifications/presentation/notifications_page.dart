@@ -99,20 +99,47 @@ class _NotificationsPageState extends State<NotificationsPage> {
         RealtimeConnectionBanner(state: connection),
         if (visible.isEmpty)
           Container(
-            padding: const EdgeInsets.all(24),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
             decoration: BoxDecoration(
               color: StrixBrand.surface,
               borderRadius: BorderRadius.circular(StrixBrand.radiusCard),
               border: Border.all(color: StrixBrand.border),
             ),
-            child: Text(
-              reconnecting
-                  ? 'Yeniden bağlanırken bildirim bekleniyor.'
-                  : connection == RealtimeConnectionState.offline
-                      ? 'Çevrimdışı. Yeni bildirim alınamıyor.'
-                      : 'Bildirim bulunmuyor.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(color: StrixBrand.textSecondary),
+            child: Column(
+              children: [
+                Icon(
+                  connection == RealtimeConnectionState.offline
+                      ? Icons.cloud_off_outlined
+                      : Icons.notifications_none_outlined,
+                  size: 36,
+                  color: StrixBrand.textSecondary,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  reconnecting
+                      ? 'Yeniden bağlanırken bildirim bekleniyor.'
+                      : connection == RealtimeConnectionState.offline
+                          ? 'Çevrimdışı. Yeni bildirim alınamıyor.'
+                          : 'Bildirim bulunmuyor.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                    color: StrixBrand.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  connection == RealtimeConnectionState.offline
+                      ? 'Önceki bildirimler korunur; bağlantı gelince yenileri düşer.'
+                      : 'Yeni ihlal uyarıları burada görünür.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: StrixBrand.textSecondary,
+                  ),
+                ),
+              ],
             ),
           )
         else

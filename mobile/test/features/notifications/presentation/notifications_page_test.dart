@@ -248,4 +248,21 @@ void main() {
     );
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
+
+  testWidgets('küçük ekranda overflow yok', (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final store = _storeWithAlert();
+    addTearDown(store.dispose);
+
+    await tester.pumpWidget(wrap(store));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Eldiven'), findsOneWidget);
+    expect(find.text('Yeni'), findsOneWidget);
+  });
 }

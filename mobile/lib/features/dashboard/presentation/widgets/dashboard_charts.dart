@@ -191,13 +191,23 @@ class _EmptyBlock extends StatelessWidget {
         borderRadius: BorderRadius.circular(StrixBrand.radiusCard),
         border: Border.all(color: StrixBrand.border),
       ),
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.inter(
-          fontSize: 13,
-          color: StrixBrand.textSecondary,
-        ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.insert_chart_outlined,
+            color: StrixBrand.textSecondary,
+            size: 32,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: StrixBrand.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }

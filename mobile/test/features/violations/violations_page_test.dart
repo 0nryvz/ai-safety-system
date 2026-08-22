@@ -192,4 +192,34 @@ void main() {
     expect(find.text('Eldiven'), findsOneWidget);
     expect(find.textContaining('tamamlanamadı'), findsOneWidget);
   });
+
+  testWidgets('küçük ekranda overflow yok', (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repo = _FakeRepo(
+      (_, _) async => ViolationPage(
+        content: [
+          _item(
+            nameType: 'MISSING_WELDING_MASK',
+            lifecycle: ViolationLifecycleStatus.active,
+            review: ViolationReviewStatus.unreviewed,
+            recording: ViolationRecordingStatus.ready,
+          ),
+        ],
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        totalPages: 1,
+      ),
+    );
+
+    await tester.pumpWidget(wrap(ViolationsPage(repository: repo)));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('Yaşam: Aktif'), findsOneWidget);
+  });
 }

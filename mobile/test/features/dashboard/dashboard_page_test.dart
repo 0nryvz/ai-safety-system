@@ -238,4 +238,72 @@ void main() {
     expect(find.text('7'), findsOneWidget);
     expect(find.textContaining('alınamadı'), findsOneWidget);
   });
+
+  testWidgets('küçük ekranda overflow yok', (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repo = _FakeRepository(
+      () async => DashboardSnapshot(
+        summary: const DashboardSummary(
+          todayViolationCount: 3,
+          last7DaysViolationCount: 11,
+          mostFrequentViolationType: 'MISSING_WELDING_MASK',
+          activeCameraCount: 5,
+          offlineCameraCount: 1,
+          activeViolationCount: 2,
+        ),
+        trend: [
+          for (var i = 0; i < 7; i++)
+            DashboardTrendPoint(
+              date: DateTime.utc(2026, 8, 16 + i),
+              count: i,
+            ),
+        ],
+        distribution: const [
+          DashboardDistributionItem(
+            group: 'MISSING_WELDING_MASK',
+            count: 4,
+          ),
+        ],
+        recentViolations: [
+          RecentViolationItem(
+            violationId: 'viol-1',
+            detectedAt: DateTime.utc(2026, 8, 21, 12),
+            startedAt: DateTime.utc(2026, 8, 21, 12),
+            violationType: 'RESTRICTED_ZONE',
+            cameraId: 'cam-1',
+            departmentId: 'dep-1',
+            departmentName: 'Çok uzun departman adı',
+            cameraName: 'Çok uzun kamera adı ile taşma kontrolü',
+            cameraCode: 'C1',
+            lifecycleStatus: 'ACTIVE',
+            reviewStatus: 'UNREVIEWED',
+            recordingStatus: 'READY',
+            recordingReadyAt: null,
+            confidence: 0.8,
+            modelVersion: 'v1',
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      wrap(
+        MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 568),
+            textScaler: TextScaler.linear(1.2),
+          ),
+          child: DashboardPage(repository: repo),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('3'), findsOneWidget);
+  });
 }

@@ -208,4 +208,31 @@ void main() {
     expect(find.byType(Switch), findsNothing);
     expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
   });
+
+  testWidgets('küçük ekranda uzun isim overflow yok', (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      wrap(
+        UsersPage(
+          repository: _FakeUsers(
+            users: [
+              _user(
+                fullName: 'Çok Uzun Kullanıcı Adı Taşma Kontrolü İçin',
+                email: 'cokuzun.kullanici.adi@ornek.isg.local',
+              ),
+            ],
+          ),
+          canManageUsers: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Pasifleştir'), findsOneWidget);
+  });
 }

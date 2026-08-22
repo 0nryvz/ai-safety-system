@@ -40,6 +40,8 @@ class ViolationCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         violationTypeLabel(item.type),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(
                           fontWeight: FontWeight.w600,
                           fontSize: 15,

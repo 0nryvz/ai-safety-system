@@ -12,13 +12,17 @@ class DashboardKpiGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final tallCards = width < 360 || textScale > 1.15;
+
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 10,
       crossAxisSpacing: 10,
-      childAspectRatio: 1.55,
+      childAspectRatio: tallCards ? 1.2 : 1.55,
       children: [
         _KpiCard(
           label: 'Bugün',
@@ -78,6 +82,8 @@ class _KpiCard extends StatelessWidget {
         children: [
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -85,13 +91,17 @@ class _KpiCard extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: accent,
-              height: 1.05,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: GoogleFonts.inter(
+                fontSize: 28,
+                fontWeight: FontWeight.w700,
+                color: accent,
+                height: 1.05,
+              ),
             ),
           ),
           const SizedBox(height: 4),

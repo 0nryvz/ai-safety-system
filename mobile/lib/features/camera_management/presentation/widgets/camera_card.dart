@@ -71,6 +71,8 @@ class CameraCard extends StatelessWidget {
                         children: [
                           Text(
                             camera.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.inter(
                               fontWeight: FontWeight.w600,
                               fontSize: 15,
@@ -81,6 +83,8 @@ class CameraCard extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               camera.subtitle,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 color: StrixBrand.textSecondary,
@@ -104,6 +108,7 @@ class CameraCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         formatCameraLastSeen(camera.lastSeenAt),
+                        maxLines: 1,
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           color: StrixBrand.textSecondary,
@@ -111,30 +116,42 @@ class CameraCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (canManage) ...[
-                      if (onActiveChanged != null)
+                  ],
+                ),
+                if (canManage || (onTap != null && enabled)) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (canManage && onActiveChanged != null)
                         Switch.adaptive(
                           value: enabled,
                           onChanged: onActiveChanged,
                           activeTrackColor:
                               StrixBrand.primary.withValues(alpha: 0.45),
                         ),
-                      if (onEdit != null)
+                      if (canManage && onEdit != null)
                         IconButton(
                           tooltip: 'Düzenle',
                           onPressed: onEdit,
                           icon: const Icon(Icons.edit_outlined, size: 20),
                           color: StrixBrand.textSecondary,
-                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(
+                            minWidth: 48,
+                            minHeight: 48,
+                          ),
+                        ),
+                      if (onTap != null && enabled)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: Icon(
+                            Icons.chevron_right,
+                            color: StrixBrand.textSecondary,
+                          ),
                         ),
                     ],
-                    if (onTap != null && enabled)
-                      const Icon(
-                        Icons.chevron_right,
-                        color: StrixBrand.textSecondary,
-                      ),
-                  ],
-                ),
+                  ),
+                ],
               ],
             ),
           ),

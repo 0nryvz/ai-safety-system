@@ -42,18 +42,23 @@ class UserCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       user.fullName.isEmpty ? user.email : user.fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
                         fontWeight: FontWeight.w600,
                         fontSize: 15,
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   _ActiveChip(active: user.active),
                 ],
               ),
               const SizedBox(height: 4),
               Text(
                 user.email,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   color: StrixBrand.textSecondary,
@@ -62,10 +67,14 @@ class UserCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 user.roleSummary,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.inter(fontSize: 13),
               ),
               Text(
                 user.departmentSummary,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   color: StrixBrand.textSecondary,
@@ -73,7 +82,9 @@ class UserCard extends StatelessWidget {
               ),
               if (canManage) ...[
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 4,
                   children: [
                     if (onActiveChanged != null)
                       Switch.adaptive(
@@ -85,7 +96,10 @@ class UserCard extends StatelessWidget {
                         tooltip: 'Düzenle',
                         onPressed: onEdit,
                         icon: const Icon(Icons.edit_outlined, size: 20),
-                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(
+                          minWidth: 48,
+                          minHeight: 48,
+                        ),
                       ),
                     if (onDeactivate != null && user.active)
                       TextButton(

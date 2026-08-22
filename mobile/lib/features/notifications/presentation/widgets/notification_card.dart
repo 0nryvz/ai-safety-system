@@ -59,6 +59,8 @@ class NotificationCard extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 notificationTypeLabel(item.type),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.inter(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 15,
@@ -89,10 +91,14 @@ class NotificationCard extends StatelessWidget {
                         ),
                         Text(
                           notificationCameraLabel(item),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.inter(fontSize: 13),
                         ),
                         Text(
                           notificationDepartmentLabel(item),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: StrixBrand.textSecondary,
@@ -143,7 +149,10 @@ class NotificationCard extends StatelessWidget {
                   tooltip: 'Gizle',
                   onPressed: onDismiss,
                   icon: const Icon(Icons.close, size: 18),
-                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 48,
+                    minHeight: 48,
+                  ),
                 ),
             ],
           ),

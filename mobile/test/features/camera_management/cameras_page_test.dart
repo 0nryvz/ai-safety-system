@@ -269,4 +269,39 @@ void main() {
       'Bilinmiyor',
     );
   });
+
+  testWidgets('küçük ekranda uzun kamera adı overflow yok', (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repo = _FakeRepository(
+      () async => [
+        CameraItem(
+          id: '11111111-0000-4000-8000-000000000001',
+          name: 'Kaynak hattı çok uzun kamera adı taşma kontrolü',
+          code: 'CAM-UZUN-01',
+          departmentId: '22222222-0000-4000-8000-000000000002',
+          departmentName: 'Üretim ve montaj departmanı',
+          active: true,
+          status: CameraStatus.online,
+          lastSeenAt: DateTime.utc(2026, 8, 22, 10),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      wrap(
+        CamerasPage(
+          repository: repo,
+          canManageCameras: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Kamera ekle'), findsOneWidget);
+  });
 }

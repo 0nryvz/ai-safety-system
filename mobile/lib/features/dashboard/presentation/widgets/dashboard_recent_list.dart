@@ -26,13 +26,33 @@ class DashboardRecentList extends StatelessWidget {
           borderRadius: BorderRadius.circular(StrixBrand.radiusCard),
           border: Border.all(color: StrixBrand.border),
         ),
-        child: Text(
-          'Son ihlal bulunmuyor',
-          textAlign: TextAlign.center,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            color: StrixBrand.textSecondary,
-          ),
+        child: Column(
+          children: [
+            Icon(
+              Icons.inbox_outlined,
+              color: StrixBrand.textSecondary,
+              size: 32,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Son ihlal bulunmuyor',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: StrixBrand.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Yeni ihlaller burada listelenir.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: StrixBrand.textSecondary,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -104,6 +124,8 @@ class _RecentTile extends StatelessWidget {
                 children: [
                   Text(
                     dashboardTypeLabel(item.violationType),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -113,6 +135,8 @@ class _RecentTile extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     subtitle.isEmpty ? 'Kamera bilgisi yok' : subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       color: StrixBrand.textSecondary,
