@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/error/api_failure.dart';
 import '../../core/theme/strix_brand.dart';
+import '../../features/camera_management/presentation/cameras_tab_page.dart';
 import '../../features/dashboard/presentation/dashboard_tab_page.dart';
 import '../../features/session/camera_option.dart';
 import '../../features/session/camera_selection_page.dart';
@@ -71,15 +72,10 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
   }
 
-  Widget _bodyFor(ShellTab tab, {required bool canManageCameras}) {
+  Widget _bodyFor(ShellTab tab) {
     return switch (tab) {
       ShellTab.dashboard => const DashboardTabPage(),
-      ShellTab.cameras => PlaceholderPage(
-          title: 'Kameralar',
-          subtitle: canManageCameras
-              ? 'ADMIN: kamera oluşturma/güncelleme aksiyonları bu ekranda açılacak.'
-              : null,
-        ),
+      ShellTab.cameras => const CamerasTabPage(),
       ShellTab.violations => const PlaceholderPage(title: 'İhlaller'),
       ShellTab.notifications => const PlaceholderPage(title: 'Bildirimler'),
       ShellTab.users => const PlaceholderPage(title: 'Kullanıcılar'),
@@ -138,10 +134,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         children: [
           if (_error != null) _ShellErrorBanner(message: _error!),
           Expanded(
-            child: _bodyFor(
-              activeTab,
-              canManageCameras: session.canManageCameras,
-            ),
+            child: _bodyFor(activeTab),
           ),
         ],
       ),
