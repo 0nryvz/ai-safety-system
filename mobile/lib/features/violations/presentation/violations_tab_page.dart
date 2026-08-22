@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/auth_controller.dart';
+import '../../notifications/data/realtime_providers.dart';
 import '../data/violations_api.dart';
 import '../data/violations_repository.dart';
 import 'violations_page.dart';
@@ -20,6 +21,7 @@ class ViolationsTabPage extends ConsumerWidget {
       repository: ViolationsRepository(
         api: ViolationsApi.fromAuthenticated(api),
       ),
+      recoveryTick: ref.watch(restRecoveryTickProvider),
     );
   }
 }

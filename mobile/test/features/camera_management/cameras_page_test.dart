@@ -193,6 +193,76 @@ void main() {
     expect(find.text('Kamera bulunmuyor.'), findsOneWidget);
   });
 
+  testWidgets('recoveryTick mevcut _load yolunu tekrarlar', (tester) async {
+    var loads = 0;
+    final repo = _FakeRepository(() async {
+      loads++;
+      return [_camera(name: 'Kaynak-1', status: CameraStatus.online)];
+    });
+
+    await tester.pumpWidget(
+      wrap(
+        CamerasPage(
+          repository: repo,
+          canManageCameras: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(loads, 1);
+
+    await tester.pumpWidget(
+      wrap(
+        CamerasPage(
+          repository: repo,
+          canManageCameras: false,
+          recoveryTick: 1,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(loads, 2);
+    expect(find.text('Kaynak-1'), findsOneWidget);
+  });
+
+  testWidgets('recovery başarısız olsa mevcut kamera kalır', (tester) async {
+    var loads = 0;
+    final repo = _FakeRepository(() async {
+      loads++;
+      if (loads > 1) {
+        throw const CameraManagementFailure(
+          'Kamera işlemi tamamlanamadı (500).',
+          kind: CameraManagementFailureKind.server,
+        );
+      }
+      return [_camera(name: 'Kaynak-1', status: CameraStatus.online)];
+    });
+
+    await tester.pumpWidget(
+      wrap(
+        CamerasPage(
+          repository: repo,
+          canManageCameras: false,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(
+      wrap(
+        CamerasPage(
+          repository: repo,
+          canManageCameras: false,
+          recoveryTick: 1,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kaynak-1'), findsOneWidget);
+    expect(find.textContaining('tamamlanamadı'), findsOneWidget);
+  });
+
   test('CameraStatusBadge bilinmeyen durum', () {
     expect(
       const CameraStatusBadge(status: CameraStatus.unknown).status.label,

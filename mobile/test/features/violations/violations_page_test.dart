@@ -122,4 +122,74 @@ void main() {
     expect(find.textContaining('tamamlanamadı'), findsOneWidget);
     expect(find.text('Yeniden dene'), findsOneWidget);
   });
+
+  testWidgets('recoveryTick mevcut listeyi yeniler', (tester) async {
+    var loads = 0;
+    final repo = _FakeRepo((_, _) async {
+      loads++;
+      return ViolationPage(
+        content: [
+          _item(
+            nameType: 'MISSING_GLOVES',
+            lifecycle: ViolationLifecycleStatus.active,
+            review: ViolationReviewStatus.unreviewed,
+            recording: ViolationRecordingStatus.ready,
+          ),
+        ],
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        totalPages: 1,
+      );
+    });
+
+    await tester.pumpWidget(wrap(ViolationsPage(repository: repo)));
+    await tester.pumpAndSettle();
+    expect(loads, 1);
+
+    await tester.pumpWidget(
+      wrap(ViolationsPage(repository: repo, recoveryTick: 1)),
+    );
+    await tester.pumpAndSettle();
+    expect(loads, 2);
+    expect(find.text('Eldiven'), findsOneWidget);
+  });
+
+  testWidgets('recovery başarısız olsa mevcut ihlal kalır', (tester) async {
+    var loads = 0;
+    final repo = _FakeRepo((_, _) async {
+      loads++;
+      if (loads > 1) {
+        throw const ViolationFailure(
+          'İhlal işlemi tamamlanamadı (500).',
+          kind: ViolationFailureKind.server,
+        );
+      }
+      return ViolationPage(
+        content: [
+          _item(
+            nameType: 'MISSING_GLOVES',
+            lifecycle: ViolationLifecycleStatus.active,
+            review: ViolationReviewStatus.unreviewed,
+            recording: ViolationRecordingStatus.ready,
+          ),
+        ],
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        totalPages: 1,
+      );
+    });
+
+    await tester.pumpWidget(wrap(ViolationsPage(repository: repo)));
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(
+      wrap(ViolationsPage(repository: repo, recoveryTick: 1)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Eldiven'), findsOneWidget);
+    expect(find.textContaining('tamamlanamadı'), findsOneWidget);
+  });
 }

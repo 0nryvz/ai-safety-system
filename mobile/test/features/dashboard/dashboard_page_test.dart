@@ -170,4 +170,72 @@ void main() {
     await tester.pump();
     expect(tappedId, 'viol-1');
   });
+
+  testWidgets('recoveryTick mevcut _load yolunu tekrarlar', (tester) async {
+    var loads = 0;
+    final repo = _FakeRepository(() async {
+      loads++;
+      return const DashboardSnapshot(
+        summary: DashboardSummary(
+          todayViolationCount: 1,
+          last7DaysViolationCount: 1,
+          mostFrequentViolationType: null,
+          activeCameraCount: 1,
+          offlineCameraCount: 0,
+          activeViolationCount: 0,
+        ),
+        trend: [],
+        distribution: [],
+        recentViolations: [],
+      );
+    });
+
+    await tester.pumpWidget(wrap(DashboardPage(repository: repo)));
+    await tester.pumpAndSettle();
+    expect(loads, 1);
+
+    await tester.pumpWidget(
+      wrap(DashboardPage(repository: repo, recoveryTick: 1)),
+    );
+    await tester.pumpAndSettle();
+    expect(loads, 2);
+  });
+
+  testWidgets('recovery başarısız olsa mevcut KPI kalır', (tester) async {
+    var loads = 0;
+    final repo = _FakeRepository(() async {
+      loads++;
+      if (loads > 1) {
+        throw const DashboardFailure(
+          'Dashboard verisi alınamadı (500).',
+          kind: DashboardFailureKind.server,
+        );
+      }
+      return const DashboardSnapshot(
+        summary: DashboardSummary(
+          todayViolationCount: 7,
+          last7DaysViolationCount: 9,
+          mostFrequentViolationType: null,
+          activeCameraCount: 2,
+          offlineCameraCount: 0,
+          activeViolationCount: 1,
+        ),
+        trend: [],
+        distribution: [],
+        recentViolations: [],
+      );
+    });
+
+    await tester.pumpWidget(wrap(DashboardPage(repository: repo)));
+    await tester.pumpAndSettle();
+    expect(find.text('7'), findsOneWidget);
+
+    await tester.pumpWidget(
+      wrap(DashboardPage(repository: repo, recoveryTick: 1)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('7'), findsOneWidget);
+    expect(find.textContaining('alınamadı'), findsOneWidget);
+  });
 }

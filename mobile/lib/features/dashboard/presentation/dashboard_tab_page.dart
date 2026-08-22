@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/auth_controller.dart';
+import '../../notifications/data/realtime_providers.dart';
 import '../data/dashboard_api.dart';
 import '../data/dashboard_repository.dart';
 import 'dashboard_page.dart';
@@ -25,6 +26,7 @@ class DashboardTabPage extends ConsumerWidget {
       ),
       showAppBar: false,
       onRecentViolationTap: onRecentViolationTap,
+      recoveryTick: ref.watch(restRecoveryTickProvider),
     );
   }
 }
