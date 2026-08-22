@@ -21,7 +21,7 @@ Mobil S0–S5 kodu analyze + unit/widget testte yeşil; AppShell navigasyonu ve 
 | READY TO MERGE | **no** |
 | Mobil kod (analyze/test) | Hazır |
 | Canlı S2 liste | Bloke (backend) |
-| Canlı clip playback (READY) | Emülatörde doğrulanamadı (URL host) |
+| Canlı clip playback (READY) | Player açıldı; MinIO **404** (nesne yok). `adb reverse` ile host erişildi |
 
 ---
 
@@ -69,9 +69,9 @@ Mobil S0–S5 kodu analyze + unit/widget testte yeşil; AppShell navigasyonu ve 
    Örnek: `66666666-...-0002 / 0006 / 0009` detail 500.  
    Canonical tipli ID’ler (0001, 0003, 0004, 0005, 0007, 0008, 0010) 200.
 
-4. **Media URL host.**  
-   Clip/cover presigned URL: `http://localhost:9000/violation-media/...`  
-   Emülatörde `localhost` emülatörün kendisi. READY clip bu yüzden cihazda oynatılamaz. Host `10.0.2.2` veya LAN olmalı.
+4. **Media / clip.**  
+   Presigned URL: `http://localhost:9000/violation-media/...`  
+   Emülatörde `localhost` host değil. Gerçek telefonda `adb reverse tcp:9000` ile host’a ulaşıldı; ExoPlayer **HTTP 404** aldı (bucket’ta nesne yok). `clip-url` 200 ≠ dosya var.
 
 5. **Dashboard ceket etiketi.**  
    `dashboardTypeLabel` bilinmeyen tipi ham `MISSING_WELDING_JACKET` basıyor; KPI ve dağılımda overflow. Canonical tipler Türkçe.
@@ -246,14 +246,14 @@ Auth Onur: `POST /api/v1/auth/login|refresh|logout`.
 
 AppShell tab’ları ve dashboard→violation detail **bağlı ve smoke’ta çalıştı**.  
 Kamera Yayını sekmesi placeholder; liste kartı mevcut `CameraPage` yayınını açıyor.  
-Clip player doğru kullanılıyor; READY clip emülatörde `localhost:9000` yüzünden oynatılamaz.  
+Clip player doğru kullanılıyor. Gerçek telefonda READY clip ExoPlayer **MinIO 404**.  
 Canlı ihlal listesi backend 500 düzelmeden E2E yeşil olmaz.
 
 ### Backend
 
 `demo-seed.sql` `MISSING_WELDING_JACKET` yazıyor; `ViolationType` enum’u yazmıyor.  
 Filtresiz `GET /api/v1/violations` ve ceket ID detail 500.  
-Presigned clip/cover URL host `localhost:9000` — mobil emülatör erişemez.
+Presigned clip/cover URL host `localhost:9000`. Emülatör erişemez; telefonda `adb reverse` ile 404 (nesne yok). Seed clip dosyalarını MinIO’ya koyun veya URL’yi gerçek nesneye bağlayın.
 
 ---
 
@@ -280,11 +280,12 @@ TESTS:
   S0–S5: 108/108
   emulator smoke: launch, login, dashboard, cameras, violations error,
     users, notifications empty, dashboard→detail, clip “hazırlanıyor”
+  TECNO CK6n smoke: aynı tablar + READY clip “Klip oynatılamadı” (MinIO 404)
 
 KNOWN CONTRACT DRIFT:
   Canlı seed MISSING_WELDING_JACKET; Java enum yok.
   Mobil canonical listeye eklemedi (doğru davranış).
-  Media URL host localhost:9000.
+  Media URL host localhost:9000; READY clip MinIO 404.
 
 KNOWN UI DEBT:
   Jacket ham string + overflow.
@@ -306,3 +307,46 @@ Hepsi olmalı:
 5. (İsteğe bağlı) Bir canlı STOMP alert → bildirim kartı → detay.
 
 O zamana kadar: **mobil testler yeşil, ürün S2 canlısı kırmızı, S6 PARTIAL.**
+
+---
+
+## 11. Gerçek telefon smoke — TECNO CK6n (22 Ağustos 2026, ~22:13)
+
+**Cihaz:** TECNO CK6n · Android 14 (API 34) · `101172534S127543` · 1080×2400, density 480  
+**Bağlantı:** USB + `adb reverse` `8080`, `8000`, `9000`  
+**Run:** `flutter run -d 101172534S127543 --dart-define=BACKEND_URL=http://127.0.0.1:8080 --dart-define=GATEWAY_URL=http://127.0.0.1:8000`  
+**Not:** Batarya smoke sırasında %15 idi. Kamera Yayını sekmesi Tecno/HiOS native kamera riski yüzünden **bilinçli olarak açılmadı**.
+
+| Adım | Sonuç |
+|---|---|
+| App launch | PASS — login ekranı |
+| Login (demo admin) | PASS — Sistem Yoneticisi, 6 tab |
+| S0 Dashboard | PASS — KPI, banner “2 kamera çevrimdışı”, trend, dağılım |
+| S1 Kameralar | PASS — 3 kamera, Zayıf/Çevrimdışı, Düzenle, Kamera ekle |
+| S2 İhlaller listesi | FAIL (backend 500) — error kartı + Yeniden dene + Filtre |
+| S2 Dashboard → detay | PASS — Yasak alan, üç status ayrı, Sürüm 0, review butonları |
+| S2 Clip READY | FAIL oynatma — player **“Klip oynatılamadı.”** ExoPlayer `HttpDataSource 404` (MinIO). `clip-url` 200; nesne yok. Reverse sayesinde host’a erişildi. |
+| S3 Kullanıcılar | PASS — seed liste, Düzenle, Pasifleştir, Kullanıcı ekle |
+| S4 Bildirimler | PASS empty — canlı STOMP event yok |
+| S5 nav | 6 tab label kırılması emülatörden daha belirgin (`Dashboar` / `d` vb.) |
+
+**Emülatör vs telefon**
+
+- Aynı backend 500 ve ceket ham string.
+- Telefonda READY clip denendi; emülatörde yalnızca RECORDING “hazırlanıyor” görüldü.
+- Telefonda `adb reverse` media host’unu açtı → asıl clip hatası **404 nesne**, salt host değil.
+
+**Kamera Yayını:** bu telefonda denenmedi (HiOS `ProcessCameraProvider` riski, `main.dart` notu).
+
+### Telefon teyit checklist (bu oturum)
+
+- [x] Cihaz ADB’de göründü (`TECNO CK6n`)
+- [x] Backend + Gateway + MinIO health UP
+- [x] `adb reverse` 8080/8000/9000
+- [x] Login → Dashboard
+- [x] Kameralar / İhlaller error / Bildirimler empty / Kullanıcılar
+- [x] Son ihlaller → Yasak alan detay
+- [x] Clip player hata UI (404)
+- [ ] Kamera Yayını (atlanıldı)
+- [ ] Review PATCH / kullanıcı create (UI göründü, işlem basılmadı)
+
