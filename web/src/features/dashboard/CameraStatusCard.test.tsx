@@ -14,7 +14,7 @@ const camera: Camera = {
   departmentId: '22222222-2222-2222-2222-222222222222',
   departmentName: 'Montaj',
   active: true,
-  connectionStatus: 'ONLINE',
+  status: 'ONLINE',
   lastSeenAt: '2026-08-18T14:00:00Z',
   activeSessionId: null,
 }
@@ -36,13 +36,25 @@ describe('CameraStatusCard', () => {
     expect(screen.getByText('Montaj')).toBeInTheDocument()
   })
 
+  it('renders the weak badge for backend status WEAK', () => {
+    render(<CameraStatusCard camera={{ ...camera, status: 'WEAK' }} />)
+
+    expect(screen.getByText('Zayıf')).toHaveClass('ui-status-badge--warning')
+  })
+
+  it('renders the offline badge for backend status OFFLINE', () => {
+    render(<CameraStatusCard camera={{ ...camera, status: 'OFFLINE' }} />)
+
+    expect(screen.getByText('Çevrim dışı')).toHaveClass('ui-status-badge--critical')
+  })
+
   it('renders safe fallbacks for an inactive camera without last seen data', () => {
     render(
       <CameraStatusCard
         camera={{
           ...camera,
           active: false,
-          connectionStatus: 'FUTURE_STATUS',
+          status: 'FUTURE_STATUS',
           lastSeenAt: null,
           departmentName: null,
         }}
@@ -53,5 +65,11 @@ describe('CameraStatusCard', () => {
     expect(screen.getByText('Pasif')).toBeInTheDocument()
     expect(screen.getByText('Henüz görülmedi')).toBeInTheDocument()
     expect(screen.getByText('Departman bilgisi bekleniyor')).toBeInTheDocument()
+  })
+
+  it('renders the unknown fallback when backend status is missing', () => {
+    render(<CameraStatusCard camera={{ ...camera, status: null }} />)
+
+    expect(screen.getByText('Bilinmiyor')).toHaveClass('ui-status-badge--neutral')
   })
 })

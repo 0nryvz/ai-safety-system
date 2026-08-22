@@ -11,7 +11,7 @@ const cameras: CameraResponse[] = [
     code: 'CAM-001',
     departmentId: '22222222-2222-2222-2222-222222222222',
     active: true,
-    connectionStatus: 'ONLINE',
+    status: 'ONLINE',
     lastSeenAt: '2026-08-18T18:00:00Z',
     activeSessionId: null,
     departmentName: 'Kaynak',

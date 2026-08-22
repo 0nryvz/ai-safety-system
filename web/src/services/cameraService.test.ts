@@ -21,7 +21,7 @@ const cameras: CameraResponse[] = [
     code: 'CAM-001',
     departmentId: '22222222-2222-2222-2222-222222222222',
     active: true,
-    connectionStatus: 'ONLINE',
+    status: 'ONLINE',
     lastSeenAt: '2026-08-18T18:00:00Z',
     activeSessionId: null,
     departmentName: 'Kaynak',
@@ -42,6 +42,23 @@ describe('cameraService', () => {
 
     expect(getSpy).toHaveBeenCalledWith('/cameras')
     expect(result).toEqual(cameras)
+    expect(result[0].status).toBe('ONLINE')
+    expect(result[0]).not.toHaveProperty('connectionStatus')
+  })
+
+  it('keeps the backend status field on camera responses', async () => {
+    const backendCamera: CameraResponse = {
+      ...cameras[0],
+      status: 'WEAK',
+    }
+
+    vi.spyOn(apiClient, 'get').mockResolvedValue({
+      data: [backendCamera],
+    })
+
+    const result = await getCameras()
+
+    expect(result[0].status).toBe('WEAK')
   })
 
   it('loads a camera by id', async () => {
@@ -69,7 +86,7 @@ describe('cameraService', () => {
       departmentId: request.departmentId,
       departmentName: 'Montaj',
       active: true,
-      connectionStatus: 'OFFLINE',
+      status: 'OFFLINE',
       lastSeenAt: null,
       activeSessionId: null,
     }

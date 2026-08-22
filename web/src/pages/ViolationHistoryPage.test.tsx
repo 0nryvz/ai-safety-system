@@ -31,7 +31,7 @@ beforeEach(() => {
         code: 'CAM-001',
         departmentId: violation.departmentId,
         active: true,
-        connectionStatus: 'ONLINE',
+        status: 'ONLINE',
         lastSeenAt: '2026-08-18T12:00:00Z',
         activeSessionId: null,
         departmentName: 'Kaynak',

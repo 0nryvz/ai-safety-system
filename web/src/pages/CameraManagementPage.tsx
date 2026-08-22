@@ -22,7 +22,7 @@ import { mapApiError } from '../core/api/apiErrorMapper'
 import { useNavigate } from 'react-router-dom'
 import { ROUTE_PATHS } from '../app/routeConfig'
 
-function getConnectionPresentation(status: string) {
+function getConnectionPresentation(status: string | null | undefined) {
   switch (status) {
     case 'ONLINE':
       return {
@@ -84,10 +84,10 @@ function CameraManagementPage() {
       render: (camera) => camera.departmentName ?? '-',
     },
     {
-      key: 'connectionStatus',
+      key: 'status',
       header: 'Bağlantı',
       render: (camera) => {
-        const presentation = getConnectionPresentation(camera.connectionStatus)
+        const presentation = getConnectionPresentation(camera.status)
 
         return <StatusBadge variant={presentation.variant}>{presentation.label}</StatusBadge>
       },

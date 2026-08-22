@@ -5,7 +5,9 @@ export interface CameraStatusPresentation {
   variant: CameraStatusVariant
 }
 
-export function getCameraStatusPresentation(status: string): CameraStatusPresentation {
+export function getCameraStatusPresentation(
+  status: string | null | undefined,
+): CameraStatusPresentation {
   switch (status) {
     case 'ONLINE':
       return {

@@ -73,7 +73,7 @@ describe('CameraForm', () => {
           departmentId: departments[1].id,
           departmentName: 'Montaj',
           active: true,
-          connectionStatus: 'ONLINE',
+          status: 'ONLINE',
           lastSeenAt: null,
           activeSessionId: null,
         }}

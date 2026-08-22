@@ -119,7 +119,7 @@ Operasyon dashboard'u ilk açılış verilerini doğrulanmış REST endpoint'ler
 
 Summary, son ihlaller ve kameralar tek bir kontrollü yükleme akışında istenir. Dashboard bağımsız polling döngüleri oluşturmaz.
 
-Kamera bağlantı durumu frontend tarafından hesaplanmaz. Backend'in döndürdüğü `connectionStatus` değeri kullanıcıya güvenli bir status etiketiyle gösterilir. Bilinmeyen kamera durumları neutral fallback ile karşılanır.
+Kamera bağlantı durumu frontend tarafından hesaplanmaz. Backend'in döndürdüğü `status` değeri kullanıcıya güvenli bir status etiketiyle gösterilir. Bilinmeyen kamera durumları neutral fallback ile karşılanır.
 
 Son ihlaller REST verisiyle başlatılır ve merkezi realtime event store üzerinden gelen WebSocket kayıtlarıyla birleştirilir:
 

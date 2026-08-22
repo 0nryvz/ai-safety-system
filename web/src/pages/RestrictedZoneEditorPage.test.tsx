@@ -90,7 +90,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -119,7 +119,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -149,7 +149,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -179,7 +179,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -218,7 +218,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -273,7 +273,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -322,7 +322,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -350,7 +350,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -384,7 +384,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -432,7 +432,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -463,7 +463,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -488,7 +488,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -551,7 +551,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -620,7 +620,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -689,7 +689,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -747,7 +747,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -788,7 +788,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -833,7 +833,7 @@ describe('RestrictedZoneEditorPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })

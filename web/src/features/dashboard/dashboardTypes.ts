@@ -32,7 +32,7 @@ export interface Camera {
   departmentId: string
   departmentName: string | null
   active: boolean
-  connectionStatus: string
+  status: string | null
   lastSeenAt: string | null
   activeSessionId: string | null
 }

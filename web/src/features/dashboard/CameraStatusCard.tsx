@@ -9,7 +9,7 @@ interface CameraStatusCardProps {
 }
 
 function CameraStatusCard({ camera }: CameraStatusCardProps) {
-  const statusPresentation = getCameraStatusPresentation(camera.connectionStatus)
+  const statusPresentation = getCameraStatusPresentation(camera.status)
   const titleId = `camera-${camera.id}-title`
 
   return (

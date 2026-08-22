@@ -64,7 +64,7 @@ describe('CameraManagementPage', () => {
           departmentId: '22222222-2222-2222-2222-222222222222',
           departmentName: 'Kaynak',
           active: true,
-          connectionStatus: 'ONLINE',
+          status: 'ONLINE',
           lastSeenAt: '2026-08-19T10:00:00Z',
           activeSessionId: null,
         },
@@ -79,8 +79,38 @@ describe('CameraManagementPage', () => {
     expect(screen.getByText('Kamera 1')).toBeInTheDocument()
     expect(screen.getByText('CAM-001')).toBeInTheDocument()
     expect(screen.getByText('Kaynak')).toBeInTheDocument()
-    expect(screen.getByText('Çevrimiçi')).toBeInTheDocument()
+    expect(screen.getByText('Çevrimiçi')).toHaveClass('ui-status-badge--success')
     expect(screen.getByText('Aktif')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['WEAK', 'Zayıf bağlantı', 'ui-status-badge--warning'],
+    ['OFFLINE', 'Çevrimdışı', 'ui-status-badge--critical'],
+    ['FUTURE_STATUS', 'Bilinmiyor', 'ui-status-badge--neutral'],
+    [null, 'Bilinmiyor', 'ui-status-badge--neutral'],
+  ] as const)('renders backend status %s as the matching connection badge', (status, label, badgeClass) => {
+    vi.spyOn(cameraManagementHook, 'useCameraManagement').mockReturnValue({
+      data: [
+        {
+          id: '11111111-1111-1111-1111-111111111111',
+          name: 'Kamera 1',
+          code: 'CAM-001',
+          departmentId: '22222222-2222-2222-2222-222222222222',
+          departmentName: 'Kaynak',
+          active: true,
+          status,
+          lastSeenAt: '2026-08-19T10:00:00Z',
+          activeSessionId: null,
+        },
+      ],
+      isLoading: false,
+      error: null,
+      retry: vi.fn(),
+    })
+
+    renderPage()
+
+    expect(screen.getByText(label)).toHaveClass(badgeClass)
   })
 
   it('renders an error state and retries', () => {
@@ -138,7 +168,7 @@ describe('CameraManagementPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'OFFLINE',
+      status: 'OFFLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -194,7 +224,7 @@ describe('CameraManagementPage', () => {
           departmentId: '22222222-2222-2222-2222-222222222222',
           departmentName: 'Kaynak',
           active: true,
-          connectionStatus: 'ONLINE',
+          status: 'ONLINE',
           lastSeenAt: null,
           activeSessionId: null,
         },
@@ -222,7 +252,7 @@ describe('CameraManagementPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'ONLINE',
+      status: 'ONLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -272,7 +302,7 @@ describe('CameraManagementPage', () => {
           departmentId: '22222222-2222-2222-2222-222222222222',
           departmentName: 'Kaynak',
           active: true,
-          connectionStatus: 'ONLINE',
+          status: 'ONLINE',
           lastSeenAt: null,
           activeSessionId: null,
         },
@@ -295,7 +325,7 @@ describe('CameraManagementPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: false,
-      connectionStatus: 'OFFLINE',
+      status: 'OFFLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -339,7 +369,7 @@ describe('CameraManagementPage', () => {
           departmentId: '22222222-2222-2222-2222-222222222222',
           departmentName: 'Kaynak',
           active: false,
-          connectionStatus: 'OFFLINE',
+          status: 'OFFLINE',
           lastSeenAt: null,
           activeSessionId: null,
         },
@@ -362,7 +392,7 @@ describe('CameraManagementPage', () => {
       departmentId: '22222222-2222-2222-2222-222222222222',
       departmentName: 'Kaynak',
       active: true,
-      connectionStatus: 'OFFLINE',
+      status: 'OFFLINE',
       lastSeenAt: null,
       activeSessionId: null,
     })
@@ -408,7 +438,7 @@ describe('CameraManagementPage', () => {
           departmentId: '22222222-2222-2222-2222-222222222222',
           departmentName: 'Kaynak',
           active: true,
-          connectionStatus: 'ONLINE',
+          status: 'ONLINE',
           lastSeenAt: null,
           activeSessionId: null,
         },

@@ -50,7 +50,7 @@ const camera: Camera = {
   departmentId: '33333333-3333-3333-3333-333333333333',
   departmentName: 'Montaj',
   active: true,
-  connectionStatus: 'ONLINE',
+  status: 'ONLINE',
   lastSeenAt: null,
   activeSessionId: null,
 }

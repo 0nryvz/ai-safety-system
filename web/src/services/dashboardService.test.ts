@@ -54,7 +54,19 @@ describe('dashboardService', () => {
   })
 
   it('loads cameras from the confirmed endpoint', async () => {
-    const cameras: Camera[] = []
+    const cameras: Camera[] = [
+      {
+        id: '11111111-1111-1111-1111-111111111111',
+        name: 'Kamera 1',
+        code: 'CAM-001',
+        departmentId: '22222222-2222-2222-2222-222222222222',
+        departmentName: 'Montaj',
+        active: true,
+        status: 'ONLINE',
+        lastSeenAt: null,
+        activeSessionId: null,
+      },
+    ]
 
     const getSpy = vi.spyOn(apiClient, 'get').mockResolvedValue({
       data: cameras,
@@ -64,6 +76,8 @@ describe('dashboardService', () => {
 
     expect(getSpy).toHaveBeenCalledWith('/cameras')
     expect(result).toEqual(cameras)
+    expect(result[0].status).toBe('ONLINE')
+    expect(result[0]).not.toHaveProperty('connectionStatus')
   })
 
   it('loads dashboard trend using the confirmed date range contract', async () => {

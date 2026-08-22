@@ -11,7 +11,7 @@ const cameras = [
     departmentId: '22222222-2222-2222-2222-222222222222',
     departmentName: 'Kaynak',
     active: true,
-    connectionStatus: 'ONLINE',
+    status: 'ONLINE',
     lastSeenAt: '2026-08-19T10:00:00Z',
     activeSessionId: null,
   },
