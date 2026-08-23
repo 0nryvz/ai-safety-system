@@ -62,7 +62,7 @@ MVP local runtime icin canonical sozlesme root `README.md` ve `.env.example` dos
 | Backend | `http://localhost:8080` | `GET /actuator/health` |
 | Gateway | `http://localhost:8000` | `GET /health` |
 | AI Worker | `http://localhost:8001` | `GET /health` |
-| PostgreSQL | `localhost:5432` | Docker healthcheck |
+| PostgreSQL | `ep-lively-scene-as9olf0d.c-4.eu-central-1.aws.neon.tech:5432/isg_db` | Neon PostgreSQL (TLS) |
 | MinIO API | `http://localhost:9000` | API endpoint |
 | MinIO Console | `http://localhost:9001` | Web console |
 
@@ -103,12 +103,12 @@ PowerShell oturumuna root `.env` degerlerini yuklemek icin:
 Bu script env degerlerini yalnizca mevcut PowerShell process'ine yukler ve secret degerleri ekrana yazdirmaz.
 
 
-### 2. PostgreSQL ve MinIO'yu baslat
+### 2. MinIO'yu baslat
 
 Root dizinde:
 
 ```powershell
-docker compose up -d postgres minio minio-init
+docker compose up -d minio minio-init
 docker compose ps
 ```
 
@@ -124,7 +124,7 @@ Root dizinde yeni bir terminal acin ve env'i yukledikten sonra:
 ```
 
 Backend varsayilan olarak `http://localhost:8080` adresinde calisir.
-Flyway migrationlari Backend baslarken otomatik uygulanir.
+Flyway migrationlari Backend baslarken otomatik uygulanir. Shared Neon veritabanina yeni migrationlar otomatik uygulanabilecegi icin migration durumu kontrol edilmeden Backend Neon'a karsi baslatilmamalidir.
 
 Health kontrolu:
 
@@ -184,14 +184,14 @@ Gateway health cevabi AI dispatch durumunu da raporlar.
 Local MVP icin onerilen sira:
 
 1. Root `.env` degerlerini hazirla/yukle.
-2. PostgreSQL ve MinIO'yu baslat.
+2. MinIO'yu baslat.
 3. Backend'i baslat ve `/actuator/health` kontrolunu yap.
 4. AI Worker'i baslat ve `/health` kontrolunu yap.
 5. Gateway'i baslat ve `/health` kontrolunu yap.
 
 ### Demo verisini yukle
 
-Backend ve PostgreSQL hazir olduktan sonra:
+Asagidaki seed komutu yalniz local/demo Docker PostgreSQL icindir; canonical Neon veritabaninda calistirmayin:
 
 ```powershell
 Get-Content backend\src\main\resources\db\seed\demo-seed.sql -Raw | docker exec -i isg-postgres psql -U isg_user -d isg_db

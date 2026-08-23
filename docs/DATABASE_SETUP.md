@@ -10,7 +10,7 @@ Sensitive information such as passwords must not be committed to GitHub.
 
 Local Development
 
-For local development, PostgreSQL can be started using Docker Compose.
+Canonical development uses Neon PostgreSQL. The Docker Compose PostgreSQL service is retained only as an optional local/demo fallback for isolated seed, backup and restore workflows.
 
 Required environment variables:
 
@@ -22,11 +22,11 @@ POSTGRES\_PASSWORD=<your\_password>
 
 
 
-SPRING\_DATASOURCE\_URL=jdbc:postgresql://localhost:5432/isg\_db
+SPRING\_DATASOURCE\_URL=jdbc:postgresql://ep-lively-scene-as9olf0d.c-4.eu-central-1.aws.neon.tech:5432/isg\_db?sslmode=require
 
-SPRING\_DATASOURCE\_USERNAME=isg\_user
+SPRING\_DATASOURCE\_USERNAME=neondb\_owner
 
-SPRING\_DATASOURCE\_PASSWORD=<your\_password>
+SPRING\_DATASOURCE\_PASSWORD=CHANGE\_ME
 
 Demo Seed Data
 
