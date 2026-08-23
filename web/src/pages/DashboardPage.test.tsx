@@ -37,7 +37,7 @@ const mockedUseRealtimeViolations = vi.mocked(useRealtimeViolations)
 const summary: DashboardSummary = {
   todayViolationCount: 4,
   last7DaysViolationCount: 18,
-  mostFrequentViolationType: 'NO_HELMET',
+  mostFrequentViolationType: 'MISSING_WELDING_MASK',
   activeCameraCount: 6,
   offlineCameraCount: 2,
   activeViolationCount: 3,
@@ -156,7 +156,7 @@ describe('DashboardPage', () => {
     })
     expect(screen.getByRole('heading', { name: 'Genel durum' })).toBeInTheDocument()
     expect(screen.getByText('Bugünkü ihlaller')).toBeInTheDocument()
-    expect(screen.getByText('NO_HELMET')).toBeInTheDocument()
+    expect(screen.getByText('Kaynak maskesi eksik')).toBeInTheDocument()
   })
 
   it.each(['OHS_SPECIALIST', 'SHIFT_SUPERVISOR'] as const)(

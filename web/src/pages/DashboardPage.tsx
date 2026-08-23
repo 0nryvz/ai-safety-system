@@ -13,6 +13,7 @@ import { mergeDashboardViolations } from '../features/dashboard/dashboardViolati
 import ViolationCard from '../features/dashboard/ViolationCard'
 import { hasRouteAccess } from '../features/auth/roleAccess'
 import DashboardAnalyticsPanel from '../features/dashboard/DashboardAnalyticsPanel'
+import { getViolationTypeLabel } from '../features/dashboard/violationPresentation'
 
 function DashboardPage() {
   const { session } = useAuthSession()
@@ -75,7 +76,11 @@ function DashboardPage() {
 
               <article className="dashboard-summary-card">
                 <span>En sık ihlal türü</span>
-                <strong>{summary.mostFrequentViolationType ?? 'Veri yok'}</strong>
+                <strong>
+                  {summary.mostFrequentViolationType
+                    ? getViolationTypeLabel(summary.mostFrequentViolationType)
+                    : 'Veri yok'}
+                </strong>
               </article>
 
               <article className="dashboard-summary-card">
