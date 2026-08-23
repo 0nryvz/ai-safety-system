@@ -4,7 +4,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$Root    = "C:\GitHub\ai-safety-system"
+$Root    = $PSScriptRoot
 $Backend = "http://localhost:8080"
 $Gateway = "http://localhost:8000"
 $AI      = "http://localhost:8001"
@@ -41,21 +41,215 @@ function TITLE($msg) {
     Write-Host "============================================================" -ForegroundColor Cyan
 }
 
-function PSQL([string]$Sql) {
+function ConvertFrom-JdbcPostgresqlUrl([string]$JdbcUrl) {
+    if ([string]::IsNullOrWhiteSpace($JdbcUrl)) {
+        throw "SPRING_DATASOURCE_URL is missing"
+    }
 
-    $lines = @(
-        & docker exec isg-postgres psql `
-            -U isg_user `
-            -d isg_db `
-            -t `
-            -A `
-            -F "|" `
-            -c $Sql
+    if (-not $JdbcUrl.StartsWith("jdbc:", [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "SPRING_DATASOURCE_URL must start with jdbc:"
+    }
+
+    $uriText = $JdbcUrl.Substring(5)
+
+    try {
+        $uri = [Uri]$uriText
+    }
+    catch {
+        throw "SPRING_DATASOURCE_URL is not a valid PostgreSQL JDBC URL"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($uri.Host)) {
+        throw "SPRING_DATASOURCE_URL host is missing"
+    }
+
+    $port = $uri.Port
+    if ($port -le 0) {
+        $port = 5432
+    }
+
+    $database = $uri.AbsolutePath.Trim().TrimStart('/')
+    if ($database.Contains('/')) {
+        $database = $database.Split('/')[0]
+    }
+
+    if ([string]::IsNullOrWhiteSpace($database)) {
+        throw "SPRING_DATASOURCE_URL database name is missing"
+    }
+
+    $sslMode = $null
+    $query = $uri.Query.TrimStart('?')
+
+    if (-not [string]::IsNullOrWhiteSpace($query)) {
+        foreach ($pair in $query.Split('&')) {
+            if ([string]::IsNullOrWhiteSpace($pair)) {
+                continue
+            }
+
+            $separatorIndex = $pair.IndexOf('=')
+            if ($separatorIndex -lt 1) {
+                continue
+            }
+
+            $name = [Uri]::UnescapeDataString(
+                $pair.Substring(0, $separatorIndex)
+            )
+
+            if ($name -ne 'sslmode') {
+                continue
+            }
+
+            $sslMode = [Uri]::UnescapeDataString(
+                $pair.Substring($separatorIndex + 1)
+            )
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($sslMode)) {
+        $sslMode = 'require'
+    }
+
+    return [pscustomobject]@{
+        Host     = $uri.Host
+        Port     = $port
+        Database = $database
+        SslMode  = $sslMode
+    }
+}
+
+function Initialize-SmokeDatabase {
+    $envFile = Join-Path $Root '.env'
+    $importScript = Join-Path $Root 'scripts\import-env.ps1'
+
+    if (-not (Test-Path -LiteralPath $envFile)) {
+        throw ".env not found at $envFile"
+    }
+
+    if (-not (Test-Path -LiteralPath $importScript)) {
+        throw "import-env.ps1 not found at $importScript"
+    }
+
+    & $importScript -EnvFile $envFile
+
+    $jdbcUrl = [Environment]::GetEnvironmentVariable(
+        'SPRING_DATASOURCE_URL',
+        'Process'
+    )
+    $username = [Environment]::GetEnvironmentVariable(
+        'SPRING_DATASOURCE_USERNAME',
+        'Process'
+    )
+    $password = [Environment]::GetEnvironmentVariable(
+        'SPRING_DATASOURCE_PASSWORD',
+        'Process'
     )
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "PostgreSQL query failed"
+    if ([string]::IsNullOrWhiteSpace($username)) {
+        throw "SPRING_DATASOURCE_USERNAME is missing"
     }
+
+    if ([string]::IsNullOrEmpty($password)) {
+        throw "SPRING_DATASOURCE_PASSWORD is missing"
+    }
+
+    $parsed = ConvertFrom-JdbcPostgresqlUrl $jdbcUrl
+
+    $script:DbHost = $parsed.Host
+    $script:DbPort = [string]$parsed.Port
+    $script:DbName = $parsed.Database
+    $script:DbUser = $username
+    $script:DbPassword = $password
+    $script:DbSslMode = $parsed.SslMode
+
+    $nativePsql = Get-Command psql -CommandType Application -ErrorAction SilentlyContinue
+    if ($null -ne $nativePsql) {
+        $script:PsqlMode = 'native'
+        $script:PsqlExecutable = $nativePsql.Source
+        return
+    }
+
+    if ($null -eq (Get-Command docker -CommandType Application -ErrorAction SilentlyContinue)) {
+        throw "psql is not on PATH and docker is unavailable"
+    }
+
+    $script:PsqlMode = 'docker'
+}
+
+function Invoke-SmokePsql {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Sql,
+
+        [switch]$TuplesOnly
+    )
+
+    $psqlArgs = @(
+        '-h', $script:DbHost
+        '-p', $script:DbPort
+        '-U', $script:DbUser
+        '-d', $script:DbName
+        '-w'
+    )
+
+    if ($TuplesOnly) {
+        $psqlArgs += @(
+            '-t'
+            '-A'
+            '-F'
+            '|'
+        )
+    }
+
+    $psqlArgs += @(
+        '-c'
+        $Sql
+    )
+
+    $previousPassword = $env:PGPASSWORD
+    $previousSslMode = $env:PGSSLMODE
+
+    try {
+        $env:PGPASSWORD = $script:DbPassword
+        $env:PGSSLMODE = $script:DbSslMode
+
+        if ($script:PsqlMode -eq 'native') {
+            $output = & $script:PsqlExecutable @psqlArgs
+        }
+        else {
+            $output = & docker run --rm `
+                -e PGPASSWORD `
+                -e PGSSLMODE `
+                postgres:16 `
+                psql @psqlArgs
+        }
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "PostgreSQL query failed"
+        }
+
+        return $output
+    }
+    finally {
+        if ($null -eq $previousPassword) {
+            Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:PGPASSWORD = $previousPassword
+        }
+
+        if ($null -eq $previousSslMode) {
+            Remove-Item Env:PGSSLMODE -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:PGSSLMODE = $previousSslMode
+        }
+    }
+}
+
+function PSQL([string]$Sql) {
+    $lines = @(
+        Invoke-SmokePsql -Sql $Sql -TuplesOnly
+    )
 
     $text = [string]::Join(
         "`n",
@@ -65,8 +259,17 @@ function PSQL([string]$Sql) {
     return $text.Trim()
 }
 
+function PSQLDisplay([string]$Sql) {
+    $output = Invoke-SmokePsql -Sql $Sql
+
+    foreach ($line in @($output)) {
+        Write-Host $line
+    }
+}
+
 
 Set-Location $Root
+Initialize-SmokeDatabase
 
 
 # ============================================================
@@ -806,10 +1009,7 @@ WHERE v.camera_session_id = (
 
     TITLE "10. FINAL DB DETAIL"
 
-    & docker exec isg-postgres psql `
-        -U isg_user `
-        -d isg_db `
-        -c "
+    PSQLDisplay @"
 SELECT
     v.id AS violation_id,
     v.violation_type,
@@ -833,7 +1033,7 @@ WHERE v.camera_session_id = (
     LIMIT 1
 )
 ORDER BY v.created_at;
-"
+"@
 
 
 }
@@ -959,10 +1159,7 @@ finally {
 
     try {
 
-        & docker exec isg-postgres psql `
-            -U isg_user `
-            -d isg_db `
-            -c "
+        PSQLDisplay @"
 SELECT
     session_id,
     camera_id,
@@ -972,7 +1169,7 @@ SELECT
     last_frame_at
 FROM camera_sessions
 WHERE session_id = '$SessionId';
-"
+"@
 
     }
     catch {
