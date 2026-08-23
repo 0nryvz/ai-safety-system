@@ -28,6 +28,8 @@ spring:
 application:
   security:
     cors:
+      # Exact browser origins shared by REST CORS and WebSocket /ws handshake.
+      # Override APP_CORS_ALLOWED_ORIGINS to add a LAN / Tailscale web origin.
       allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
     jwt:
       secret-key: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}

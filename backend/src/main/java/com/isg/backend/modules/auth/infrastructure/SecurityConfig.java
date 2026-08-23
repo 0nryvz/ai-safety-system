@@ -114,7 +114,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(corsAllowedOrigins);
+        configuration.setAllowedOrigins(normalizedCorsOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Internal-Api-Key"));
         configuration.setAllowCredentials(true);
@@ -122,5 +122,16 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    private List<String> normalizedCorsOrigins() {
+        if (corsAllowedOrigins == null) {
+            return List.of();
+        }
+
+        return corsAllowedOrigins.stream()
+                .filter(origin -> origin != null && !origin.isBlank())
+                .map(String::trim)
+                .toList();
     }
 }

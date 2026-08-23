@@ -18,6 +18,14 @@ public class WebSocketProperties {
     public void setAllowedOrigins(
             List<String> allowedOrigins
     ) {
-        this.allowedOrigins = allowedOrigins;
+        if (allowedOrigins == null) {
+            this.allowedOrigins = null;
+            return;
+        }
+
+        this.allowedOrigins = allowedOrigins.stream()
+                .filter(origin -> origin != null && !origin.isBlank())
+                .map(String::trim)
+                .toList();
     }
 }

@@ -27,6 +27,68 @@ class SecurityConfigCorsTest {
     }
 
     @Test
+    void configuredLanOriginIsAllowed() {
+        ReflectionTestUtils.setField(
+                securityConfig,
+                "corsAllowedOrigins",
+                List.of(
+                        "http://localhost:5173",
+                        "http://192.168.137.10:5173"
+                )
+        );
+
+        CorsConfiguration configuration =
+                corsConfiguration();
+
+        assertThat(
+                configuration.checkOrigin(
+                        "http://192.168.137.10:5173"
+                )
+        )
+                .isEqualTo(
+                        "http://192.168.137.10:5173"
+                );
+
+        assertThat(
+                configuration.checkOrigin(
+                        "http://evil.example"
+                )
+        )
+                .isNull();
+    }
+
+    @Test
+    void whitespaceAndBlankOriginsAreNormalized() {
+        ReflectionTestUtils.setField(
+                securityConfig,
+                "corsAllowedOrigins",
+                List.of(
+                        "http://localhost:5173",
+                        "  http://192.168.137.10:5173  ",
+                        " "
+                )
+        );
+
+        CorsConfiguration configuration =
+                corsConfiguration();
+
+        assertThat(configuration.getAllowedOrigins())
+                .containsExactly(
+                        "http://localhost:5173",
+                        "http://192.168.137.10:5173"
+                );
+
+        assertThat(
+                configuration.checkOrigin(
+                        "http://192.168.137.10:5173"
+                )
+        )
+                .isEqualTo(
+                        "http://192.168.137.10:5173"
+                );
+    }
+
+    @Test
     void configuredNonLocalOriginIsAllowed() {
         ReflectionTestUtils.setField(
                 securityConfig,

@@ -21,6 +21,7 @@ import java.time.Clock;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -28,9 +29,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(SecurityConfigCorsHttpTest.TestController.class)
 @Import(SecurityConfig.class)
 @TestPropertySource(properties =
-        "APP_CORS_ALLOWED_ORIGINS=http://localhost:3000,https://demo.example.internal"
+        "APP_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://192.168.137.10:5173,https://demo.example.internal"
 )
 class SecurityConfigCorsHttpTest {
+
+    private static final String LOCAL_WEB_ORIGIN =
+            "http://localhost:5173";
+
+    private static final String LAN_WEB_ORIGIN =
+            "http://192.168.137.10:5173";
+
+    private static final String UNCONFIGURED_ORIGIN =
+            "http://evil.example";
 
     @Autowired
     private MockMvc mockMvc;
@@ -54,6 +64,56 @@ class SecurityConfigCorsHttpTest {
     void setUp() throws Exception {
         makeFilterPassThrough(jwtAuthenticationFilter);
         makeFilterPassThrough(internalApiKeyFilter);
+    }
+
+    @Test
+    void localhostOriginPassesPreflight() throws Exception {
+        mockMvc.perform(
+                        options("/cors-test")
+                                .header(
+                                        HttpHeaders.ORIGIN,
+                                        LOCAL_WEB_ORIGIN
+                                )
+                                .header(
+                                        HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                        "GET"
+                                )
+                )
+                .andExpect(status().isOk())
+                .andExpect(
+                        header().string(
+                                HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                                LOCAL_WEB_ORIGIN
+                        )
+                );
+    }
+
+    @Test
+    void configuredLanOriginPassesPreflight() throws Exception {
+        mockMvc.perform(
+                        options("/cors-test")
+                                .header(
+                                        HttpHeaders.ORIGIN,
+                                        LAN_WEB_ORIGIN
+                                )
+                                .header(
+                                        HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                        "GET"
+                                )
+                )
+                .andExpect(status().isOk())
+                .andExpect(
+                        header().string(
+                                HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                                LAN_WEB_ORIGIN
+                        )
+                )
+                .andExpect(
+                        header().string(
+                                HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS,
+                                "true"
+                        )
+                );
     }
 
     @Test
@@ -90,7 +150,7 @@ class SecurityConfigCorsHttpTest {
                         options("/cors-test")
                                 .header(
                                         HttpHeaders.ORIGIN,
-                                        "https://not-configured.example"
+                                        UNCONFIGURED_ORIGIN
                                 )
                                 .header(
                                         HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
@@ -101,6 +161,62 @@ class SecurityConfigCorsHttpTest {
                 .andExpect(
                         header().doesNotExist(
                                 HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN
+                        )
+                );
+    }
+
+    @Test
+    void authorizationPreflightIsAllowedForConfiguredLanOrigin() throws Exception {
+        mockMvc.perform(
+                        options("/api/v1/cameras")
+                                .header(
+                                        HttpHeaders.ORIGIN,
+                                        LAN_WEB_ORIGIN
+                                )
+                                .header(
+                                        HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,
+                                        "GET"
+                                )
+                                .header(
+                                        HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                        HttpHeaders.AUTHORIZATION
+                                )
+                )
+                .andExpect(status().isOk())
+                .andExpect(
+                        header().string(
+                                HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                                LAN_WEB_ORIGIN
+                        )
+                )
+                .andExpect(
+                        header().string(
+                                HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS,
+                                "true"
+                        )
+                )
+                .andExpect(
+                        header().string(
+                                HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                                HttpHeaders.AUTHORIZATION
+                        )
+                );
+    }
+
+    @Test
+    void configuredLanOriginDoesNotBypassAuthentication() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/cameras")
+                                .header(
+                                        HttpHeaders.ORIGIN,
+                                        LAN_WEB_ORIGIN
+                                )
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(
+                        header().string(
+                                HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+                                LAN_WEB_ORIGIN
                         )
                 );
     }
