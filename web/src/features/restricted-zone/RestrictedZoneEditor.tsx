@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import type { RestrictedZonePoint } from '../../services/cameraService'
-import { clampPoint } from './polygonUtils'
+import { clampPoint, getImageContentRect } from './polygonUtils'
 import './RestrictedZoneEditor.css'
 
 interface RestrictedZoneEditorProps {
@@ -30,13 +30,21 @@ function RestrictedZoneEditor({ points, onChange, imageUrl }: RestrictedZoneEdit
     }
 
     const containerRect = container.getBoundingClientRect()
-    const imageRect = image.getBoundingClientRect()
+    const contentRect = getImageContentRect(
+      image.getBoundingClientRect(),
+      image.naturalWidth,
+      image.naturalHeight,
+    )
+
+    if (!contentRect) {
+      return
+    }
 
     setOverlayStyle({
-      left: imageRect.left - containerRect.left,
-      top: imageRect.top - containerRect.top,
-      width: imageRect.width,
-      height: imageRect.height,
+      left: contentRect.left - containerRect.left,
+      top: contentRect.top - containerRect.top,
+      width: contentRect.width,
+      height: contentRect.height,
     })
   }
 
@@ -62,9 +70,11 @@ function RestrictedZoneEditor({ points, onChange, imageUrl }: RestrictedZoneEdit
       return null
     }
 
-    const rect = image?.getBoundingClientRect() ?? container.getBoundingClientRect()
+    const rect = image
+      ? getImageContentRect(image.getBoundingClientRect(), image.naturalWidth, image.naturalHeight)
+      : container.getBoundingClientRect()
 
-    if (rect.width === 0 || rect.height === 0) {
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
       return null
     }
 

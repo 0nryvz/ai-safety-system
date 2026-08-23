@@ -1,5 +1,67 @@
 import type { RestrictedZonePoint } from '../../services/cameraService'
 
+export type ImageContentRect = {
+  left: number
+  top: number
+  width: number
+  height: number
+  right: number
+  bottom: number
+}
+
+function isPositiveFinite(value: number): boolean {
+  return Number.isFinite(value) && value > 0
+}
+
+export function getImageContentRect(
+  elementRect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
+  naturalWidth: number,
+  naturalHeight: number,
+): ImageContentRect | null {
+  if (
+    !Number.isFinite(elementRect.left) ||
+    !Number.isFinite(elementRect.top) ||
+    !isPositiveFinite(elementRect.width) ||
+    !isPositiveFinite(elementRect.height) ||
+    !isPositiveFinite(naturalWidth) ||
+    !isPositiveFinite(naturalHeight)
+  ) {
+    return null
+  }
+
+  const naturalAspect = naturalWidth / naturalHeight
+  const boxAspect = elementRect.width / elementRect.height
+
+  let renderedWidth: number
+  let renderedHeight: number
+  let offsetX: number
+  let offsetY: number
+
+  if (naturalAspect > boxAspect) {
+    renderedWidth = elementRect.width
+    renderedHeight = renderedWidth / naturalAspect
+    offsetX = 0
+    offsetY = (elementRect.height - renderedHeight) / 2
+  } else {
+    renderedHeight = elementRect.height
+    renderedWidth = renderedHeight * naturalAspect
+    offsetY = 0
+    offsetX = (elementRect.width - renderedWidth) / 2
+  }
+
+  const left = elementRect.left + offsetX
+  const top = elementRect.top + offsetY
+
+  return {
+    left,
+    top,
+    width: renderedWidth,
+    height: renderedHeight,
+    right: left + renderedWidth,
+    bottom: top + renderedHeight,
+  }
+}
+
 export function clampNormalizedValue(value: number): number {
   return Math.min(1, Math.max(0, value))
 }
