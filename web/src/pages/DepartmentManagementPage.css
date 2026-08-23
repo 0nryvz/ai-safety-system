@@ -33,7 +33,7 @@
     gap: 16px;
     padding: 20px;
     border-radius: 12px;
-    background: var(--color-card, #1e293b);
+    background-color: var(--color-surface);
   }
   
   .department-management__form-section h3 {
