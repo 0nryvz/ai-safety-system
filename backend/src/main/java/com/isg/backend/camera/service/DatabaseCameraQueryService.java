@@ -56,6 +56,25 @@ public class DatabaseCameraQueryService
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<UUID> findGatewaySessionId(
+            UUID sessionRecordId
+    ) {
+        if (sessionRecordId == null) {
+            return Optional.empty();
+        }
+
+        return cameraSessionRepository
+                .findById(
+                        sessionRecordId
+                )
+                .map(CameraSession::getSessionId)
+                .flatMap(
+                        this::parseUuid
+                );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<String> findCameraName(
             UUID cameraId
     ) {
@@ -85,6 +104,24 @@ public class DatabaseCameraQueryService
                 .map(camera ->
                         camera.getDepartment().getId()
                 );
+    }
+
+    private Optional<UUID> parseUuid(
+            String value
+    ) {
+        if (value == null || value.isBlank()) {
+            return Optional.empty();
+        }
+
+        try {
+            return Optional.of(
+                    UUID.fromString(
+                            value
+                    )
+            );
+        } catch (IllegalArgumentException exception) {
+            return Optional.empty();
+        }
     }
 
     private Optional<CameraSession> findActiveSession(

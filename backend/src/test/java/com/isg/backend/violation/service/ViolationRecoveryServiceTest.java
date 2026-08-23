@@ -1,5 +1,6 @@
 package com.isg.backend.violation.service;
 
+import com.isg.backend.camera.service.CameraQueryService;
 import com.isg.backend.violation.config.ViolationTemporalProperties;
 import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationReviewStatus;
@@ -17,12 +18,14 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 class ViolationRecoveryServiceTest {
 
@@ -37,6 +40,8 @@ class ViolationRecoveryServiceTest {
     private RecordingQueryPort recordingQueryPort;
 
     private RecordingStatusCallbackPort recordingStatusCallbackPort;
+
+    private CameraQueryService cameraQueryService;
 
 
     @BeforeEach
@@ -65,13 +70,32 @@ class ViolationRecoveryServiceTest {
                         RecordingStatusCallbackPort.class
                 );
 
+        cameraQueryService =
+                mock(
+                        CameraQueryService.class
+                );
+
+        when(
+                cameraQueryService.findGatewaySessionId(
+                        any()
+                )
+        ).thenAnswer(
+                invocation ->
+                        Optional.of(
+                                invocation.getArgument(
+                                        0
+                                )
+                        )
+        );
+
         service =
                 new ViolationRecoveryService(
                         repository,
                         registry,
                         temporalService,
                         recordingQueryPort,
-                        recordingStatusCallbackPort
+                        recordingStatusCallbackPort,
+                        cameraQueryService
                 );
     }
 
@@ -651,6 +675,109 @@ class ViolationRecoveryServiceTest {
 
         assertThat(
                 registry.find(key)
+        )
+                .isEmpty();
+    }
+
+    @Test
+    void restoresActiveViolationUsingGatewaySessionIdNotSessionRecordId() {
+
+        UUID violationId =
+                UUID.randomUUID();
+
+        UUID cameraId =
+                UUID.randomUUID();
+
+        UUID sessionRecordId =
+                UUID.randomUUID();
+
+        UUID gatewaySessionId =
+                UUID.randomUUID();
+
+        Instant startedAt =
+                Instant.parse(
+                        "2026-08-19T10:00:00Z"
+                );
+
+        ViolationJpaEntity violation =
+                new ViolationJpaEntity(
+                        violationId,
+                        cameraId,
+                        UUID.randomUUID(),
+                        sessionRecordId,
+                        UUID.randomUUID(),
+                        ViolationType.MISSING_GLOVES,
+                        startedAt,
+                        BigDecimal.valueOf(0.90),
+                        "model-v1",
+                        ViolationLifecycleStatus.ACTIVE,
+                        ViolationReviewStatus.UNREVIEWED,
+                        startedAt,
+                        "untracked",
+                        sessionRecordId
+                );
+
+        when(
+                cameraQueryService.findGatewaySessionId(
+                        sessionRecordId
+                )
+        ).thenReturn(
+                Optional.of(
+                        gatewaySessionId
+                )
+        );
+
+        when(
+                repository.findByLifecycleStatusIn(
+                        List.of(
+                                ViolationLifecycleStatus.ACTIVE
+                        )
+                )
+        ).thenReturn(
+                List.of(violation)
+        );
+
+        when(
+                repository.findByLifecycleStatusIn(
+                        List.of(
+                                ViolationLifecycleStatus.PREPARING
+                        )
+                )
+        ).thenReturn(
+                List.of()
+        );
+
+        service.recoverInterruptedViolations();
+
+        ViolationStateKey gatewayKey =
+                new ViolationStateKey(
+                        cameraId,
+                        gatewaySessionId,
+                        ViolationType.MISSING_GLOVES,
+                        "untracked"
+                );
+
+        ViolationStateKey recordKey =
+                new ViolationStateKey(
+                        cameraId,
+                        sessionRecordId,
+                        ViolationType.MISSING_GLOVES,
+                        "untracked"
+                );
+
+        assertThat(
+                registry.find(
+                        gatewayKey
+                )
+        )
+                .contains(
+                        violationId
+                );
+
+        assertThat(
+                registry.find(
+                        recordKey
+                )
         )
                 .isEmpty();
     }

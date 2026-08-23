@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.Collection;
@@ -17,6 +18,25 @@ public interface SpringDataViolationRepository
 
     List<ViolationJpaEntity> findByLifecycleStatusIn(
             Collection<ViolationLifecycleStatus> statuses
+    );
+
+    @Query(
+            value = """
+                    SELECT v.id
+                    FROM violations v
+                    JOIN camera_sessions cs
+                        ON cs.id = v.camera_session_id
+                    WHERE v.lifecycle_status = 'ACTIVE'
+                      AND v.ended_at IS NULL
+                      AND cs.status IN ('CLOSED', 'TIMED_OUT')
+                      AND cs.ended_at IS NOT NULL
+                      AND cs.ended_at <= :silentBefore
+                    """,
+            nativeQuery = true
+    )
+    List<UUID> findActiveIdsForSilentClosedSessions(
+            @Param("silentBefore")
+            Instant silentBefore
     );
 
     @Query(

@@ -544,4 +544,58 @@ class DatabaseCameraQueryServiceTest {
                 )
         );
     }
+
+    @Test
+    void resolvesGatewaySessionIdFromSessionRecordId() {
+        UUID sessionRecordId =
+                UUID.randomUUID();
+
+        UUID gatewaySessionId =
+                UUID.randomUUID();
+
+        CameraSession session =
+                mock(CameraSession.class);
+
+        when(session.getSessionId())
+                .thenReturn(
+                        gatewaySessionId.toString()
+                );
+
+        when(
+                cameraSessionRepository.findById(
+                        sessionRecordId
+                )
+        ).thenReturn(
+                Optional.of(
+                        session
+                )
+        );
+
+        assertEquals(
+                Optional.of(gatewaySessionId),
+                service.findGatewaySessionId(
+                        sessionRecordId
+                )
+        );
+    }
+
+    @Test
+    void doesNotResolveGatewaySessionIdWhenSessionRecordIsMissing() {
+        UUID sessionRecordId =
+                UUID.randomUUID();
+
+        when(
+                cameraSessionRepository.findById(
+                        sessionRecordId
+                )
+        ).thenReturn(
+                Optional.empty()
+        );
+
+        assertTrue(
+                service.findGatewaySessionId(
+                        sessionRecordId
+                ).isEmpty()
+        );
+    }
 }

@@ -1,5 +1,6 @@
 package com.isg.backend.violation.service;
 
+import com.isg.backend.camera.service.CameraQueryService;
 import com.isg.backend.violation.application.port.RecordingQueryPort;
 import com.isg.backend.violation.application.port.RecordingQueryResult;
 import com.isg.backend.violation.application.port.RecordingStatusCallbackPort;
@@ -22,13 +23,15 @@ public class ViolationRecoveryService {
     private final TemporalConfirmationService temporalConfirmationService;
     private final RecordingQueryPort recordingQueryPort;
     private final RecordingStatusCallbackPort recordingStatusCallbackPort;
+    private final CameraQueryService cameraQueryService;
 
     public ViolationRecoveryService(
             SpringDataViolationRepository violationRepository,
             ActiveViolationRegistry activeViolationRegistry,
             TemporalConfirmationService temporalConfirmationService,
             RecordingQueryPort recordingQueryPort,
-            RecordingStatusCallbackPort recordingStatusCallbackPort
+            RecordingStatusCallbackPort recordingStatusCallbackPort,
+            CameraQueryService cameraQueryService
     ) {
         this.violationRepository =
                 violationRepository;
@@ -44,6 +47,9 @@ public class ViolationRecoveryService {
 
         this.recordingStatusCallbackPort =
                 recordingStatusCallbackPort;
+
+        this.cameraQueryService =
+                cameraQueryService;
     }
 
     @Transactional
@@ -89,13 +95,15 @@ public class ViolationRecoveryService {
     private void restoreActiveViolation(
             ViolationJpaEntity violation
     ) {
-        UUID sourceSessionId =
-                violation.getSourceSessionId();
+        UUID sessionRecordId =
+                violation.getSourceSessionId() != null
+                        ? violation.getSourceSessionId()
+                        : violation.getCameraSessionId();
 
         String subjectKey =
                 violation.getSubjectKey();
 
-        if (sourceSessionId == null) {
+        if (sessionRecordId == null) {
             return;
         }
 
@@ -104,10 +112,19 @@ public class ViolationRecoveryService {
             return;
         }
 
+        UUID gatewaySessionId =
+                cameraQueryService.findGatewaySessionId(
+                        sessionRecordId
+                ).orElse(null);
+
+        if (gatewaySessionId == null) {
+            return;
+        }
+
         ViolationStateKey stateKey =
                 new ViolationStateKey(
                         violation.getCameraId(),
-                        sourceSessionId,
+                        gatewaySessionId,
                         violation.getViolationType(),
                         subjectKey
                 );
@@ -120,10 +137,20 @@ public class ViolationRecoveryService {
         Instant startedAt =
                 violation.getStartedAt();
 
+        Instant recoveredLastSeenAt =
+                Instant.now();
+
+        if (recoveredLastSeenAt.isBefore(
+                startedAt
+        )) {
+            recoveredLastSeenAt =
+                    startedAt;
+        }
+
         temporalConfirmationService.restoreConfirmedState(
                 stateKey,
                 startedAt,
-                startedAt,
+                recoveredLastSeenAt,
                 violation.getConfidence().doubleValue()
         );
     }

@@ -7,6 +7,7 @@ import com.isg.backend.violation.domain.ViolationLifecycleStatus;
 import com.isg.backend.violation.domain.ViolationType;
 import com.isg.backend.violation.domain.temporal.EndedViolation;
 import com.isg.backend.violation.domain.temporal.ViolationStateKey;
+import com.isg.backend.violation.config.ViolationTemporalProperties;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
 import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationStatusHistoryRepository;
 import com.isg.backend.violation.infrastructure.persistence.ViolationJpaEntity;
@@ -14,7 +15,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -66,12 +69,28 @@ class ViolationEndToEndAcceptanceTest {
         registry =
                 mock(ActiveViolationRegistry.class);
 
+        when(
+                repository.findActiveIdsForSilentClosedSessions(
+                        any()
+                )
+        ).thenReturn(
+                List.of()
+        );
+
+        ViolationTemporalProperties temporalProperties =
+                new ViolationTemporalProperties();
+
+        temporalProperties.setSilenceTimeout(
+                Duration.ofSeconds(5)
+        );
 
         watchdog =
                 new ViolationSilenceWatchdog(
                         temporalService,
                         registry,
-                        lifecycleService
+                        lifecycleService,
+                        repository,
+                        temporalProperties
                 );
     }
 

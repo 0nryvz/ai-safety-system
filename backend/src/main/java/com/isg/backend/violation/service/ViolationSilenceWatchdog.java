@@ -1,6 +1,8 @@
 package com.isg.backend.violation.service;
 
+import com.isg.backend.violation.config.ViolationTemporalProperties;
 import com.isg.backend.violation.domain.temporal.EndedViolation;
+import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -22,11 +24,15 @@ public class ViolationSilenceWatchdog {
     private final TemporalConfirmationService temporalConfirmationService;
     private final ActiveViolationRegistry activeViolationRegistry;
     private final ViolationLifecycleService violationLifecycleService;
+    private final SpringDataViolationRepository violationRepository;
+    private final ViolationTemporalProperties temporalProperties;
 
     public ViolationSilenceWatchdog(
             TemporalConfirmationService temporalConfirmationService,
             ActiveViolationRegistry activeViolationRegistry,
-            ViolationLifecycleService violationLifecycleService
+            ViolationLifecycleService violationLifecycleService,
+            SpringDataViolationRepository violationRepository,
+            ViolationTemporalProperties temporalProperties
     ) {
         this.temporalConfirmationService =
                 temporalConfirmationService;
@@ -36,6 +42,12 @@ public class ViolationSilenceWatchdog {
 
         this.violationLifecycleService =
                 violationLifecycleService;
+
+        this.violationRepository =
+                violationRepository;
+
+        this.temporalProperties =
+                temporalProperties;
     }
 
     @Scheduled(
@@ -109,6 +121,53 @@ public class ViolationSilenceWatchdog {
                         "Failed to end violation after detection silence timeout. violationId={}, stateKey={}",
                         persistedViolationId,
                         endedViolation.stateKey(),
+                        ex
+                );
+            }
+        }
+
+        endActiveViolationsForSilentClosedSessions(
+                now
+        );
+    }
+
+    /**
+     * In-memory temporal state is lost on process restart and can also be
+     * dropped if a frame-gap end is emitted before the registry mapping
+     * exists. Session close already stops detections and finalizes the
+     * recording clip, so the logical violation must still move out of
+     * ACTIVE after the configured silence timeout.
+     */
+    private void endActiveViolationsForSilentClosedSessions(
+            Instant now
+    ) {
+        Instant silentBefore =
+                now.minus(
+                        temporalProperties.getSilenceTimeout()
+                );
+
+        List<UUID> silentClosedViolationIds =
+                violationRepository
+                        .findActiveIdsForSilentClosedSessions(
+                                silentBefore
+                        );
+
+        for (UUID violationId : silentClosedViolationIds) {
+            try {
+                violationLifecycleService.endViolation(
+                        violationId,
+                        now
+                );
+
+                logger.warn(
+                        "Active violation ended after closed-session detection silence timeout. violationId={}, endedAt={}",
+                        violationId,
+                        now
+                );
+            } catch (RuntimeException ex) {
+                logger.error(
+                        "Failed to end violation after closed-session detection silence timeout. violationId={}",
+                        violationId,
                         ex
                 );
             }

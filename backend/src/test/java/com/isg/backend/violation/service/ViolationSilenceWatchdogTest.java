@@ -1,16 +1,20 @@
 package com.isg.backend.violation.service;
 
+import com.isg.backend.violation.config.ViolationTemporalProperties;
 import com.isg.backend.violation.domain.ViolationType;
 import com.isg.backend.violation.domain.temporal.EndedViolation;
 import com.isg.backend.violation.domain.temporal.ViolationStateKey;
+import com.isg.backend.violation.infrastructure.persistence.SpringDataViolationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -22,6 +26,8 @@ class ViolationSilenceWatchdogTest {
     private TemporalConfirmationService temporalConfirmationService;
     private ActiveViolationRegistry activeViolationRegistry;
     private ViolationLifecycleService violationLifecycleService;
+    private SpringDataViolationRepository violationRepository;
+    private ViolationTemporalProperties temporalProperties;
 
     private ViolationSilenceWatchdog watchdog;
 
@@ -42,11 +48,33 @@ class ViolationSilenceWatchdogTest {
                         ViolationLifecycleService.class
                 );
 
+        violationRepository =
+                mock(
+                        SpringDataViolationRepository.class
+                );
+
+        temporalProperties =
+                new ViolationTemporalProperties();
+
+        temporalProperties.setSilenceTimeout(
+                Duration.ofSeconds(5)
+        );
+
+        when(
+                violationRepository.findActiveIdsForSilentClosedSessions(
+                        any()
+                )
+        ).thenReturn(
+                List.of()
+        );
+
         watchdog =
                 new ViolationSilenceWatchdog(
                         temporalConfirmationService,
                         activeViolationRegistry,
-                        violationLifecycleService
+                        violationLifecycleService,
+                        violationRepository,
+                        temporalProperties
                 );
     }
 
@@ -286,6 +314,125 @@ class ViolationSilenceWatchdogTest {
                 never()
         ).acknowledgeSilentEnd(
                 endedViolation
+        );
+    }
+
+    @Test
+    void endsActiveGlovesViolationWhenClosedSessionHasExceededSilenceTimeout() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        Instant sweepAt =
+                Instant.parse(
+                        "2026-08-23T19:27:33Z"
+                );
+
+        when(
+                temporalConfirmationService.findSilentConfirmedStates(
+                        sweepAt
+                )
+        ).thenReturn(
+                List.of()
+        );
+
+        when(
+                violationRepository.findActiveIdsForSilentClosedSessions(
+                        sweepAt.minusSeconds(5)
+                )
+        ).thenReturn(
+                List.of(
+                        violationId
+                )
+        );
+
+        watchdog.sweepAt(
+                sweepAt
+        );
+
+        verify(
+                violationLifecycleService
+        ).endViolation(
+                violationId,
+                sweepAt
+        );
+    }
+
+    @Test
+    void doesNotEndActiveViolationWhenNoSilentClosedSessionExists() {
+        Instant sweepAt =
+                Instant.parse(
+                        "2026-08-23T19:27:33Z"
+                );
+
+        when(
+                temporalConfirmationService.findSilentConfirmedStates(
+                        sweepAt
+                )
+        ).thenReturn(
+                List.of()
+        );
+
+        watchdog.sweepAt(
+                sweepAt
+        );
+
+        verify(
+                violationLifecycleService,
+                never()
+        ).endViolation(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        );
+    }
+
+    @Test
+    void retriesClosedSessionSilenceEndAfterLifecycleFailure() {
+        UUID violationId =
+                UUID.randomUUID();
+
+        Instant sweepAt =
+                Instant.parse(
+                        "2026-08-23T19:21:32Z"
+                );
+
+        when(
+                temporalConfirmationService.findSilentConfirmedStates(
+                        sweepAt
+                )
+        ).thenReturn(
+                List.of()
+        );
+
+        when(
+                violationRepository.findActiveIdsForSilentClosedSessions(
+                        sweepAt.minusSeconds(5)
+                )
+        ).thenReturn(
+                List.of(
+                        violationId
+                )
+        );
+
+        doThrow(
+                new IllegalStateException(
+                        "database unavailable"
+                )
+        ).when(
+                violationLifecycleService
+        ).endViolation(
+                violationId,
+                sweepAt
+        );
+
+        watchdog.sweepAt(
+                sweepAt
+        );
+
+        verify(
+                violationLifecycleService
+        ).endViolation(
+                violationId,
+                sweepAt
         );
     }
 }

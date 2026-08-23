@@ -119,6 +119,48 @@ class TemporalViolationLifecycleTest {
     }
 
     @Test
+    void endsConfirmedGlovesViolationAfterGracePeriod() {
+        Instant t0 =
+                Instant.parse(
+                        "2026-08-10T20:00:00Z"
+                );
+
+        confirmGlovesViolation(
+                t0
+        );
+
+        TemporalViolationTransitions withinGrace =
+                service.processFrameTransitions(
+                        t0.plusMillis(1500),
+                        List.of()
+                );
+
+        assertThat(
+                withinGrace.ended()
+        ).isEmpty();
+
+        TemporalViolationTransitions afterGrace =
+                service.processFrameTransitions(
+                        t0.plusSeconds(2),
+                        List.of()
+                );
+
+        assertThat(
+                afterGrace.ended()
+        ).hasSize(
+                1
+        );
+
+        assertThat(
+                afterGrace.ended()
+                        .getFirst()
+                        .violationType()
+        ).isEqualTo(
+                ViolationType.MISSING_GLOVES
+        );
+    }
+
+    @Test
     void endsConfirmedViolationWhenSameKeyReappearsAfterLongGap() {
         Instant t0 =
                 Instant.parse(
@@ -479,6 +521,64 @@ class TemporalViolationLifecycleTest {
                 confirmation.started()
         ).hasSize(
                 1
+        );
+    }
+
+    private void confirmGlovesViolation(
+            Instant startedAt
+    ) {
+        service.processFrameTransitions(
+                startedAt,
+                List.of(
+                        glovesCandidate(
+                                startedAt
+                        )
+                )
+        );
+
+        service.processFrameTransitions(
+                startedAt.plusMillis(500),
+                List.of(
+                        glovesCandidate(
+                                startedAt.plusMillis(500)
+                        )
+                )
+        );
+
+        TemporalViolationTransitions confirmation =
+                service.processFrameTransitions(
+                        startedAt.plusSeconds(1),
+                        List.of(
+                                glovesCandidate(
+                                        startedAt.plusSeconds(1)
+                                )
+                        )
+                );
+
+        assertThat(
+                confirmation.started()
+        ).hasSize(
+                1
+        );
+    }
+
+    private CandidateViolation glovesCandidate(
+            Instant timestamp
+    ) {
+        return new CandidateViolation(
+                UUID.randomUUID(),
+                cameraId,
+                sessionId,
+                "untracked",
+                ViolationType.MISSING_GLOVES,
+                new BoundingBox(
+                        0.10,
+                        0.10,
+                        0.30,
+                        0.50
+                ),
+                timestamp,
+                0.79
         );
     }
 

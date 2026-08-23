@@ -1,5 +1,6 @@
 package com.isg.backend.violation.service;
 
+import com.isg.backend.camera.service.CameraQueryService;
 import com.isg.backend.violation.application.port.RecordingQueryPort;
 import com.isg.backend.violation.application.port.RecordingQueryResult;
 import com.isg.backend.violation.application.port.RecordingStatusCallbackPort;
@@ -46,6 +47,21 @@ class ViolationRecoveryAcceptanceTest {
         recordingStatusCallbackPort =
                 mock(RecordingStatusCallbackPort.class);
 
+        CameraQueryService cameraQueryService =
+                mock(CameraQueryService.class);
+
+        when(
+                cameraQueryService.findGatewaySessionId(
+                        any()
+                )
+        ).thenAnswer(
+                invocation ->
+                        Optional.of(
+                                invocation.getArgument(
+                                        0
+                                )
+                        )
+        );
 
         recoveryService =
                 new ViolationRecoveryService(
@@ -55,7 +71,8 @@ class ViolationRecoveryAcceptanceTest {
                                 new ViolationTemporalProperties()
                         ),
                         recordingQueryPort,
-                        recordingStatusCallbackPort
+                        recordingStatusCallbackPort,
+                        cameraQueryService
                 );
     }
 
