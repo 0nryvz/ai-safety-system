@@ -1,6 +1,7 @@
 import '../../../core/realtime/realtime_client.dart';
 import '../../../core/realtime/realtime_session_source.dart';
 import '../../auth/auth_session.dart';
+import 'notification_event_store.dart';
 
 /// O1 auth session'ını realtime katmanına **okuyarak** taşır.
 ///
@@ -27,15 +28,21 @@ class AuthSessionRealtimeSource implements RealtimeSessionSource {
 
 /// Login/logout ve session değişimini realtime bağlantısına bağlar.
 ///
+/// Session termination (explicit logout veya refresh failure ile invalid
+/// session) socket'i durdurur ve [NotificationEventStore] kartlarını temizler.
+/// Token refresh, 403 ve geçici disconnect store'u silmez.
+///
 /// Production auto-connect için bu sınıfı bir provider'ın izlemesi gerekir;
 /// `app.dart`/`AppShell` bağlaması O4 handoff'udur.
 class RealtimeLifecycle {
   final AuthSessionRealtimeSource source;
   final RealtimeClient client;
+  final NotificationEventStore? store;
 
   RealtimeLifecycle({
     required this.source,
     required this.client,
+    this.store,
   });
 
   bool _wasAuthenticated = false;
@@ -48,6 +55,7 @@ class RealtimeLifecycle {
       _wasAuthenticated = false;
       _sessionKey = null;
       await client.stop();
+      store?.clear();
       return;
     }
 

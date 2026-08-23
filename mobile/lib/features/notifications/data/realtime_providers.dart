@@ -67,6 +67,7 @@ final realtimeLifecycleProvider = Provider<RealtimeLifecycle>((ref) {
   final lifecycle = RealtimeLifecycle(
     source: ref.watch(realtimeSessionSourceProvider),
     client: ref.watch(realtimeClientProvider),
+    store: ref.watch(notificationEventStoreProvider),
   );
 
   ref.listen<AuthSession>(

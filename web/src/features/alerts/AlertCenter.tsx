@@ -1,5 +1,7 @@
 import { Bell, Volume2, VolumeX, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { ROUTE_PATHS } from '../../app/routeConfig'
 import { formatUtcToLocal } from '../../core/date/dateTime'
 import { useRealtimeViolations } from '../../core/realtime/useRealtimeViolations'
 import Button from '../../shared/ui/Button/Button'
@@ -9,11 +11,21 @@ import { readAlertSoundMuted, writeAlertSoundMuted } from './alertSoundPreferenc
 import { useAlertSound } from './useAlertSound'
 
 function AlertCenter() {
+  const navigate = useNavigate()
   const alertCenterRef = useRef<HTMLElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [isSoundMuted, setIsSoundMuted] = useState(readAlertSoundMuted)
   const { violations, dismissViolation } = useRealtimeViolations()
   useAlertSound(violations, isSoundMuted)
+
+  function openViolationDetail(violationId: string) {
+    if (!violationId) {
+      return
+    }
+
+    setIsOpen(false)
+    navigate(ROUTE_PATHS.violationDetail.replace(':id', violationId))
+  }
 
   useEffect(() => {
     if (!isOpen) {
@@ -128,7 +140,11 @@ function AlertCenter() {
             <ul className="alert-center__list">
               {visibleViolations.map((violation) => (
                 <li key={violation.violationId} className="alert-center__item">
-                  <div className="alert-center__item-content">
+                  <button
+                    type="button"
+                    className="alert-center__item-open"
+                    onClick={() => openViolationDetail(violation.violationId)}
+                  >
                     <strong>{getViolationTypeLabel(violation.type)}</strong>
 
                     <p>
@@ -146,12 +162,16 @@ function AlertCenter() {
                     <time dateTime={violation.startedAt}>
                       {formatUtcToLocal(violation.startedAt)}
                     </time>
-                  </div>
+                  </button>
 
                   <button
                     type="button"
+                    className="alert-center__dismiss"
                     aria-label={`${violation.cameraName} bildirimini kapat`}
-                    onClick={() => dismissViolation(violation.violationId)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      dismissViolation(violation.violationId)
+                    }}
                   >
                     <X size={16} aria-hidden="true" />
                   </button>

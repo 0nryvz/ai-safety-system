@@ -62,7 +62,7 @@
 }
 
 .alert-center__control,
-.alert-center__item button {
+.alert-center__dismiss {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -78,14 +78,15 @@
 }
 
 .alert-center__control:hover,
-.alert-center__item button:hover {
+.alert-center__dismiss:hover {
   border-color: var(--color-border);
   color: var(--color-text-primary);
   background-color: var(--color-surface-subtle);
 }
 
 .alert-center__control:focus-visible,
-.alert-center__item button:focus-visible {
+.alert-center__dismiss:focus-visible,
+.alert-center__item-open:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
@@ -119,8 +120,15 @@
   border-bottom: 0;
 }
 
-.alert-center__item-content {
+.alert-center__item-open {
   min-width: 0;
+  flex: 1;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .alert-center__metadata {

@@ -1,7 +1,24 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { useRealtimeViolations } from '../../core/realtime/useRealtimeViolations'
 import AlertCenter from './AlertCenter'
+
+function LocationProbe() {
+  const location = useLocation()
+
+  return <div data-testid="location-pathname">{location.pathname}</div>
+}
+
+function renderAlertCenter() {
+  return render(
+    <MemoryRouter initialEntries={['/dashboard']}>
+      <AlertCenter />
+      <LocationProbe />
+    </MemoryRouter>,
+  )
+}
 
 vi.mock('../../core/realtime/useRealtimeViolations', () => ({
   useRealtimeViolations: vi.fn(),
@@ -45,7 +62,7 @@ describe('AlertCenter', () => {
   })
 
   it('shows an empty state when there are no active alerts', () => {
-    render(<AlertCenter />)
+    renderAlertCenter()
 
     fireEvent.click(screen.getByRole('button', { name: /bildirimleri aç/i }))
 
@@ -58,7 +75,7 @@ describe('AlertCenter', () => {
       dismissViolation,
     })
 
-    render(<AlertCenter />)
+    renderAlertCenter()
 
     fireEvent.click(screen.getByRole('button', { name: /bildirimleri aç/i }))
 
@@ -75,10 +92,80 @@ describe('AlertCenter', () => {
     )
 
     expect(dismissViolation).toHaveBeenCalledWith('violation-1')
+    expect(screen.getByTestId('location-pathname')).toHaveTextContent('/dashboard')
+  })
+
+  it('navigates to the existing violation detail route from the card body', async () => {
+    const user = userEvent.setup()
+
+    mockedUseRealtimeViolations.mockReturnValue({
+      violations: [violation],
+      dismissViolation,
+    })
+
+    renderAlertCenter()
+
+    fireEvent.click(screen.getByRole('button', { name: /bildirimleri aç/i }))
+
+    await user.click(screen.getByRole('button', { name: /koruyucu eldiven eksik/i }))
+
+    expect(screen.getByTestId('location-pathname')).toHaveTextContent('/violations/violation-1')
+    expect(dismissViolation).not.toHaveBeenCalled()
+  })
+
+  it('opens the same detail route with Enter and Space on the card body', async () => {
+    const user = userEvent.setup()
+
+    mockedUseRealtimeViolations.mockReturnValue({
+      violations: [violation],
+      dismissViolation,
+    })
+
+    renderAlertCenter()
+
+    fireEvent.click(screen.getByRole('button', { name: /bildirimleri aç/i }))
+
+    const card = screen.getByRole('button', { name: /koruyucu eldiven eksik/i })
+    card.focus()
+    await user.keyboard('{Enter}')
+
+    expect(screen.getByTestId('location-pathname')).toHaveTextContent('/violations/violation-1')
+
+    fireEvent.click(screen.getByRole('button', { name: /bildirimleri aç/i }))
+
+    const openedCard = screen.getByRole('button', { name: /koruyucu eldiven eksik/i })
+    openedCard.focus()
+    await user.keyboard(' ')
+
+    expect(screen.getByTestId('location-pathname')).toHaveTextContent('/violations/violation-1')
+    expect(dismissViolation).not.toHaveBeenCalled()
+  })
+
+  it('does not navigate when the notification has no violationId', async () => {
+    const user = userEvent.setup()
+
+    mockedUseRealtimeViolations.mockReturnValue({
+      violations: [
+        {
+          ...violation,
+          violationId: '',
+        },
+      ],
+      dismissViolation,
+    })
+
+    renderAlertCenter()
+
+    fireEvent.click(screen.getByRole('button', { name: /bildirimleri aç/i }))
+
+    await user.click(screen.getByRole('button', { name: /koruyucu eldiven eksik/i }))
+
+    expect(screen.getByTestId('location-pathname')).toHaveTextContent('/dashboard')
+    expect(dismissViolation).not.toHaveBeenCalled()
   })
 
   it('persists the alert sound preference', () => {
-    render(<AlertCenter />)
+    renderAlertCenter()
 
     fireEvent.click(screen.getByRole('button', { name: /bildirimleri aç/i }))
 
@@ -108,7 +195,7 @@ describe('AlertCenter', () => {
       dismissViolation,
     })
 
-    render(<AlertCenter />)
+    renderAlertCenter()
 
     expect(
       screen.getByRole('button', {
@@ -118,7 +205,7 @@ describe('AlertCenter', () => {
   })
 
   it('closes the panel with Escape or an outside pointer action', () => {
-    render(<AlertCenter />)
+    renderAlertCenter()
 
     const trigger = screen.getByRole('button', {
       name: /bildirimleri aç/i,

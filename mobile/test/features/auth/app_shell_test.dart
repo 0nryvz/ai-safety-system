@@ -377,6 +377,38 @@ void main() {
     expect(controller.state.authenticated, isFalse);
   });
 
+  testWidgets('logout notification store temizler, Bildirimler açılmasa da',
+      (tester) async {
+    final store = NotificationEventStore();
+    store.apply(
+      parseRealtimeFrame(
+        jsonEncode({
+          'violationId': 'viol-stale',
+          'type': 'RESTRICTED_ZONE',
+          'cameraName': 'Kapı-A',
+          'departmentName': 'Montaj',
+          'startedAt': '2026-08-21T12:00:00Z',
+          'confidence': 0.8,
+          'lifecycleStatus': 'ACTIVE',
+          'recordingStatus': 'READY',
+          'clipReady': false,
+          'coverImageReady': false,
+        }),
+      ),
+    );
+
+    await pumpSignedIn(tester, store: store);
+    await tester.pumpAndSettle();
+    expect(store.length, 1);
+
+    await tester.tap(find.byTooltip('Çıkış'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AuthLoginPage), findsOneWidget);
+    expect(store.length, 0);
+    expect(port.disconnectCalls, greaterThanOrEqualTo(1));
+  });
+
   testWidgets('403 dashboard sessionı düşürmez', (tester) async {
     await pumpSignedIn(tester, dashboardStatus: 403);
     await tester.pumpAndSettle();
@@ -385,5 +417,32 @@ void main() {
     expect(controller.state.authenticated, isTrue);
     expect(find.text('Bu dashboard verisine erişim yetkiniz yok.'), findsOneWidget);
     expect(find.byTooltip('Çıkış'), findsOneWidget);
+  });
+
+  testWidgets('403 notification store temizlemez', (tester) async {
+    final store = NotificationEventStore();
+    store.apply(
+      parseRealtimeFrame(
+        jsonEncode({
+          'violationId': 'viol-keep',
+          'type': 'RESTRICTED_ZONE',
+          'cameraName': 'Kapı-A',
+          'departmentName': 'Montaj',
+          'startedAt': '2026-08-21T12:00:00Z',
+          'confidence': 0.8,
+          'lifecycleStatus': 'ACTIVE',
+          'recordingStatus': 'READY',
+          'clipReady': false,
+          'coverImageReady': false,
+        }),
+      ),
+    );
+
+    await pumpSignedIn(tester, store: store, dashboardStatus: 403);
+    await tester.pumpAndSettle();
+
+    expect(controller.state.authenticated, isTrue);
+    expect(store.length, 1);
+    expect(store.items.single.violationId, 'viol-keep');
   });
 }
