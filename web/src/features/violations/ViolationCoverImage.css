@@ -1,0 +1,11 @@
+.violation-cover-image {
+    display: block;
+    width: min(100%, 720px);
+    height: auto;
+    max-height: 520px;
+    margin: 0 auto;
+    object-fit: contain;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background-color: var(--color-surface);
+  }
