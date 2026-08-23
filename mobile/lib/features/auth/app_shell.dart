@@ -17,6 +17,7 @@ import '../../features/violations/presentation/violation_detail_page.dart';
 import '../../features/violations/presentation/violations_tab_page.dart';
 import '../../shared/widgets/placeholder_page.dart';
 import 'auth_controller.dart';
+import 'floating_navigation_menu.dart';
 import 'shell_destinations.dart';
 
 /// Role-aware AppShell. Auth kararları (401/refresh/session invalid) merkezi
@@ -115,6 +116,21 @@ class _AppShellState extends ConsumerState<AppShell> {
     };
   }
 
+  void _onDestinationSelected(List<ShellDestination> destinations, int index) {
+    if (index < 0 || index >= destinations.length) {
+      return;
+    }
+
+    final destination = destinations[index];
+    if (destination.tab != _tab) {
+      setState(() => _tab = destination.tab);
+    }
+
+    if (destination.tab == ShellTab.cameraBroadcast) {
+      _openCameraBroadcast();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Login sonrası tek STOMP bağlantısını başlatır; logout'ta kapatır.
@@ -129,62 +145,70 @@ class _AppShellState extends ConsumerState<AppShell> {
         ? session.currentUser!.fullName
         : session.currentUser?.email ?? '';
 
-    return Scaffold(
-      backgroundColor: StrixBrand.background,
-      appBar: AppBar(
-        title: Text(
-          StrixBrand.shortName,
-          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-        ),
-        actions: [
-          if (userLabel.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Center(
-                child: Text(
-                  userLabel,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: StrixBrand.textSecondary,
+    return FloatingNavigationMenu(
+      items: destinations,
+      selectedIndex: selectedIndex,
+      onSelected: (index) => _onDestinationSelected(destinations, index),
+      child: Scaffold(
+        backgroundColor: StrixBrand.background,
+        appBar: AppBar(
+          title: Text(
+            StrixBrand.shortName,
+            style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+          ),
+          actions: [
+            if (userLabel.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Center(
+                  child: Text(
+                    userLabel,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: StrixBrand.textSecondary,
+                    ),
                   ),
                 ),
               ),
+            IconButton(
+              tooltip: 'Çıkış',
+              onPressed: () {
+                ref.read(authSessionProvider.notifier).signOut();
+              },
+              icon: const Icon(Icons.logout),
             ),
-          IconButton(
-            tooltip: 'Çıkış',
-            onPressed: () {
-              ref.read(authSessionProvider.notifier).signOut();
-            },
-            icon: const Icon(Icons.logout),
-          ),
-        ],
+          ],
+        ),
+        body: Column(
+          children: [
+            if (_error != null) _ShellErrorBanner(message: _error!),
+            Expanded(
+              child: _withActionClearance(_bodyFor(activeTab)),
+            ),
+          ],
+        ),
       ),
-      body: Column(
-        children: [
-          if (_error != null) _ShellErrorBanner(message: _error!),
-          Expanded(
-            child: _bodyFor(activeTab),
-          ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) {
-          final destination = destinations[index];
-          setState(() => _tab = destination.tab);
+    );
+  }
 
-          if (destination.tab == ShellTab.cameraBroadcast) {
-            _openCameraBroadcast();
-          }
-        },
-        destinations: [
-          for (final destination in destinations)
-            NavigationDestination(
-              icon: Icon(destination.icon),
-              label: destination.label,
+  Widget _withActionClearance(Widget child) {
+    return Builder(
+      builder: (context) {
+        final media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            padding: media.padding.copyWith(
+              bottom:
+                  media.padding.bottom + FloatingNavigationMenu.actionClearance,
             ),
-        ],
-      ),
+            viewPadding: media.viewPadding.copyWith(
+              bottom: media.viewPadding.bottom +
+                  FloatingNavigationMenu.actionClearance,
+            ),
+          ),
+          child: child,
+        );
+      },
     );
   }
 }

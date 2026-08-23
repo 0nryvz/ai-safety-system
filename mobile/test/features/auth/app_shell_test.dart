@@ -4,12 +4,17 @@ import 'package:camera_stream_app/app.dart';
 import 'package:camera_stream_app/core/network/backend_client.dart';
 import 'package:camera_stream_app/core/realtime/realtime_event_parser.dart';
 import 'package:camera_stream_app/core/realtime/stomp_client_port.dart';
+import 'package:camera_stream_app/features/auth/app_shell.dart';
 import 'package:camera_stream_app/features/auth/auth_controller.dart';
 import 'package:camera_stream_app/features/auth/auth_login_page.dart';
+import 'package:camera_stream_app/features/auth/floating_navigation_menu.dart';
+import 'package:camera_stream_app/features/auth/shell_destinations.dart';
+import 'package:camera_stream_app/features/camera_management/presentation/cameras_page.dart';
 import 'package:camera_stream_app/features/notifications/data/notification_event_store.dart';
 import 'package:camera_stream_app/features/notifications/data/realtime_providers.dart';
 import 'package:camera_stream_app/features/session/camera_selection_page.dart';
 import 'package:camera_stream_app/features/violations/presentation/violation_detail_page.dart';
+import 'package:camera_stream_app/features/violations/presentation/violations_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -250,12 +255,28 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   }
 
+  Future<void> openFloatingNav(WidgetTester tester) async {
+    await tester.tap(find.byKey(FloatingNavigationMenu.toggleKey));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> selectFloatingNav(WidgetTester tester, ShellTab tab) async {
+    if (find.byKey(FloatingNavigationMenu.itemKey(tab)).evaluate().isEmpty) {
+      await openFloatingNav(tester);
+    }
+    await tester.tap(find.byKey(FloatingNavigationMenu.itemKey(tab)));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('login sonrası AppShell ve Dashboard açılır', (tester) async {
     await pumpSignedIn(tester);
     await tester.pumpAndSettle();
 
     expect(find.byType(AuthLoginPage), findsNothing);
-    expect(find.text('Dashboard'), findsWidgets);
+    expect(find.byType(AppShell), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byKey(FloatingNavigationMenu.toggleKey), findsOneWidget);
+    expect(find.byIcon(Icons.menu_rounded), findsOneWidget);
     expect(find.text('Bugün'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
   });
@@ -265,20 +286,14 @@ void main() {
     await pumpSignedIn(tester);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Kameralar'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    await selectFloatingNav(tester, ShellTab.cameras);
     expect(find.text('Kaynak-1 Kamera A'), findsOneWidget);
     expect(find.text('Fabrika kameralarını görüntüleyin ve yönetin.'), findsOneWidget);
 
-    await tester.tap(find.text('İhlaller'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    await selectFloatingNav(tester, ShellTab.violations);
     expect(find.text('Geçmiş ihlalleri inceleyin ve gözden geçirin.'), findsOneWidget);
 
-    await tester.tap(find.text('Bildirimler'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    await selectFloatingNav(tester, ShellTab.notifications);
     expect(find.text('Canlı ihlal uyarıları. Gizlenen kartlar yalnızca bu oturumda kaybolur.'), findsOneWidget);
   });
 
@@ -286,14 +301,14 @@ void main() {
     await pumpSignedIn(tester);
     await tester.pumpAndSettle();
 
+    await openFloatingNav(tester);
     expect(find.text('Kullanıcılar'), findsOneWidget);
 
-    await tester.tap(find.text('Kullanıcılar'));
+    await tester.tap(find.byKey(FloatingNavigationMenu.itemKey(ShellTab.users)));
     await tester.pumpAndSettle();
     expect(find.text('Ada Admin'), findsWidgets);
 
-    await tester.tap(find.text('Dashboard'));
-    await tester.pumpAndSettle();
+    await selectFloatingNav(tester, ShellTab.dashboard);
 
     final recent = find.textContaining('Kapı-A');
     expect(recent, findsOneWidget);
@@ -309,8 +324,13 @@ void main() {
     await pumpSignedIn(tester, roles: const ['OHS_SPECIALIST']);
     await tester.pumpAndSettle();
 
+    await openFloatingNav(tester);
     expect(find.text('Kullanıcılar'), findsNothing);
-    expect(find.text('Dashboard'), findsWidgets);
+    expect(
+      find.byKey(FloatingNavigationMenu.itemKey(ShellTab.users)),
+      findsNothing,
+    );
+    expect(find.text('Dashboard'), findsOneWidget);
     expect(find.text('Kamera Yayını'), findsOneWidget);
   });
 
@@ -319,8 +339,7 @@ void main() {
     await pumpSignedIn(tester);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Kamera Yayını'));
-    await tester.pumpAndSettle();
+    await selectFloatingNav(tester, ShellTab.cameraBroadcast);
 
     expect(find.byType(CameraSelectionPage), findsOneWidget);
     expect(find.text('Kamera seçimi'), findsOneWidget);
@@ -349,8 +368,7 @@ void main() {
     await pumpSignedIn(tester, store: store);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Bildirimler'));
-    await tester.pumpAndSettle();
+    await selectFloatingNav(tester, ShellTab.notifications);
 
     await tester.tap(find.text('Yasak alan'));
     await tester.pumpAndSettle();
@@ -444,5 +462,158 @@ void main() {
     expect(controller.state.authenticated, isTrue);
     expect(store.length, 1);
     expect(store.items.single.violationId, 'viol-keep');
+  });
+
+  testWidgets('floating menü kapalı başlar ve tekrar dokununca kapanır',
+      (tester) async {
+    await pumpSignedIn(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byIcon(Icons.menu_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.close_rounded), findsNothing);
+    expect(
+      find.byKey(FloatingNavigationMenu.itemKey(ShellTab.cameras)),
+      findsNothing,
+    );
+
+    await openFloatingNav(tester);
+    expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+    expect(find.text('Kameralar'), findsOneWidget);
+    expect(find.text('İhlaller'), findsOneWidget);
+    expect(find.text('Bildirimler'), findsOneWidget);
+    expect(find.text('Kamera Yayını'), findsOneWidget);
+
+    await tester.tap(find.byKey(FloatingNavigationMenu.toggleKey));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.menu_rounded), findsOneWidget);
+    expect(
+      find.byKey(FloatingNavigationMenu.itemKey(ShellTab.cameras)),
+      findsNothing,
+    );
+  });
+
+  testWidgets('overlay dokunuşu menüyü kapatır', (tester) async {
+    await pumpSignedIn(tester);
+    await tester.pumpAndSettle();
+
+    await openFloatingNav(tester);
+    expect(find.text('Kameralar'), findsOneWidget);
+
+    await tester.tapAt(const Offset(24, 120));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(FloatingNavigationMenu.itemKey(ShellTab.cameras)),
+      findsNothing,
+    );
+    expect(find.byIcon(Icons.menu_rounded), findsOneWidget);
+  });
+
+  testWidgets('Kameralar seçimi sayfayı değiştirir ve menüyü kapatır',
+      (tester) async {
+    await pumpSignedIn(tester);
+    await tester.pumpAndSettle();
+
+    await selectFloatingNav(tester, ShellTab.cameras);
+    expect(find.byType(CamerasPage), findsOneWidget);
+    expect(find.text('Kaynak-1 Kamera A'), findsOneWidget);
+    expect(find.byIcon(Icons.menu_rounded), findsOneWidget);
+    expect(
+      find.byKey(FloatingNavigationMenu.itemKey(ShellTab.cameras)),
+      findsNothing,
+    );
+  });
+
+  testWidgets('İhlaller seçimi sayfayı değiştirir ve menüyü kapatır',
+      (tester) async {
+    await pumpSignedIn(tester);
+    await tester.pumpAndSettle();
+
+    await selectFloatingNav(tester, ShellTab.violations);
+    expect(find.byType(ViolationsPage), findsOneWidget);
+    expect(find.text('Geçmiş ihlalleri inceleyin ve gözden geçirin.'), findsOneWidget);
+    expect(
+      find.byKey(FloatingNavigationMenu.itemKey(ShellTab.violations)),
+      findsNothing,
+    );
+  });
+
+  testWidgets('aktif hedef menüde seçili görünür', (tester) async {
+    await pumpSignedIn(tester);
+    await tester.pumpAndSettle();
+
+    await openFloatingNav(tester);
+    expect(
+      find.descendant(
+        of: find.byKey(FloatingNavigationMenu.itemKey(ShellTab.dashboard)),
+        matching: find.byIcon(Icons.dashboard_rounded),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(FloatingNavigationMenu.itemKey(ShellTab.cameras)));
+    await tester.pumpAndSettle();
+    await openFloatingNav(tester);
+    expect(
+      find.descendant(
+        of: find.byKey(FloatingNavigationMenu.itemKey(ShellTab.cameras)),
+        matching: find.byIcon(Icons.videocam_rounded),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(FloatingNavigationMenu.itemKey(ShellTab.dashboard)),
+        matching: find.byIcon(Icons.dashboard_rounded),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('aktif sayfaya tekrar dokunmak menüyü kapatır, sayfayı sıfırlamaz',
+      (tester) async {
+    await pumpSignedIn(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bugün'), findsOneWidget);
+    await openFloatingNav(tester);
+    await tester.tap(
+      find.byKey(FloatingNavigationMenu.itemKey(ShellTab.dashboard)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bugün'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+    expect(
+      find.byKey(FloatingNavigationMenu.itemKey(ShellTab.dashboard)),
+      findsNothing,
+    );
+  });
+
+  testWidgets('sistem geri tuşu açık menüyü önce kapatır', (tester) async {
+    await pumpSignedIn(tester);
+    await tester.pumpAndSettle();
+
+    await openFloatingNav(tester);
+    expect(find.text('Kameralar'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(FloatingNavigationMenu.itemKey(ShellTab.cameras)),
+      findsNothing,
+    );
+    expect(find.byType(AppShell), findsOneWidget);
+    expect(find.text('Bugün'), findsOneWidget);
+  });
+
+  testWidgets('Departmanlar menüde yoktur', (tester) async {
+    await pumpSignedIn(tester);
+    await tester.pumpAndSettle();
+
+    await openFloatingNav(tester);
+    expect(find.text('Departmanlar'), findsNothing);
+    expect(find.textContaining('Departman'), findsNothing);
   });
 }
