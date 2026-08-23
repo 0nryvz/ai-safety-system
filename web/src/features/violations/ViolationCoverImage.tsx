@@ -3,6 +3,7 @@ import Button from '../../shared/ui/Button/Button'
 import EmptyState from '../../shared/ui/EmptyState/EmptyState'
 import ErrorState from '../../shared/ui/ErrorState/ErrorState'
 import { useViolationCoverUrl } from './useViolationCoverUrl'
+import './ViolationCoverImage.css'
 
 export interface ViolationCoverImageProps {
   violationId: string
@@ -73,6 +74,7 @@ function ViolationCoverImage({ violationId, coverImageReady }: ViolationCoverIma
 
   return (
     <img
+      className="violation-cover-image"
       src={data.url}
       alt="İhlal kapak görseli"
       loading="lazy"
