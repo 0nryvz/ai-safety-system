@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -62,6 +63,18 @@ public class RecordingPersistenceAdapter implements RecordingRepository {
     }
 
     @Override
+    public List<Recording> findByClipGroupId(
+            UUID clipGroupId
+    ) {
+        return repository.findByClipGroupId(
+                        clipGroupId
+                )
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
     public Set<UUID> findViolationIdsByStatus(
             RecordingStatus status
     ) {
@@ -109,6 +122,7 @@ public class RecordingPersistenceAdapter implements RecordingRepository {
             existingEntity.setRecordingStartedAt(recording.recordingStartedAt());
             existingEntity.setStartCommandId(recording.startCommandId());
             existingEntity.setStopCommandId(recording.stopCommandId());
+            existingEntity.setClipGroupId(recording.clipGroupId());
             if (recording.readyAt() != null) {
                 existingEntity.setReadyAt(recording.readyAt());
             }
@@ -128,6 +142,7 @@ public class RecordingPersistenceAdapter implements RecordingRepository {
                 .recordingStartedAt(recording.recordingStartedAt())
                 .startCommandId(recording.startCommandId())
                 .stopCommandId(recording.stopCommandId())
+                .clipGroupId(recording.clipGroupId())
                 .readyAt(recording.readyAt())
                 .build();
     }
@@ -148,6 +163,7 @@ public class RecordingPersistenceAdapter implements RecordingRepository {
                 entity.getRecordingStartedAt(),
                 entity.getStartCommandId(),
                 entity.getStopCommandId(),
+                entity.getClipGroupId(),
                 entity.getReadyAt()
         );
     }

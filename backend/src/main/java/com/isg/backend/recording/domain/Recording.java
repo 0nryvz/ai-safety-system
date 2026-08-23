@@ -18,6 +18,7 @@ public class Recording {
     private Instant recordingStartedAt;
     private UUID startCommandId;
     private UUID stopCommandId;
+    private UUID clipGroupId;
     private Instant readyAt;
 
     private Recording(
@@ -33,6 +34,7 @@ public class Recording {
             Instant recordingStartedAt,
             UUID startCommandId,
             UUID stopCommandId,
+            UUID clipGroupId,
             Instant readyAt
     ) {
         this.id = id;
@@ -53,6 +55,7 @@ public class Recording {
         this.recordingStartedAt = recordingStartedAt;
         this.startCommandId = startCommandId;
         this.stopCommandId = stopCommandId;
+        this.clipGroupId = clipGroupId;
         this.readyAt = readyAt;
     }
 
@@ -73,10 +76,55 @@ public class Recording {
                 null,
                 Objects.requireNonNull(startCommandId, "startCommandId cannot be null"),
                 null,
+                null,
                 null
         );
     }
 
+    public static Recording createRequested(
+            UUID violationId,
+            UUID startCommandId,
+            UUID clipGroupId
+    ) {
+        return new Recording(
+                null,
+                violationId,
+                RecordingStatus.REQUESTED,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                Objects.requireNonNull(startCommandId, "startCommandId cannot be null"),
+                null,
+                Objects.requireNonNull(clipGroupId, "clipGroupId cannot be null"),
+                null
+        );
+    }
+
+    public static Recording createSharedRequested(
+            UUID violationId,
+            UUID clipGroupId
+    ) {
+        return new Recording(
+                null,
+                violationId,
+                RecordingStatus.REQUESTED,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Objects.requireNonNull(clipGroupId, "clipGroupId cannot be null"),
+                null
+        );
+    }
     public static Recording rehydrate(
             UUID id,
             UUID violationId,
@@ -130,6 +178,41 @@ public class Recording {
                 recordingStartedAt,
                 startCommandId,
                 stopCommandId,
+                null,
+                readyAt
+        );
+    }
+
+    public static Recording rehydrate(
+            UUID id,
+            UUID violationId,
+            RecordingStatus status,
+            String objectKey,
+            Integer durationMs,
+            Long sizeBytes,
+            Integer retryCount,
+            String checksum,
+            String errorCode,
+            Instant recordingStartedAt,
+            UUID startCommandId,
+            UUID stopCommandId,
+            UUID clipGroupId,
+            Instant readyAt
+    ) {
+        return new Recording(
+                id,
+                violationId,
+                status,
+                objectKey,
+                durationMs,
+                sizeBytes,
+                retryCount,
+                checksum,
+                errorCode,
+                recordingStartedAt,
+                startCommandId,
+                stopCommandId,
+                clipGroupId,
                 readyAt
         );
     }
@@ -156,6 +239,33 @@ public class Recording {
         this.status = RecordingStatus.RECORDING;
     }
 
+    public void markSharedRecordingStarted(
+            Instant startedAt
+    ) {
+        if (status != RecordingStatus.REQUESTED) {
+            throw new IllegalStateException(
+                    "Cannot transition shared recording to RECORDING from " + status
+            );
+        }
+
+        if (clipGroupId == null) {
+            throw new IllegalStateException(
+                    "Shared recording requires clipGroupId"
+            );
+        }
+
+        if (startCommandId != null) {
+            throw new IllegalStateException(
+                    "Shared follower must not own startCommandId"
+            );
+        }
+
+        this.recordingStartedAt = Objects.requireNonNull(
+                startedAt,
+                "startedAt cannot be null"
+        );
+        this.status = RecordingStatus.RECORDING;
+    }
     public void markProcessing(
             UUID stopCommandId
     ) {
@@ -173,6 +283,27 @@ public class Recording {
         this.status = RecordingStatus.PROCESSING;
     }
 
+    public void markSharedProcessing() {
+        if (status != RecordingStatus.RECORDING) {
+            throw new IllegalStateException(
+                    "Cannot transition shared recording to PROCESSING from " + status
+            );
+        }
+
+        if (clipGroupId == null) {
+            throw new IllegalStateException(
+                    "Shared recording requires clipGroupId"
+            );
+        }
+
+        if (stopCommandId != null) {
+            throw new IllegalStateException(
+                    "Shared processing must not own stopCommandId"
+            );
+        }
+
+        this.status = RecordingStatus.PROCESSING;
+    }
     public void markReady(
             String objectKey,
             int durationMs,
@@ -305,6 +436,10 @@ public class Recording {
 
     public UUID stopCommandId() {
         return stopCommandId;
+    }
+
+    public UUID clipGroupId() {
+        return clipGroupId;
     }
 
     public Instant readyAt() {
