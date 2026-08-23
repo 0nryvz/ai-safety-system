@@ -20,7 +20,10 @@ export function useRealtimeRestRefresh(
   } = options
 
   const refreshRef = useRef(refresh)
-  refreshRef.current = refresh
+
+  useEffect(() => {
+    refreshRef.current = refresh
+  }, [refresh])
 
   useEffect(() => {
     let timeoutId: number | null = null

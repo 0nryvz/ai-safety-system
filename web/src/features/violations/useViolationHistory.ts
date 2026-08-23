@@ -42,7 +42,9 @@ export function useViolationHistory(query: ViolationHistoryQuery) {
   const queryRef = useRef(query)
   const requestGenerationRef = useRef(0)
 
-  queryRef.current = query
+  useEffect(() => {
+    queryRef.current = query
+  }, [query])
 
   const retry = useCallback(() => {
     setRetryVersion((current) => current + 1)
@@ -63,7 +65,18 @@ export function useViolationHistory(query: ViolationHistoryQuery) {
         error: null,
       }))
 
-      const currentQuery = toHistoryQuery(query)
+      const currentQuery = toHistoryQuery({
+        from: query.from,
+        to: query.to,
+        type: query.type,
+        cameraId: query.cameraId,
+        departmentId: query.departmentId,
+        lifecycleStatus: query.lifecycleStatus,
+        reviewStatus: query.reviewStatus,
+        page: query.page,
+        size: query.size,
+        sort: query.sort,
+      })
 
       try {
         const data = await getViolationHistory(currentQuery)
