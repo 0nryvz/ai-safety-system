@@ -8,6 +8,7 @@ import DashboardTrendChart from './DashboardTrendChart'
 import type { DashboardDistributionGroup } from './dashboardTypes'
 import { useDashboardAnalytics } from './useDashboardAnalytics'
 import './DashboardAnalyticsPanel.css'
+import { getViolationTypeLabel } from './violationPresentation'
 
 const DEFAULT_RANGE_DAYS = 6
 
@@ -104,7 +105,16 @@ function DashboardAnalyticsPanel() {
               <p>Seçilen gruplamaya göre toplam ihlal dağılımı.</p>
             </header>
 
-            <DashboardDistributionChart data={distribution} />
+            <DashboardDistributionChart
+              data={
+                groupBy === 'TYPE'
+                  ? distribution.map((item) => ({
+                      ...item,
+                      group: getViolationTypeLabel(item.group),
+                    }))
+                  : distribution
+              }
+            />
           </article>
         </div>
       )}

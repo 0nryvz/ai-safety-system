@@ -26,7 +26,7 @@ describe('DashboardAnalyticsPanel', () => {
       ],
       distribution: [
         {
-          group: 'NO_HELMET',
+          group: 'MISSING_WELDING_MASK',
           count: 3,
         },
       ],
@@ -49,7 +49,7 @@ describe('DashboardAnalyticsPanel', () => {
       }),
     ).toBeInTheDocument()
 
-    expect(screen.getByText('NO_HELMET')).toBeInTheDocument()
+    expect(screen.getByText('Kaynak maskesi eksik')).toBeInTheDocument()
   })
 
   it('changes the distribution grouping', () => {
