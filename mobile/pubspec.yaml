@@ -1,5 +1,5 @@
 name: camera_stream_app
-description: STRIX — fabrika kamerası operatör uygulaması (ISG Vision)
+description: SafeSight — fabrika kamerası operatör uygulaması (ISG Vision)
 
 publish_to: 'none'
 
@@ -29,10 +29,12 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: true
-  ios: false
-  image_path: assets/brand/strix_app_icon.png
-  adaptive_icon_background: "#F5F6F8"
-  adaptive_icon_foreground: assets/brand/strix_app_icon.png
+  ios: true
+  remove_alpha_ios: true
+  image_path: assets/brand/safesight_app_icon.png
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: assets/brand/safesight_app_icon.png
+  adaptive_icon_foreground_inset: 8
 
 flutter:
   uses-material-design: true

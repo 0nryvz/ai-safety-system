@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// STRIX — Design System Guide v2.0 (Current UI / light theme) token'ları.
+/// SafeSight — Design System Guide v2.0 (Current UI / light theme) token'ları.
 class StrixBrand {
   const StrixBrand._();
 
-  static const String name = 'STRIX';
-  static const String shortName = 'STRIX';
+  static const String name = 'SafeSight';
+  static const String shortName = 'SafeSight';
   static const String tagline = 'Saha görüşü · operatör istemcisi';
   static const String pitch =
       'Atanmış fabrika kamerasını güvenilir biçimde Camera Ingestion '
       'Gateway\'e aktarır. Kurumsal saha operasyon paneli.';
 
   /// Logo asset.
-  static const String logoAsset = 'assets/brand/strix_app_icon.png';
+  static const String logoAsset = 'assets/brand/safesight_app_icon.png';
 
   // --- Design tokens (PDF v2.0) ---
   static const Color primary = Color(0xFF2563EA);
