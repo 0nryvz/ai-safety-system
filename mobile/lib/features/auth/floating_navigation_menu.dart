@@ -22,12 +22,19 @@ class FloatingNavigationMenu extends StatefulWidget {
   final ValueChanged<int> onSelected;
   final Widget child;
 
+  /// When false, system back is intercepted and [onBlockedPop] is called
+  /// (after the open menu is dismissed).
+  final bool allowRoutePop;
+  final VoidCallback? onBlockedPop;
+
   const FloatingNavigationMenu({
     super.key,
     required this.items,
     required this.selectedIndex,
     required this.onSelected,
     required this.child,
+    this.allowRoutePop = true,
+    this.onBlockedPop,
   });
 
   @override
@@ -87,11 +94,16 @@ class _FloatingNavigationMenuState extends State<FloatingNavigationMenu>
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !_open,
+      canPop: !_open && widget.allowRoutePop,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          _closeMenu();
+        if (didPop) {
+          return;
         }
+        if (_open) {
+          _closeMenu();
+          return;
+        }
+        widget.onBlockedPop?.call();
       },
       child: AnimatedBuilder(
         animation: _controller,

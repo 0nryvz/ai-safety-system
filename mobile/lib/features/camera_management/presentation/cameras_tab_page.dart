@@ -13,7 +13,10 @@ import 'cameras_page.dart';
 
 /// AppShell Kameralar sekmesi — [AuthenticatedApi] oturumunu kullanır.
 class CamerasTabPage extends ConsumerWidget {
-  const CamerasTabPage({super.key});
+  /// Shell owns broadcast presentation so the floating menu stays visible.
+  final VoidCallback? onBroadcastReady;
+
+  const CamerasTabPage({super.key, this.onBroadcastReady});
 
   CameraOption _toCameraOption(CameraItem item) {
     return CameraOption(
@@ -37,6 +40,12 @@ class CamerasTabPage extends ConsumerWidget {
         .selectBackendCamera(_toCameraOption(camera));
 
     if (!context.mounted) {
+      return;
+    }
+
+    final onReady = onBroadcastReady;
+    if (onReady != null) {
+      onReady();
       return;
     }
 

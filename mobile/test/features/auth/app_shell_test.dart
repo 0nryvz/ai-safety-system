@@ -9,13 +9,16 @@ import 'package:camera_stream_app/features/auth/auth_controller.dart';
 import 'package:camera_stream_app/features/auth/auth_login_page.dart';
 import 'package:camera_stream_app/features/auth/floating_navigation_menu.dart';
 import 'package:camera_stream_app/features/auth/shell_destinations.dart';
+import 'package:camera_stream_app/features/camera/camera_page.dart';
 import 'package:camera_stream_app/features/camera_management/presentation/cameras_page.dart';
+import 'package:camera_stream_app/features/session/operator_login_page.dart';
 import 'package:camera_stream_app/features/notifications/data/notification_event_store.dart';
 import 'package:camera_stream_app/features/notifications/data/realtime_providers.dart';
 import 'package:camera_stream_app/features/session/camera_selection_page.dart';
 import 'package:camera_stream_app/features/violations/presentation/violation_detail_page.dart';
 import 'package:camera_stream_app/features/violations/presentation/violations_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -342,6 +345,7 @@ void main() {
     await selectFloatingNav(tester, ShellTab.cameraBroadcast);
 
     expect(find.byType(CameraSelectionPage), findsOneWidget);
+    expect(find.byKey(FloatingNavigationMenu.toggleKey), findsOneWidget);
     expect(find.text('Kamera seçimi'), findsOneWidget);
     expect(find.text('Kaynak-1 Kamera A'), findsOneWidget);
   });
@@ -616,4 +620,108 @@ void main() {
     expect(find.text('Departmanlar'), findsNothing);
     expect(find.textContaining('Departman'), findsNothing);
   });
+
+  testWidgets('Kamera seçimi AppBar geri Login göstermez', (tester) async {
+    await pumpSignedIn(tester);
+    await tester.pumpAndSettle();
+
+    await selectFloatingNav(tester, ShellTab.cameraBroadcast);
+    expect(find.byType(CameraSelectionPage), findsOneWidget);
+    expect(find.byKey(FloatingNavigationMenu.toggleKey), findsOneWidget);
+
+    await tester.tap(find.byKey(CameraSelectionPage.backButtonKey));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AuthLoginPage), findsNothing);
+    expect(find.byType(OperatorLoginPage), findsNothing);
+    expect(find.byType(CameraSelectionPage), findsNothing);
+    expect(find.byType(AppShell), findsOneWidget);
+    expect(find.text('Bugün'), findsOneWidget);
+    expect(controller.state.authenticated, isTrue);
+    expect(find.byKey(FloatingNavigationMenu.toggleKey), findsOneWidget);
+  });
+
+  testWidgets('Kamera seçimi sistem geri AppBar geri ile aynıdır',
+      (tester) async {
+    await pumpSignedIn(tester);
+    await tester.pumpAndSettle();
+
+    await selectFloatingNav(tester, ShellTab.cameraBroadcast);
+    expect(find.byType(CameraSelectionPage), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AuthLoginPage), findsNothing);
+    expect(find.byType(OperatorLoginPage), findsNothing);
+    expect(find.byType(CameraSelectionPage), findsNothing);
+    expect(find.text('Bugün'), findsOneWidget);
+    expect(controller.state.authenticated, isTrue);
+  });
+
+  testWidgets('Kamera yayını shell içinde kalır ve geri seçime döner',
+      (tester) async {
+    _mockDeviceStorage(tester);
+    await pumpSignedIn(tester);
+    await tester.pumpAndSettle();
+
+    await selectFloatingNav(tester, ShellTab.cameraBroadcast);
+    await tester.tap(find.text('Kaynak-1 Kamera A'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byType(CameraPage), findsOneWidget);
+    expect(find.byType(AuthLoginPage), findsNothing);
+    expect(find.byType(OperatorLoginPage), findsNothing);
+    expect(find.byKey(FloatingNavigationMenu.toggleKey), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CameraPage), findsNothing);
+    expect(find.byType(CameraSelectionPage), findsOneWidget);
+    expect(find.byKey(FloatingNavigationMenu.toggleKey), findsOneWidget);
+  });
+
+  testWidgets('logout sonrası giriş Dashboard açar, kamera seçimi kalmaz',
+      (tester) async {
+    await pumpSignedIn(tester);
+    await tester.pumpAndSettle();
+
+    await selectFloatingNav(tester, ShellTab.cameraBroadcast);
+    expect(find.byType(CameraSelectionPage), findsOneWidget);
+
+    await tester.tap(find.byKey(CameraSelectionPage.backButtonKey));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Çıkış'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AuthLoginPage), findsOneWidget);
+
+    await _signIn(controller);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AppShell), findsOneWidget);
+    expect(find.byType(AuthLoginPage), findsNothing);
+    expect(find.byType(CameraSelectionPage), findsNothing);
+    expect(find.byType(OperatorLoginPage), findsNothing);
+    expect(find.text('Bugün'), findsOneWidget);
+  });
+}
+
+void _mockDeviceStorage(WidgetTester tester) {
+  final stored = <String, String>{};
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    const MethodChannel('camera_stream_app/device_storage'),
+    (call) async {
+      final args = call.arguments as Map<dynamic, dynamic>?;
+      if (call.method == 'read') {
+        return stored[args?['key']];
+      }
+      if (call.method == 'write') {
+        stored[args?['key'] as String] = args?['value'] as String;
+      }
+      return null;
+    },
+  );
 }

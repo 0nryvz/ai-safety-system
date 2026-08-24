@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/error/api_failure.dart';
 import '../../core/theme/strix_brand.dart';
+import '../../features/camera/camera_page.dart';
 import '../../features/camera_management/presentation/cameras_tab_page.dart';
 import '../../features/dashboard/presentation/dashboard_tab_page.dart';
 import '../../features/notifications/data/realtime_providers.dart';
@@ -29,13 +30,28 @@ class AppShell extends ConsumerStatefulWidget {
   ConsumerState<AppShell> createState() => _AppShellState();
 }
 
+enum _CameraOverlay { hidden, picking, live }
+
 class _AppShellState extends ConsumerState<AppShell> {
   ShellTab _tab = ShellTab.dashboard;
   bool _loadingCameras = false;
   String? _error;
+  _CameraOverlay _cameraOverlay = _CameraOverlay.hidden;
+  List<CameraOption> _broadcastCameras = const [];
+  ShellTab _overlayReturnTab = ShellTab.dashboard;
+  bool _liveFromPicker = false;
 
   Future<void> _openCameraBroadcast() async {
     if (_loadingCameras) {
+      return;
+    }
+
+    if (_cameraOverlay == _CameraOverlay.live &&
+        _broadcastCameras.isNotEmpty) {
+      setState(() {
+        _cameraOverlay = _CameraOverlay.picking;
+        _liveFromPicker = true;
+      });
       return;
     }
 
@@ -58,11 +74,11 @@ class _AppShellState extends ConsumerState<AppShell> {
         return;
       }
 
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => CameraSelectionPage(cameras: cameras),
-        ),
-      );
+      setState(() {
+        _broadcastCameras = cameras;
+        _cameraOverlay = _CameraOverlay.picking;
+        _liveFromPicker = true;
+      });
     } on ApiFailure catch (failure) {
       if (!mounted) {
         return;
@@ -77,6 +93,42 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (mounted) {
         setState(() => _loadingCameras = false);
       }
+    }
+  }
+
+  void _closeCameraOverlay() {
+    setState(() {
+      _cameraOverlay = _CameraOverlay.hidden;
+      _tab = _overlayReturnTab;
+      _liveFromPicker = false;
+    });
+  }
+
+  void _leaveLiveBroadcast() {
+    if (_liveFromPicker) {
+      setState(() => _cameraOverlay = _CameraOverlay.picking);
+      return;
+    }
+    _closeCameraOverlay();
+  }
+
+  void _openLiveFromCameras() {
+    setState(() {
+      _overlayReturnTab = ShellTab.cameras;
+      _liveFromPicker = false;
+      _tab = ShellTab.cameraBroadcast;
+      _cameraOverlay = _CameraOverlay.live;
+    });
+  }
+
+  void _handleOverlayBack() {
+    switch (_cameraOverlay) {
+      case _CameraOverlay.live:
+        _leaveLiveBroadcast();
+      case _CameraOverlay.picking:
+        _closeCameraOverlay();
+      case _CameraOverlay.hidden:
+        break;
     }
   }
 
@@ -103,7 +155,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       ShellTab.dashboard => DashboardTabPage(
           onRecentViolationTap: _openViolationDetail,
         ),
-      ShellTab.cameras => const CamerasTabPage(),
+      ShellTab.cameras => CamerasTabPage(
+          onBroadcastReady: _openLiveFromCameras,
+        ),
       ShellTab.violations => const ViolationsTabPage(),
       ShellTab.notifications => const NotificationsTabPage(),
       ShellTab.users => const UsersTabPage(),
@@ -122,9 +176,22 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
 
     final destination = destinations[index];
-    if (destination.tab != _tab) {
-      setState(() => _tab = destination.tab);
-    }
+    final leavingOverlay = destination.tab != ShellTab.cameraBroadcast &&
+        _cameraOverlay != _CameraOverlay.hidden;
+    final enteringBroadcast = destination.tab == ShellTab.cameraBroadcast &&
+        _cameraOverlay == _CameraOverlay.hidden &&
+        _tab != ShellTab.cameraBroadcast;
+
+    setState(() {
+      if (enteringBroadcast) {
+        _overlayReturnTab = _tab;
+      }
+      if (leavingOverlay) {
+        _cameraOverlay = _CameraOverlay.hidden;
+        _liveFromPicker = false;
+      }
+      _tab = destination.tab;
+    });
 
     if (destination.tab == ShellTab.cameraBroadcast) {
       _openCameraBroadcast();
@@ -145,49 +212,68 @@ class _AppShellState extends ConsumerState<AppShell> {
         ? session.currentUser!.fullName
         : session.currentUser?.email ?? '';
 
+    final overlayChild = switch (_cameraOverlay) {
+      _CameraOverlay.picking => CameraSelectionPage(
+          cameras: _broadcastCameras,
+          onBack: _closeCameraOverlay,
+          onAssigned: (_) {
+            setState(() {
+              _cameraOverlay = _CameraOverlay.live;
+              _liveFromPicker = true;
+            });
+          },
+        ),
+      _CameraOverlay.live => CameraPage(onLeave: _leaveLiveBroadcast),
+      _CameraOverlay.hidden => null,
+    };
+
     return FloatingNavigationMenu(
       items: destinations,
       selectedIndex: selectedIndex,
       onSelected: (index) => _onDestinationSelected(destinations, index),
-      child: Scaffold(
-        backgroundColor: StrixBrand.background,
-        appBar: AppBar(
-          title: Text(
-            StrixBrand.shortName,
-            style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-          ),
-          actions: [
-            if (userLabel.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Center(
-                  child: Text(
-                    userLabel,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: StrixBrand.textSecondary,
-                    ),
-                  ),
+      allowRoutePop: _cameraOverlay == _CameraOverlay.hidden,
+      onBlockedPop: _handleOverlayBack,
+      child: overlayChild != null
+          ? _withActionClearance(overlayChild)
+          : Scaffold(
+              backgroundColor: StrixBrand.background,
+              appBar: AppBar(
+                title: Text(
+                  StrixBrand.shortName,
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w700),
                 ),
+                actions: [
+                  if (userLabel.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Center(
+                        child: Text(
+                          userLabel,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: StrixBrand.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  IconButton(
+                    tooltip: 'Çıkış',
+                    onPressed: () {
+                      ref.read(authSessionProvider.notifier).signOut();
+                    },
+                    icon: const Icon(Icons.logout),
+                  ),
+                ],
               ),
-            IconButton(
-              tooltip: 'Çıkış',
-              onPressed: () {
-                ref.read(authSessionProvider.notifier).signOut();
-              },
-              icon: const Icon(Icons.logout),
+              body: Column(
+                children: [
+                  if (_error != null) _ShellErrorBanner(message: _error!),
+                  Expanded(
+                    child: _withActionClearance(_bodyFor(activeTab)),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-        body: Column(
-          children: [
-            if (_error != null) _ShellErrorBanner(message: _error!),
-            Expanded(
-              child: _withActionClearance(_bodyFor(activeTab)),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

@@ -6,12 +6,13 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/config/app_config.dart';
 import '../../core/theme/strix_brand.dart';
 import '../../shared/widgets/error_banner.dart';
-import '../session/operator_login_page.dart';
 import '../streaming/streaming_controller.dart';
 import '../streaming/streaming_state.dart';
 
 class CameraPage extends ConsumerStatefulWidget {
-  const CameraPage({super.key});
+  final VoidCallback? onLeave;
+
+  const CameraPage({super.key, this.onLeave});
 
   @override
   ConsumerState<CameraPage> createState() => _CameraPageState();
@@ -105,17 +106,11 @@ class _CameraPageState extends ConsumerState<CameraPage>
     }
 
     if (!state.isCameraAssigned) {
-      // Atama yoksa girişe dön — soğuk başlangıç her zaman login.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
         }
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute<void>(
-            builder: (_) => const OperatorLoginPage(),
-          ),
-          (_) => false,
-        );
+        _leave();
       });
       return const Scaffold(
         backgroundColor: StrixBrand.background,
@@ -125,13 +120,26 @@ class _CameraPageState extends ConsumerState<CameraPage>
       );
     }
 
-    return const StrixDashboard();
+    return StrixDashboard(onLeave: widget.onLeave);
+  }
+
+  void _leave() {
+    final onLeave = widget.onLeave;
+    if (onLeave != null) {
+      onLeave();
+      return;
+    }
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
 }
 
 /// Operatör paneli.
 class StrixDashboard extends ConsumerWidget {
-  const StrixDashboard({super.key});
+  final VoidCallback? onLeave;
+
+  const StrixDashboard({super.key, this.onLeave});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -162,12 +170,14 @@ class StrixDashboard extends ConsumerWidget {
                           if (!context.mounted) {
                             return;
                           }
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const OperatorLoginPage(),
-                            ),
-                            (_) => false,
-                          );
+                          final leave = onLeave;
+                          if (leave != null) {
+                            leave();
+                            return;
+                          }
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          }
                         },
                       );
                     },

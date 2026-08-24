@@ -6,15 +6,21 @@ import '../../core/theme/strix_brand.dart';
 import '../camera/camera_page.dart';
 import '../streaming/streaming_controller.dart';
 import 'camera_option.dart';
-import 'operator_login_page.dart';
 
-/// Giriş sonrası fabrika kamerası seçimi.
+/// Fabrika kamerası seçimi. AppShell içinde gömülü kullanılabilir;
+/// geri/atama davranışı [onBack]/[onAssigned] ile shell'e bırakılır.
 class CameraSelectionPage extends ConsumerWidget {
+  static const Key backButtonKey = Key('camera_selection_back');
+
   final List<CameraOption> cameras;
+  final VoidCallback? onBack;
+  final ValueChanged<CameraOption>? onAssigned;
 
   const CameraSelectionPage({
     super.key,
     required this.cameras,
+    this.onBack,
+    this.onAssigned,
   });
 
   Future<void> _assign(
@@ -30,19 +36,25 @@ class CameraSelectionPage extends ConsumerWidget {
       return;
     }
 
-    await Navigator.of(context).pushReplacement(
+    final assigned = onAssigned;
+    if (assigned != null) {
+      assigned(camera);
+      return;
+    }
+
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => const CameraPage(),
       ),
     );
   }
 
-  void _backToLogin(BuildContext context) {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => const OperatorLoginPage(),
-      ),
-    );
+  void _handleBack(BuildContext context) {
+    if (onBack != null) {
+      onBack!();
+      return;
+    }
+    Navigator.of(context).maybePop();
   }
 
   @override
@@ -58,8 +70,10 @@ class CameraSelectionPage extends ConsumerWidget {
           style: GoogleFonts.inter(fontWeight: FontWeight.w700),
         ),
         leading: IconButton(
+          key: CameraSelectionPage.backButtonKey,
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => _backToLogin(context),
+          tooltip: 'Geri',
+          onPressed: () => _handleBack(context),
         ),
       ),
       body: ListView(
