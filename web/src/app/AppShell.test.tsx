@@ -36,6 +36,21 @@ const specialistSession: AuthSession = {
 }
 
 describe('AppShell', () => {
+  it('renders SafeSight header branding', () => {
+    render(
+      <MemoryRouter>
+        <AppShell>
+          <div>Content</div>
+        </AppShell>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'SafeSight' })).toBeInTheDocument()
+    expect(screen.queryByText('AI Safety System')).not.toBeInTheDocument()
+    expect(screen.getByText('Gerçek Zamanlı Güvenlik İzleme Paneli')).toBeInTheDocument()
+    expect(document.querySelector('.app-header__logo')).toBeInTheDocument()
+  })
+
   it('renders the provided page content', () => {
     render(
       <MemoryRouter>

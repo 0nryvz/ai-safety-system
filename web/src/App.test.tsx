@@ -54,7 +54,7 @@ describe('App auth routing', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'AI Safety System',
+        name: 'SafeSight',
       }),
     ).toBeInTheDocument()
 

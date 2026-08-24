@@ -89,7 +89,7 @@ function LoginPage({ onLoginSuccess }: LoginPageProps) {
             <ShieldCheck size={30} aria-hidden="true" />
           </div>
 
-          <h1>AI Safety System</h1>
+          <h1>SafeSight</h1>
           <p>Yönetim paneline giriş yapın</p>
         </div>
 

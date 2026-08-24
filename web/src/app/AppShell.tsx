@@ -1,5 +1,6 @@
 import { LogOut } from 'lucide-react'
 import type { ReactNode } from 'react'
+import safesightLogo from '../assets/brand/safesight-logo.png'
 import { performLogout } from '../features/auth/authActions'
 import Button from '../shared/ui/Button/Button'
 import './AppShell.css'
@@ -28,9 +29,18 @@ function AppShell({ children }: AppShellProps) {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div>
-          <h1>AI Safety System</h1>
-          <p>Gerçek Zamanlı Güvenlik İzleme Paneli</p>
+        <div className="app-header__brand">
+          <img
+            src={safesightLogo}
+            alt=""
+            width={40}
+            height={40}
+            className="app-header__logo"
+          />
+          <div className="app-header__titles">
+            <h1>SafeSight</h1>
+            <p>Gerçek Zamanlı Güvenlik İzleme Paneli</p>
+          </div>
         </div>
 
         <div className="app-header__actions">
