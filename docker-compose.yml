@@ -1,0 +1,103 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: isg-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-isg_db}
+      POSTGRES_USER: ${POSTGRES_USER:-isg_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-isg_password}
+
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-isg_user} -d ${POSTGRES_DB:-isg_db}
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2024-06-29T01-20-47Z
+    container_name: isg-minio
+    restart: unless-stopped
+
+    command: server /data --console-address ":9001"
+
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+
+    volumes:
+      - minio-data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: isg-minio-init
+
+    depends_on:
+      minio:
+        condition: service_started
+
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000
+      $${MINIO_ROOT_USER}
+      $${MINIO_ROOT_PASSWORD}; do
+        echo 'Waiting for MinIO...';
+        sleep 2;
+      done;
+      mc mb --ignore-existing local/$${MINIO_BUCKET};
+      mc anonymous set none local/$${MINIO_BUCKET};
+      echo 'MinIO bucket ready: '$${MINIO_BUCKET};
+      "
+
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-violation-media}
+
+  ai-service:
+    build:
+      context: ./ai-service
+
+    container_name: isg-ai-service
+    restart: unless-stopped
+
+    ports:
+      - "8001:8001"
+
+    gpus: all
+
+    environment:
+      AI_MODEL_PATH: /models/best_update_v1.pt
+      AI_MODEL_VERSION: ${AI_MODEL_VERSION:-best_update_v1}
+      AI_MODEL_METADATA_PATH: /models/model_info.json
+      AI_MODEL_REQUIRED: ${AI_MODEL_REQUIRED:-true}
+      AI_MODEL_DEVICE: ${AI_MODEL_DEVICE:-cuda:0}
+
+      CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-0.5}
+      IOU_THRESHOLD: ${IOU_THRESHOLD:-0.45}
+
+      BACKEND_BASE_URL: "http://host.docker.internal:${BACKEND_PORT:-8080}"
+      BACKEND_DETECTIONS_PATH: ${BACKEND_DETECTIONS_PATH:-/internal/v1/detections}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-change-me-local-internal-key}
+
+      AI_CLASS_MAPPING_PATH: config/class_mapping.json
+
+    volumes:
+      - ./ai-service/models:/models:ro
+
+volumes:
+  postgres-data:
+  minio-data:

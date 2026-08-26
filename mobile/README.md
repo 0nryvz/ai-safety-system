@@ -1,0 +1,332 @@
+# Mobil Kamera İstemcisi (MOB-1 | Flutter & Gateway)
+
+Telefonu fabrika kamerası gibi davrandıran Flutter uygulaması. Kamerayı açar,
+yerel ön izleme gösterir, Camera Ingestion Gateway'de oturum açar ve JPEG
+kareleri Gateway'e gönderir.
+
+Görüntü **yalnızca Gateway'e** gider. Uygulama ring buffer tutmaz, AI için
+örnekleme yapmaz, klip kaydetmez ve MinIO'ya bir şey yüklemez; bunlar Gateway
+ve AI ekiplerinin sorumluluğundadır.
+
+---
+
+## Kurulum
+
+```bash
+cd mobile
+flutter pub get
+```
+
+Gerçek cihazda Gateway'e erişmek için port yönlendirmesi gerekir:
+
+```bash
+adb reverse tcp:8000 tcp:8000   # Gateway
+adb reverse tcp:8080 tcp:8080   # Backend 2 (kamera listesi için)
+```
+
+Çalıştırma:
+
+```bash
+flutter run \
+  --dart-define=GATEWAY_URL=http://localhost:8000 \
+  --dart-define=BACKEND_URL=http://localhost:8080
+```
+
+Emülatörde host makine `10.0.2.2` üzerinden görünür; bu iki değer varsayılan
+olarak `10.0.2.2` kullanır, yani emülatörde `--dart-define` vermeden çalışır.
+
+Release APK (`flutter build apk --release`) ana `AndroidManifest.xml` içinde
+`INTERNET` izni ve MVP cleartext HTTP (`usesCleartextTraffic` +
+`network_security_config`) taşır; böylece gerçek telefonda Tailscale/LAN/adb
+reverse ile Gateway HTTP erişimi güvenilir kalır.
+
+---
+
+## Yapılandırma
+
+Hiçbir endpoint, kimlik veya kodlama parametresi koda gömülü değildir. Hepsi
+`lib/core/config/app_config.dart` üzerinden `--dart-define` ile verilir.
+
+| Değişken | Varsayılan | Açıklama |
+|----------|-----------|----------|
+| `GATEWAY_URL` | `http://10.0.2.2:8000` | Camera Ingestion Gateway adresi |
+| `BACKEND_URL` | `http://10.0.2.2:8080` | Spring Boot backend (kamera listesi) |
+| `CAMERA_ID` | *(boş)* | Provizyonlanan kamera UUID'si |
+| `CAMERA_KEY` | `dev-session-token` | Gateway `sessionToken` değeri |
+| `TARGET_FPS` | `15` | Hedef gönderim hızı (UI eşiği) |
+| `PACED_FPS` | `15` | Kare kabul metronom temposu |
+| `ENCODE_WIDTH` | `96` | Karelerin indirgeneceği genişlik |
+| `ENCODE_WIDTH_DEGRADED` | `80` | Rezerv (şu an kullanılmıyor) |
+| `JPEG_QUALITY` | `28` | JPEG kalitesi |
+| `JPEG_QUALITY_DEGRADED` | `24` | Rezerv (şu an kullanılmıyor) |
+| `MAX_CONCURRENT_ENCODES` | `4` | Aynı anda native JPEG encode sayısı |
+| `MAX_CONCURRENT_UPLOADS` | `10` | Aynı anda havada olabilecek HTTP gönderimi |
+| `MIN_FPS` | `5` | Gönderim FPS tabanı |
+| `FRAME_DIAGNOSTICS` | `false` | Kare başına encode/upload süresi loglar |
+
+`FRAME_DIAGNOSTICS` saniyede ~`PACED_FPS` satır ürettiği için yalnızca ölçüm
+alırken açılmalıdır.
+
+---
+
+## Kamera kimliği
+
+`cameras.id` ve `camera_sessions.id` veritabanında `uuid` tipinde ve
+`camera_sessions.camera_id` kayıtlı bir kameraya foreign key ile bağlı. Bu
+yüzden **mobil rastgele cameraId üretmez**. Kimlik şu sırayla çözülür:
+
+1. Kullanıcının uygulama içinden Backend 2 listesinden seçtiği kamera (kalıcı)
+2. `--dart-define=CAMERA_ID` ile provizyonlanan UUID
+3. Cihazda üretilip saklanan geliştirme UUID'si
+
+Üçüncü seçenek yalnızca yerel geliştirme içindir; backend'de böyle bir kamera
+kaydı olmadığından gerçek pipeline'da foreign key hatası verir.
+
+`sessionId` **manuel Start**'ta yeni bir UUID v4'tür. Otomatik reconnect aynı
+`sessionId`'yi korur (Gateway `open` idempotent).
+
+---
+
+## Gateway sözleşmesi
+
+Tüm gövde alanları camelCase'dir. Örneklerdeki token temsilidir.
+
+### Oturum açma
+
+```http
+POST /api/v1/sessions/open
+Content-Type: application/json
+
+{
+  "cameraId": "33333333-0000-4000-8000-000000000001",
+  "sessionId": "9f1c4d2e-7b3a-4f52-9c11-2d8e6a0b4f31",
+  "sessionToken": "***"
+}
+```
+
+`201` yeni oturum, `200` aynı kimliklerle reconnect.
+
+### Heartbeat (10 saniyede bir)
+
+```http
+POST /api/v1/sessions/{sessionId}/heartbeat
+Content-Type: application/json
+
+{ "cameraId": "33333333-0000-4000-8000-000000000001" }
+```
+
+### Kare gönderme
+
+```http
+POST /api/v1/sessions/{sessionId}/frames
+Content-Type: image/jpeg
+X-Camera-Id: 33333333-0000-4000-8000-000000000001
+X-Frame-Timestamp: 2026-08-21T10:15:30.123Z
+
+<ham JPEG byte'ları>
+```
+
+Zaman damgası UTC ve ISO-8601'dir; Gateway timezone taşımayan damgayı `422` ile
+reddeder. Başarılı yanıt `202`.
+
+### Oturum kapatma
+
+```http
+POST /api/v1/sessions/{sessionId}/close
+Content-Type: application/json
+
+{ "cameraId": "33333333-0000-4000-8000-000000000001" }
+```
+
+Yanıt `204` ve idempotenttir; kapalı oturum tekrar kapatılabilir.
+
+---
+
+## Bağlantı akışı
+
+```mermaid
+sequenceDiagram
+    participant U as Operatör
+    participant M as Mobil
+    participant G as Gateway
+
+    U->>M: Yayını Başlat
+    M->>M: sessionId = UUID v4
+    M->>G: POST /sessions/open {cameraId, sessionId, sessionToken}
+    G-->>M: 201 Created
+    Note over M: CONNECTING → CONNECTED
+
+    loop 10 saniyede bir
+        M->>G: POST /sessions/{id}/heartbeat {cameraId}
+        G-->>M: 200 OK
+    end
+
+    loop Hedef 15 FPS
+        M->>G: POST /sessions/{id}/frames (JPEG + header'lar)
+        G-->>M: 202 Accepted
+    end
+
+    Note over M,G: Ağ koptu
+    G--xM: hata
+    Note over M: 3 ardışık hata → WEAK → RECONNECTING
+    M->>G: POST /sessions/{eski}/close
+    M->>G: POST /sessions/open (yeni sessionId)
+
+    U->>M: Yayını Durdur
+    M->>G: POST /sessions/{id}/close
+    G-->>M: 204 No Content
+    Note over M: STOPPED
+```
+
+---
+
+## Bağlantı durumları
+
+| Durum | Ne zaman |
+|-------|----------|
+| `CONNECTING` | Oturum açılıyor |
+| `CONNECTED` | Kareler kabul ediliyor |
+| `WEAK` | Arka arkaya kare hatası başladı |
+| `RECONNECTING` | Backoff ile yeniden bağlanılıyor |
+| `OFFLINE` | Deneme sınırı doldu veya kullanıcı aksiyonu gerekiyor |
+| `STOPPED` | Kullanıcı durdurdu ya da uygulama arka planda |
+
+Durum tek bir kaynakta (`StreamingController`) tutulur; widget'lar kendi
+bağlantı boolean'larını tutmaz.
+
+---
+
+## Yeniden bağlanma ve sessionId kuralı
+
+- **Kullanıcı durdurup başlatırsa** yeni `sessionId` üretilir.
+- **Otomatik reconnect** aynı `sessionId`'yi korur ve Gateway oturumunu
+  `/close` etmez; `open` aynı `cameraId` + `sessionId` ile idempotent
+  reconnect olur.
+- **Manuel stop sonrası otomatik reconnect yapılmaz.** Kullanıcı kararı
+  durumda ayrı tutulur.
+- Yeniden denemenin çözmeyeceği hatalarda (geçersiz token, pasif kamera,
+  oturum çakışması, kare çok büyük) hiç beklenmeden durulur ve kullanıcıya
+  nedeni gösterilir.
+
+### Deneme sınırı
+
+Sınırlı exponential backoff: **1s, 2s, 4s**, en fazla **3 deneme**. Sonrasında
+durum `OFFLINE` olur ve yeniden deneme kullanıcıya bırakılır. Ekran kapanınca
+timer'lar iptal edilir; arka planda sonsuz retry olmaz.
+
+---
+
+## Backpressure ve kare düşürme
+
+Gerçek zamanlı akışta eski kare değerini yitirir, bu yüzden hiçbir kare
+sınırsız kuyruklanmaz:
+
+- Aynı anda en fazla `MAX_CONCURRENT_UPLOADS` (varsayılan 6) yükleme yapılır;
+  sınır aşılırsa yeni kare düşürülür.
+- `PACED_FPS` metronomundan önce gelen kareler düşürülür.
+- Yayın durdurulduğunda veya yeniden bağlanıldığında havadaki kareler
+  geçersizlenir ve gönderilmez.
+
+Kareler yakalanma sırasına göre gönderilir; Gateway zaman damgası geriye giden
+kareyi elediği için sıra korunmak zorundadır.
+
+---
+
+## Hata kodu eşlemesi
+
+| Gateway | Kullanıcıya | Tekrar denenir mi |
+|---------|-------------|-------------------|
+| 401 `INVALID_SESSION_TOKEN` | Oturum anahtarı geçersiz veya süresi dolmuş | Hayır |
+| 403 `CAMERA_INACTIVE` | Kamera pasif, yöneticiden etkinleştirilmeli | Hayır |
+| 404 `SESSION_NOT_FOUND` | Oturum bulunamadı, yeniden başlatılıyor | Evet |
+| 409 `SESSION_CONFLICT` | Bu kamerada başka aktif oturum var | Hayır |
+| 413 `FRAME_TOO_LARGE` | Kare boyut sınırını aşıyor | Hayır |
+| 415 / 422 | Kare biçimi veya bilgileri geçersiz | Hayır |
+| 503 | Gateway backend'e ulaşamadı | Evet |
+| Ağ hatası | Gateway'e ulaşılamıyor | Evet |
+
+Kullanıcıya stack trace veya hata kodu gösterilmez.
+
+---
+
+## Demo akışı
+
+1. Uygulamayı açın. **Webcam ekranı gelmez** — önce **STRIX** operatör girişi
+   ve fabrika kamerası seçimi gelir.
+2. Giriş:
+   - Backend açıksa gerçek hesapla giriş yapın.
+   - Backend kapalıysa demo: `admin@isgvision.local` / `123456` — seed katalog.
+   - Pasif kameralar seçilemez. Seçim cihazda saklanır.
+3. Operatör panelinde simüle edilen kamera adı/kodu, bağlantı durumu ve
+   telemetri birincil alandır. Yerel önizleme ikincildir ve yalnızca
+   telefonda kalır.
+4. Kamera izni sorulur; kalıcı rette **Ayarları Aç** görünür.
+5. **Gateway oturumu aç · aktar**. KPI ve CANLI rozeti görünür; gönderim
+   FPS tabanı 5'tir (hedef ~8).
+6. Wi-Fi'ı kapatın: durum `WEAK` → `RECONNECTING` → `OFFLINE` ilerler.
+7. Uygulamayı arka plana alın: aktarım ve telefon kamerası kontrollü durur.
+8. **Aktarımı durdur**. Oturum kapanır, kare gönderimi kesilir. Hızlı
+   yeniden start önceki close bitmeden 409 üretmez.
+
+Doğrulama için Gateway metriklerine bakılabilir:
+
+```bash
+curl http://localhost:8000/metrics
+```
+
+`ingest_fps` mobildeki **Gönderim FPS** (başarılı HTTP upload temposu) ile
+örtüşmelidir. **Kamera FPS** kabul metronomunu gösterir.
+
+---
+
+## Proje yapısı
+
+```
+lib/
+  main.dart                     Bootstrap ve ProviderScope
+  app.dart                      MaterialApp
+  core/
+    config/app_config.dart      dart-define yapılandırması
+    device/camera_identity.dart Kalıcı kamera kimliği, sessionId üretimi
+    error/gateway_failure.dart  Hata kodu → kullanıcı mesajı eşlemesi
+    network/api_client.dart     Gateway HTTP istemcisi (keep-alive)
+    network/backend_client.dart Backend 2 istemcisi (login, kamera listesi)
+  features/
+    camera/                     İzin servisi ve STRIX operatör paneli
+    session/                    Login, kamera seçimi, offline auth, oturum
+    streaming/                  Kare çıkarma, encode, upload, durum makinesi
+  shared/widgets/               Bağlantı rozeti, hata bannerı, sayaç overlay'i
+  core/theme/strix_brand.dart   STRIX tasarım token'ları
+```
+
+JPEG kodlama Android'de native `YuvImage.compressToJpeg`'e devredilir
+(`android/.../MainActivity.kt`). Saf Dart kodlama gerçek cihazda kare başına
+~2 saniye sürüyordu ve 15 FPS'i karşılamıyordu.
+
+---
+
+## Testler
+
+```bash
+flutter test
+flutter analyze
+```
+
+Kapsam: Gateway hata kodu eşlemesi, oturum servisi sözleşmesi (camelCase gövde,
+durum kodları, ağ hatası), frame metadata header'ları, Backend 2 istemcisi,
+aktarım sayaçları, bağlantı durum modeli ve overlay widget'ları.
+
+---
+
+## Oturum token'ı hakkında (MVP kararı)
+
+Gateway oturum token'ı **MVP boyunca sabittir** ve Backend 2'ye bağlanmaz.
+Gateway `dev-session-token` değerini doğrular; mobil tarafta bu değer
+`--dart-define=CAMERA_KEY` ile verilir, koda gömülü değildir.
+
+Backend yalnızca kamera listesi için kullanılır. `camera_key_hash` sütunu
+veritabanı şemasında ileriye dönük olarak duruyor, MVP'de kullanılmıyor.
+
+MVP sonrasında kısa ömürlü token'a geçilirse tek yapılacak, `AppConfig.cameraKey`
+okumasını `BackendClient` üzerinden gelen token ile değiştirmektir; oturum akışı
+aynı kalır.

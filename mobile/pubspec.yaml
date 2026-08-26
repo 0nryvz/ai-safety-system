@@ -1,0 +1,42 @@
+name: camera_stream_app
+description: SafeSight — fabrika kamerası operatör uygulaması (ISG Vision)
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  camera: ^0.11.2
+  flutter_riverpod: ^2.6.1
+  http: ^1.6.0
+  uuid: ^4.5.1
+  google_fonts: ^6.2.1
+  stomp_dart_client: ^3.0.1
+  video_player: ^2.14.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: assets/brand/safesight_app_icon.png
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: assets/brand/safesight_app_icon.png
+  adaptive_icon_foreground_inset: 8
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/brand/

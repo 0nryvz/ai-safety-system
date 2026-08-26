@@ -1,0 +1,11 @@
+{
+  "Person": "person",
+  "gloves": "gloves",
+  "non_gloves": "non_gloves",
+  "non_welding_jacket": "non_welding_jacket",
+  "non_welding_mask": "non_welding_mask",
+  "welding": "welding",
+  "welding_apron": "welding_apron",
+  "welding_jacket": "welding_jacket",
+  "welding_mask": "welding_mask"
+}

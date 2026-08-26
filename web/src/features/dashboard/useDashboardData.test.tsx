@@ -1,0 +1,371 @@
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ApiError } from '../../core/api/apiError'
+import {
+  getCameras,
+  getDashboardSummary,
+  getRecentViolations,
+} from '../../services/dashboardService'
+import type { DashboardSummary } from './dashboardTypes'
+import { useDashboardData } from './useDashboardData'
+import { subscribeToRealtimeMessages, subscribeToRealtimeRecovery } from '../../core/realtime/realtimeRuntime'
+import type { RealtimeMessageHandler } from '../../core/realtime/realtimeTypes'
+import { REALTIME_REST_REFRESH_DEBOUNCE_MS } from '../../core/realtime/useRealtimeRestRefresh'
+import type { RecentViolation } from './dashboardTypes'
+
+vi.mock('../../services/dashboardService', () => ({
+  getDashboardSummary: vi.fn(),
+  getRecentViolations: vi.fn(),
+  getCameras: vi.fn(),
+}))
+
+vi.mock('../../core/realtime/realtimeRuntime', () => ({
+  subscribeToRealtimeRecovery: vi.fn(() => vi.fn()),
+  subscribeToRealtimeMessages: vi.fn(() => vi.fn()),
+}))
+
+const summary: DashboardSummary = {
+  todayViolationCount: 4,
+  last7DaysViolationCount: 18,
+  mostFrequentViolationType: 'NO_HELMET',
+  activeCameraCount: 6,
+  offlineCameraCount: 2,
+  activeViolationCount: 3,
+}
+
+const mockedGetDashboardSummary = vi.mocked(getDashboardSummary)
+const mockedGetRecentViolations = vi.mocked(getRecentViolations)
+const mockedGetCameras = vi.mocked(getCameras)
+const mockedSubscribeToRealtimeRecovery = vi.mocked(subscribeToRealtimeRecovery)
+const mockedSubscribeToRealtimeMessages = vi.mocked(subscribeToRealtimeMessages)
+
+const recentViolation: RecentViolation = {
+  violationId: 'violation-1',
+  detectedAt: '2026-08-18T12:00:00Z',
+  startedAt: '2026-08-18T12:01:00Z',
+  violationType: 'MISSING_GLOVES',
+  cameraId: 'camera-1',
+  departmentId: 'department-1',
+  departmentName: 'Montaj',
+  cameraName: 'Kamera 1',
+  cameraCode: 'CAM-001',
+  lifecycleStatus: 'ACTIVE',
+  reviewStatus: null,
+  recordingStatus: 'REQUESTED',
+  recordingReadyAt: null,
+  confidence: 0.88,
+  modelVersion: null,
+}
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
+
+describe('useDashboardData', () => {
+  it('loads summary, recent violations and cameras together', async () => {
+    mockedGetDashboardSummary.mockResolvedValue(summary)
+    mockedGetRecentViolations.mockResolvedValue([])
+    mockedGetCameras.mockResolvedValue([])
+
+    const { result } = renderHook(() => useDashboardData({ includeSummary: true }))
+
+    expect(result.current.isLoading).toBe(true)
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.summary).toEqual(summary)
+    expect(result.current.recentViolations).toEqual([])
+    expect(result.current.cameras).toEqual([])
+    expect(result.current.error).toBeNull()
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+    expect(mockedGetRecentViolations).toHaveBeenCalledTimes(1)
+    expect(mockedGetCameras).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves an API error for the dashboard error policy', async () => {
+    const forbiddenError = new ApiError('Forbidden', 403)
+
+    mockedGetDashboardSummary.mockRejectedValue(forbiddenError)
+    mockedGetRecentViolations.mockResolvedValue([])
+    mockedGetCameras.mockResolvedValue([])
+
+    const { result } = renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.error).toBe(forbiddenError)
+    expect(result.current.summary).toBeNull()
+  })
+
+  it('retries the complete dashboard request after an error', async () => {
+    mockedGetDashboardSummary
+      .mockRejectedValueOnce(new ApiError('Network error', 0))
+      .mockResolvedValueOnce(summary)
+    mockedGetRecentViolations.mockResolvedValue([])
+    mockedGetCameras.mockResolvedValue([])
+
+    const { result } = renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await waitFor(() => {
+      expect(result.current.error?.status).toBe(0)
+    })
+
+    act(() => {
+      result.current.retry()
+    })
+
+    expect(result.current.isLoading).toBe(true)
+    expect(result.current.error).toBeNull()
+
+    await waitFor(() => {
+      expect(result.current.summary).toEqual(summary)
+    })
+
+    expect(result.current.isLoading).toBe(false)
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(2)
+    expect(mockedGetRecentViolations).toHaveBeenCalledTimes(2)
+    expect(mockedGetCameras).toHaveBeenCalledTimes(2)
+  })
+  it('skips the global summary request when summary access is disabled', async () => {
+    mockedGetRecentViolations.mockResolvedValue([])
+    mockedGetCameras.mockResolvedValue([])
+
+    const { result } = renderHook(() => useDashboardData({ includeSummary: false }))
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(mockedGetDashboardSummary).not.toHaveBeenCalled()
+    expect(mockedGetRecentViolations).toHaveBeenCalledTimes(1)
+    expect(mockedGetCameras).toHaveBeenCalledTimes(1)
+    expect(result.current.summary).toBeNull()
+    expect(result.current.error).toBeNull()
+  })
+
+  it('reloads dashboard REST state after realtime recovery', async () => {
+    let recoveryListener: (() => void | Promise<void>) | null = null
+
+    mockedSubscribeToRealtimeRecovery.mockImplementation((listener) => {
+      recoveryListener = listener
+      return vi.fn()
+    })
+
+    mockedGetDashboardSummary.mockResolvedValue(summary)
+    mockedGetRecentViolations.mockResolvedValue([])
+    mockedGetCameras.mockResolvedValue([])
+
+    renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await waitFor(() => {
+      expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+    })
+
+    await act(async () => {
+      await recoveryListener?.()
+    })
+
+    await waitFor(() => {
+      expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(2)
+      expect(mockedGetRecentViolations).toHaveBeenCalledTimes(2)
+      expect(mockedGetCameras).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('refreshes dashboard summary and cameras every 10 seconds without polling recent violations', async () => {
+    vi.useFakeTimers()
+
+    const refreshedSummary: DashboardSummary = {
+      ...summary,
+      todayViolationCount: 5,
+    }
+
+    mockedGetDashboardSummary.mockResolvedValueOnce(summary).mockResolvedValueOnce(refreshedSummary)
+
+    mockedGetRecentViolations.mockResolvedValue([])
+    mockedGetCameras.mockResolvedValue([])
+
+    const { result } = renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+    expect(mockedGetRecentViolations).toHaveBeenCalledTimes(1)
+    expect(mockedGetCameras).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000)
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(2)
+
+    expect(mockedGetRecentViolations).toHaveBeenCalledTimes(1)
+    expect(mockedGetCameras).toHaveBeenCalledTimes(2)
+
+    expect(result.current.summary).toEqual(refreshedSummary)
+    expect(result.current.isLoading).toBe(false)
+
+    vi.useRealTimers()
+  })
+
+  it('does not start another summary refresh while the previous refresh is still running', async () => {
+    vi.useFakeTimers()
+
+    let resolveRefresh: ((value: DashboardSummary) => void) | undefined
+
+    const pendingRefresh = new Promise<DashboardSummary>((resolve) => {
+      resolveRefresh = resolve
+    })
+
+    mockedGetDashboardSummary.mockResolvedValueOnce(summary).mockReturnValueOnce(pendingRefresh)
+
+    mockedGetRecentViolations.mockResolvedValue([])
+    mockedGetCameras.mockResolvedValue([])
+
+    renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000)
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000)
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      resolveRefresh?.(summary)
+      await pendingRefresh
+    })
+
+    vi.useRealTimers()
+  })
+
+  it('stops summary polling after unmount', async () => {
+    vi.useFakeTimers()
+
+    mockedGetDashboardSummary.mockResolvedValue(summary)
+    mockedGetRecentViolations.mockResolvedValue([])
+    mockedGetCameras.mockResolvedValue([])
+
+    const { unmount } = renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+    expect(mockedGetCameras).toHaveBeenCalledTimes(1)
+
+    unmount()
+
+    await act(async () => {
+      vi.advanceTimersByTime(20_000)
+      await Promise.resolve()
+    })
+
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+    expect(mockedGetCameras).toHaveBeenCalledTimes(1)
+
+    vi.useRealTimers()
+  })
+
+  it('refreshes recent violations after a realtime event without polling them', async () => {
+    vi.useFakeTimers()
+
+    let messageListener: RealtimeMessageHandler | undefined
+
+    mockedSubscribeToRealtimeMessages.mockImplementation((listener) => {
+      messageListener = listener
+      return vi.fn()
+    })
+
+    mockedGetDashboardSummary.mockResolvedValue(summary)
+    mockedGetRecentViolations
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([recentViolation])
+    mockedGetCameras.mockResolvedValue([])
+
+    const { result } = renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(result.current.recentViolations).toEqual([])
+
+    const message = { body: '', headers: {} }
+
+    await act(async () => {
+      messageListener?.(message)
+      messageListener?.(message)
+      messageListener?.(message)
+      vi.advanceTimersByTime(REALTIME_REST_REFRESH_DEBOUNCE_MS)
+      await Promise.resolve()
+    })
+
+    expect(mockedGetRecentViolations).toHaveBeenCalledTimes(2)
+    expect(mockedGetDashboardSummary).toHaveBeenCalledTimes(1)
+    expect(result.current.recentViolations).toEqual([recentViolation])
+    expect(result.current.isLoading).toBe(false)
+
+    vi.useRealTimers()
+  })
+
+  it('keeps recent violations when a realtime refresh fails', async () => {
+    vi.useFakeTimers()
+
+    let messageListener: RealtimeMessageHandler | undefined
+
+    mockedSubscribeToRealtimeMessages.mockImplementation((listener) => {
+      messageListener = listener
+      return vi.fn()
+    })
+
+    mockedGetDashboardSummary.mockResolvedValue(summary)
+    mockedGetRecentViolations
+      .mockResolvedValueOnce([recentViolation])
+      .mockRejectedValueOnce(new ApiError('Network error', 0))
+    mockedGetCameras.mockResolvedValue([])
+
+    const { result } = renderHook(() => useDashboardData({ includeSummary: true }))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(result.current.recentViolations).toEqual([recentViolation])
+
+    await act(async () => {
+      messageListener?.({ body: '', headers: {} })
+      vi.advanceTimersByTime(REALTIME_REST_REFRESH_DEBOUNCE_MS)
+      await Promise.resolve()
+    })
+
+    expect(result.current.recentViolations).toEqual([recentViolation])
+    expect(result.current.error).toBeNull()
+    expect(result.current.isLoading).toBe(false)
+
+    vi.useRealTimers()
+  })
+})

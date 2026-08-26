@@ -1,0 +1,79 @@
+server:
+  port: ${BACKEND_PORT:8080}
+
+spring:
+  profiles:
+    active: local
+
+  application:
+    name: backend
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/isg_db}
+    username: ${SPRING_DATASOURCE_USERNAME:isg_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:isg_password}
+    driver-class-name: org.postgresql.Driver
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: true
+
+
+application:
+  security:
+    cors:
+      # Exact browser origins shared by REST CORS and WebSocket /ws handshake.
+      # Override APP_CORS_ALLOWED_ORIGINS to add a LAN / Tailscale web origin.
+      allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+    jwt:
+      secret-key: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      expiration: 900000
+      refresh-token:
+        expiration: 604800000
+
+    internal:
+      api-key: ${INTERNAL_API_KEY:change-me-local-internal-key}
+
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{correlationId}] %-5level %logger{36} - %msg%n"
+
+  level:
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+
+recording:
+  command:
+    pre-buffer-seconds: ${RECORDING_COMMAND_PRE_BUFFER_SECONDS:5}
+    post-buffer-seconds: ${RECORDING_COMMAND_POST_BUFFER_SECONDS:3}
+    max-clip-seconds: ${RECORDING_COMMAND_MAX_CLIP_SECONDS:30}
+
+  gateway:
+    base-url: ${RECORDING_GATEWAY_BASE_URL:http://localhost:8000}
+    connect-timeout: ${RECORDING_GATEWAY_CONNECT_TIMEOUT:1s}
+    read-timeout: ${RECORDING_GATEWAY_READ_TIMEOUT:2s}
+    max-retries: ${RECORDING_GATEWAY_MAX_RETRIES:2}
+
+  playback:
+    minio:
+      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+      public-endpoint: ${MINIO_PUBLIC_ENDPOINT:}
+      access-key: ${MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${MINIO_SECRET_KEY:minioadmin}
+      bucket: ${MINIO_BUCKET:violation-media}
+      expiry: ${RECORDING_PLAYBACK_MINIO_EXPIRY:5m}
+
+
+violation:
+  temporal:
+    silence-timeout: ${VIOLATION_TEMPORAL_SILENCE_TIMEOUT:5s}
+    silence-sweep-interval: ${VIOLATION_TEMPORAL_SILENCE_SWEEP_INTERVAL:1s}

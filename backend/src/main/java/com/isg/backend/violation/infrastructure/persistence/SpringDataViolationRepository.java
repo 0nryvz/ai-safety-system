@@ -1,0 +1,77 @@
+package com.isg.backend.violation.infrastructure.persistence;
+
+import com.isg.backend.violation.domain.ViolationLifecycleStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.Collection;
+import java.util.List;
+
+public interface SpringDataViolationRepository
+        extends JpaRepository<ViolationJpaEntity, UUID>,
+        JpaSpecificationExecutor<ViolationJpaEntity> {
+
+    List<ViolationJpaEntity> findByLifecycleStatusIn(
+            Collection<ViolationLifecycleStatus> statuses
+    );
+
+    @Query(
+            value = """
+                    SELECT v.id
+                    FROM violations v
+                    JOIN camera_sessions cs
+                        ON cs.id = v.camera_session_id
+                    WHERE v.lifecycle_status = 'ACTIVE'
+                      AND v.ended_at IS NULL
+                      AND cs.status IN ('CLOSED', 'TIMED_OUT')
+                      AND cs.ended_at IS NOT NULL
+                      AND cs.ended_at <= :silentBefore
+                    """,
+            nativeQuery = true
+    )
+    List<UUID> findActiveIdsForSilentClosedSessions(
+            @Param("silentBefore")
+            Instant silentBefore
+    );
+
+    @Query(
+            value = """
+                    SELECT
+                        v.id AS "violationId",
+                        v.camera_id AS "cameraId",
+                        c.name AS "cameraName",
+                        c.code AS "cameraCode",
+                        v.department_id AS "departmentId",
+                        d.name AS "departmentName",
+                        v.camera_session_id AS "sessionId",
+                        v.violation_type AS "type",
+                        v.confidence AS "confidence",
+                        v.model_version AS "modelVersion",
+                        v.detected_at AS "detectedAt",
+                        v.started_at AS "startedAt",
+                        v.ended_at AS "endedAt",
+                        v.lifecycle_status AS "lifecycleStatus",
+                        v.review_status AS "reviewStatus",
+                        v.reviewed_by AS "reviewedBy",
+                        v.reviewed_at AS "reviewedAt",
+                        v.cover_image_key AS "coverImageKey",
+                        v.version AS "version"
+                    FROM violations v
+                    JOIN cameras c
+                        ON c.id = v.camera_id
+                    JOIN departments d
+                        ON d.id = v.department_id
+                    WHERE v.id = :violationId
+                    """,
+            nativeQuery = true
+    )
+    Optional<ViolationDetailProjection> findDetailProjectionById(
+            @Param("violationId")
+            UUID violationId
+    );
+}

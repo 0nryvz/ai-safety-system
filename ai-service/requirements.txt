@@ -1,0 +1,19 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+pydantic-settings==2.5.2
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+httpx==0.27.2
+python-multipart==0.0.9
+
+# --- model runtime (Adım 0 handoff: yolo26s.pt, Ultralytics YOLO, imgsz=640) ---
+# models/best.pt tam olarak ultralytics==8.4.111 ile kaydedildi (pickle metadata).
+# Sürüm sabitlenmezse farklı makinelerde farklı ultralytics/torch sürümleri kurulup
+# "model yüklenemedi" hatasına yol açabilir (bkz. README - Sorun Giderme).
+torch==2.9.1
+ultralytics==8.4.111
+
+# --- test ---
+pytest==8.3.3
+pytest-asyncio==0.24.0

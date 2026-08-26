@@ -1,0 +1,26 @@
+# Bu dosya, root docker-compose.yml'a eklenecek ai-service servisinin
+# REFERANS parçasıdır. Görev planı Adım 6: "Root docker-compose.yml içine
+# ai-service için port/env/depends_on detaylarını ekle ve BE/DevOps ile
+# kontrol et." - bu yüzden burada tek başına da çalışacak şekilde, ama asıl
+# hedef bunu ana docker-compose.yml'a taşımak/birleştirmek.
+
+services:
+  ai-service:
+    build: ./ai-service
+    ports:
+      - "8001:8001"
+    environment:
+      AI_MODEL_PATH: /models/best_update_v1.pt
+      AI_MODEL_VERSION: ${AI_MODEL_VERSION:-v0.1.0}
+      AI_MODEL_DEVICE: ${AI_MODEL_DEVICE:-cuda:0}
+      CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-0.5}
+      IOU_THRESHOLD: ${IOU_THRESHOLD:-0.45}
+      BACKEND_BASE_URL: ${BACKEND_BASE_URL:-http://host.docker.internal:8080}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      AI_CLASS_MAPPING_PATH: config/class_mapping.json
+    volumes:
+      # Model ağırlığı repoya commit edilmez; local model dizini mount edilir.
+      - ./ai-service/models:/models:ro
+    # depends_on: backend'in adı/servis ismi BE/DevOps ile netleştirilecek.
+    # depends_on:
+    #   - backend
